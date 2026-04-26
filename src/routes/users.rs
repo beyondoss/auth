@@ -11,8 +11,7 @@ use crate::{
     emails::{self, Email},
     error::AuthError,
     http::AppState,
-    identities,
-    passwords,
+    identities, passwords,
     sessions::{self, RequestContext, SessionContext},
     tenants::{self, Tenant},
     tokens::{Token, TokenPrefix},
@@ -106,7 +105,11 @@ pub fn make_auth_response(
             email: email.email,
             verified_at: email.verified_at,
         },
-        tenant: TenantBody { id: tenant.id, name: tenant.name, slug: tenant.slug },
+        tenant: TenantBody {
+            id: tenant.id,
+            name: tenant.name,
+            slug: tenant.slug,
+        },
         session: SessionBody {
             id: session_id,
             token: token.to_string(),
@@ -164,8 +167,14 @@ pub async fn signup(
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
 
     let tenant = tenants::create(&mut tx, tenant_id, user_id, &name, &slug).await?;
-    let user =
-        users::create(&mut tx, user_id, tenant_id, email_id, req.display_name.as_deref()).await?;
+    let user = users::create(
+        &mut tx,
+        user_id,
+        tenant_id,
+        email_id,
+        req.display_name.as_deref(),
+    )
+    .await?;
     let email = emails::create(&mut tx, email_id, user_id, &req.email).await?;
 
     identities::create(&mut tx, user_id, "password", &normalized, &hash)
@@ -189,15 +198,15 @@ pub async fn signup(
 
     Ok((
         StatusCode::CREATED,
-        Json(make_auth_response(user, email, tenant, session_id, &token, expires_at)),
+        Json(make_auth_response(
+            user, email, tenant, session_id, &token, expires_at,
+        )),
     ))
 }
 
 // ── GET /v1/users/me ──────────────────────────────────────────────────────────
 
-pub async fn get_me(
-    Extension(ctx): Extension<SessionContext>,
-) -> Json<MeResponse> {
+pub async fn get_me(Extension(ctx): Extension<SessionContext>) -> Json<MeResponse> {
     Json(MeResponse {
         user: UserBody {
             id: ctx.user.id,

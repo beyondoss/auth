@@ -3,13 +3,7 @@ use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{
-    emails::Email,
-    error::AuthError,
-    tenants::Tenant,
-    tokens::Token,
-    users::User,
-};
+use crate::{emails::Email, error::AuthError, tenants::Tenant, tokens::Token, users::User};
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]

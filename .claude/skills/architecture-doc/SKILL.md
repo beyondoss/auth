@@ -7,7 +7,7 @@ model: claude-sonnet-4-6
 
 # Writing Excellent Architecture Documentation
 
-**The purpose of a system is what it does** (POSIWID). Not what it was designed to do. Not what the comments say. What it *actually does* when you run it — its inputs, outputs, side effects, and failure behaviors.
+**The purpose of a system is what it does** (POSIWID). Not what it was designed to do. Not what the comments say. What it _actually does_ when you run it — its inputs, outputs, side effects, and failure behaviors.
 
 Architecture documentation must be grounded in observable behavior. Read the code. Run it. Trace the data. Then write down what you found. If the doc describes intent that diverges from reality, the doc is wrong — not the code.
 
@@ -22,7 +22,7 @@ When writing or improving an architecture doc:
 1. **Read the code** — Trace actual execution paths, not just type signatures. Follow the data from entry point to exit.
 2. **Observe what the system produces** — What are the actual outputs, writes, side effects? What state does it mutate?
 3. **Find the real data flow** — Not the intended one. The actual one, including error paths and edge cases that matter.
-4. **Identify the state machine** — Most systems have one, even if implicit. Document the states that *exist*, not just the ones that were planned.
+4. **Identify the state machine** — Most systems have one, even if implicit. Document the states that _exist_, not just the ones that were planned.
 5. **Explain behavior that would surprise a reader** — If the code does something non-obvious, that's what needs documenting most.
 6. **Record why the system behaves this way** — Design decisions explain observed behavior. "We do X because Y" is more useful than "We chose X over Y."
 7. **Define terms by what they control** — A term's meaning is its operational effect, not its dictionary definition.
@@ -45,10 +45,10 @@ Start with observable behavior: what goes in, what comes out, what changes.
 The summary should be falsifiable. Someone should be able to verify it by running the system.
 
 ```markdown
-BAD:  "Manages VM lifecycle operations."
+BAD: "Manages VM lifecycle operations."
 GOOD: "Takes VM creation requests over gRPC, provisions QEMU processes with
-       virtio devices, and exposes a state machine that tracks each VM from
-       pending through running to terminated."
+virtio devices, and exposes a state machine that tracks each VM from
+pending through running to terminated."
 ```
 
 ### 2. Data Flow Diagram
@@ -77,11 +77,11 @@ For complex systems, show multiple flows:
 Define terms by their operational meaning — what they control, gate, or affect. Include what they are NOT to prevent misuse.
 
 ```markdown
-| Term      | What It Controls                     | NOT                              |
-| --------- | ------------------------------------ | -------------------------------- |
-| Namespace | Which backend pool receives traffic  | Not a security/tenant boundary   |
-| Node      | Which machine a VM is scheduled onto | Not the proxy or control plane   |
-| Address   | The socket (IP:port) for connections | Not a DNS name or virtual IP     |
+| Term      | What It Controls                     | NOT                            |
+| --------- | ------------------------------------ | ------------------------------ |
+| Namespace | Which backend pool receives traffic  | Not a security/tenant boundary |
+| Node      | Which machine a VM is scheduled onto | Not the proxy or control plane |
+| Address   | The socket (IP:port) for connections | Not a DNS name or virtual IP   |
 ```
 
 ### 4. Core Mechanism
@@ -92,21 +92,21 @@ Include:
 
 - The algorithm or pattern, described in terms of inputs → outputs
 - Key data structures and what invariants they maintain
-- Invariants the system *actually enforces* (not aspirational ones)
+- Invariants the system _actually enforces_ (not aspirational ones)
 - Code references for complex logic
 
 ```markdown
-BAD:  "Uses consistent hashing for load balancing."
+BAD: "Uses consistent hashing for load balancing."
 GOOD: "Routes requests by hashing the namespace header (xxh3) into a 64-bit
-       ring with 256 virtual nodes per backend. When a backend is removed,
-       only its slice of the ring redistributes — about 1/N of traffic shifts.
-       See `router.go:Route()` for the lookup and `ring.go:Rebalance()` for
-       membership changes."
+ring with 256 virtual nodes per backend. When a backend is removed,
+only its slice of the ring redistributes — about 1/N of traffic shifts.
+See `router.go:Route()` for the lookup and `ring.go:Rebalance()` for
+membership changes."
 ```
 
 ### 5. State Machine (if applicable)
 
-If the system has states, document the *actual* states and transitions — including error states and edges that only fire under failure conditions.
+If the system has states, document the _actual_ states and transitions — including error states and edges that only fire under failure conditions.
 
 ```
 pending ──Create──► creating ──Complete──► running
@@ -117,18 +117,18 @@ pending ──Create──► creating ──Complete──► running
                      failed ◀── StopFailed ── stopping
 ```
 
-| From     | Event           | To       | Guard           | What Actually Happens                  |
-| -------- | --------------- | -------- | --------------- | -------------------------------------- |
-| pending  | CreateScheduled | creating | -               | QEMU process spawned, virtio attached  |
-| creating | CreateCompleted | running  | -               | Health check passes, IP assigned       |
-| creating | CreateFailed    | failed   | -               | QEMU process killed, resources freed   |
-| creating | CreateTimeout   | failed   | elapsed > 10min | Same as CreateFailed + timeout metric  |
+| From     | Event           | To       | Guard           | What Actually Happens                 |
+| -------- | --------------- | -------- | --------------- | ------------------------------------- |
+| pending  | CreateScheduled | creating | -               | QEMU process spawned, virtio attached |
+| creating | CreateCompleted | running  | -               | Health check passes, IP assigned      |
+| creating | CreateFailed    | failed   | -               | QEMU process killed, resources freed  |
+| creating | CreateTimeout   | failed   | elapsed > 10min | Same as CreateFailed + timeout metric |
 
 The "What Actually Happens" column is critical — it connects the abstract state machine to concrete system behavior.
 
 ### 6. Why It Behaves This Way
 
-Design decisions exist to explain *observed behavior*. Frame them as "the system does X because Y" rather than "we chose X over Y."
+Design decisions exist to explain _observed behavior_. Frame them as "the system does X because Y" rather than "we chose X over Y."
 
 ```markdown
 ### Why requests are hashed by namespace, not by source IP
@@ -143,11 +143,11 @@ The system routes by namespace because:
    middleware, so the router never needs a fallback path
 ```
 
-Note: this explains why the system *behaves the way it does*, not just why someone made a choice in the past.
+Note: this explains why the system _behaves the way it does_, not just why someone made a choice in the past.
 
 ### 7. Trust Boundaries (if applicable)
 
-Document what the system *actually checks* and what it lets through unchecked. Be honest — undocumented trust assumptions are where security bugs live.
+Document what the system _actually checks_ and what it lets through unchecked. Be honest — undocumented trust assumptions are where security bugs live.
 
 ```markdown
 ## Trust Boundaries
@@ -176,12 +176,12 @@ Document what the system *actually checks* and what it lets through unchecked. B
 Map files to what they actually do — behavior, not aspirational descriptions.
 
 ```markdown
-| File              | What It Does                                              |
-| ----------------- | --------------------------------------------------------- |
-| `state/events.go` | Defines the event types that trigger state transitions    |
-| `state/status.go` | Enforces transition rules; rejects invalid state changes  |
-| `repo.go`         | Reads/writes VM records with row-level locking            |
-| `service.go`      | Orchestrates create/delete with compensating rollbacks    |
+| File              | What It Does                                             |
+| ----------------- | -------------------------------------------------------- |
+| `state/events.go` | Defines the event types that trigger state transitions   |
+| `state/status.go` | Enforces transition rules; rejects invalid state changes |
+| `repo.go`         | Reads/writes VM records with row-level locking           |
+| `service.go`      | Orchestrates create/delete with compensating rollbacks   |
 ```
 
 ### 9. Configuration
@@ -191,9 +191,9 @@ Document what each setting actually controls at runtime, not just what it's "for
 ```markdown
 | Variable          | Default | What It Controls                                       |
 | ----------------- | ------- | ------------------------------------------------------ |
-| `MAX_CONNECTIONS` | 50      | Hard cap on open DB connections; excess requests queue  |
-| `RESERVE_PERCENT` | 20%     | Connections held for superuser/replication/monitoring   |
-| `TIMEOUT_SECS`    | 30      | After 30s, in-flight requests get context cancellation  |
+| `MAX_CONNECTIONS` | 50      | Hard cap on open DB connections; excess requests queue |
+| `RESERVE_PERCENT` | 20%     | Connections held for superuser/replication/monitoring  |
+| `TIMEOUT_SECS`    | 30      | After 30s, in-flight requests get context cancellation |
 ```
 
 ### 10. Failure Modes
@@ -201,18 +201,18 @@ Document what each setting actually controls at runtime, not just what it's "for
 Document what actually happens when things break — not what "should" happen.
 
 ```markdown
-| Failure              | What Actually Happens                        | Recovery                             |
-| -------------------- | -------------------------------------------- | ------------------------------------ |
-| Process crash mid-op | Incomplete records left in DB, no cleanup    | Reconciliation job runs every 60s    |
-| Network partition    | Circuit breaker opens after 5 failures       | Auto-closes after 30s half-open test |
-| Database unavailable | All requests fail with 503, no queuing       | Retry with exponential backoff       |
+| Failure              | What Actually Happens                     | Recovery                             |
+| -------------------- | ----------------------------------------- | ------------------------------------ |
+| Process crash mid-op | Incomplete records left in DB, no cleanup | Reconciliation job runs every 60s    |
+| Network partition    | Circuit breaker opens after 5 failures    | Auto-closes after 30s half-open test |
+| Database unavailable | All requests fail with 503, no queuing    | Retry with exponential backoff       |
 ```
 
 ## Writing Principles
 
 ### Describe Behavior, Then Explain It
 
-The order matters: observable behavior first, rationale second. Readers need to know *what* the system does before they can evaluate *why*.
+The order matters: observable behavior first, rationale second. Readers need to know _what_ the system does before they can evaluate _why_.
 
 ```markdown
 BAD:
@@ -262,9 +262,9 @@ logic in `service.go:compensateCreate()`.
 ## Anti-Patterns to Avoid
 
 1. **Documenting intent instead of behavior** — "This module handles X" vs "This module takes Y as input and produces Z." The first is a label; the second is testable.
-2. **Restating code in English** — "The CreateVM function takes a CreateVMRequest" adds nothing. Describe what the function *does to the system*.
+2. **Restating code in English** — "The CreateVM function takes a CreateVMRequest" adds nothing. Describe what the function _does to the system_.
 3. **Aspirational invariants** — Don't document invariants the code doesn't enforce. If there's no check, there's no invariant.
-4. **Missing error paths** — The error paths are part of what the system does. A system that returns 500 on malformed input *does* that. Document it.
+4. **Missing error paths** — The error paths are part of what the system does. A system that returns 500 on malformed input _does_ that. Document it.
 5. **No diagrams** — A single ASCII diagram beats paragraphs of prose.
 6. **Unstable details** — Document behavior and interfaces, not implementation details that change weekly.
 7. **No terminology definitions** — Ambiguous terms cause bugs.

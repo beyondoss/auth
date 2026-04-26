@@ -17,11 +17,11 @@ You are auditing the testing posture of a codebase area. Your job is to find the
 
 Use the same persona auto-detection as the `audit` skill based on target directory language. A rustacean evaluates `#[cfg(test)]` modules and integration tests differently than a gopher evaluates `_test.go` files.
 
-| Target          | Language | Test ecosystem                                             |
-| --------------- | -------- | ---------------------------------------------------------- |
-| `/`        | Rust     | `#[cfg(test)]`, `/tests/`, mock traits, test harnesses     |
-| `sdk/ts`          | TS/React | Jest/Vitest, React Testing Library, component tests        |
-| `sdk/py`          | Python |          |
+| Target   | Language | Test ecosystem                                         |
+| -------- | -------- | ------------------------------------------------------ |
+| `/`      | Rust     | `#[cfg(test)]`, `/tests/`, mock traits, test harnesses |
+| `sdk/ts` | TS/React | Jest/Vitest, React Testing Library, component tests    |
+| `sdk/py` | Python   |                                                        |
 
 ## Step 2: Pre-Work
 
@@ -29,9 +29,9 @@ Use the same persona auto-detection as the `audit` skill based on target directo
 2. **Inventory all test files**:
    - Rust: `Grep` for `#[cfg(test)]` and `#[test]`, `Glob` for `tests/*.rs`
    - TS: `Glob` for `*.test.ts`, `*.spec.ts`
-4. **Read `api/pkg/testutil/ARCHITECTURE.md`** if auditing Go code (understand seeder pattern)
-5. **Check for wire compat tests** if the target consumes NATS messages: look for `wire_compat_test.go`
-6. **Read the testing infrastructure**: mock traits, test harnesses, fixtures
+3. **Read `api/pkg/testutil/ARCHITECTURE.md`** if auditing Go code (understand seeder pattern)
+4. **Check for wire compat tests** if the target consumes NATS messages: look for `wire_compat_test.go`
+5. **Read the testing infrastructure**: mock traits, test harnesses, fixtures
 
 ## Step 3: Evaluate Test Quality
 

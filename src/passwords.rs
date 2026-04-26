@@ -8,8 +8,7 @@ use crate::error::AuthError;
 const MIN_LENGTH: usize = 8;
 const MAX_LENGTH: usize = 128;
 
-static COMMON_PASSWORDS: &str =
-    include_str!("../tests/fixtures/common_passwords.txt");
+static COMMON_PASSWORDS: &str = include_str!("../tests/fixtures/common_passwords.txt");
 
 /// Hash a password using Argon2id with OWASP 2024 recommended parameters.
 /// Returns an error if the password is too short or too common.
@@ -41,13 +40,14 @@ pub fn verify(password: &str, hash_str: &str) -> Result<bool, AuthError> {
     let parsed = PasswordHash::new(hash_str)
         .map_err(|e| AuthError::internal_with("invalid password hash", e))?;
     // Parameters come from the PHC string; Argon2::default() handles all variants.
-    Ok(Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok())
 }
 
 fn argon2id() -> Argon2<'static> {
     // OWASP 2024: m=19456 (19 MiB), t=2, p=1, output=32 bytes
-    let params = Params::new(19_456, 2, 1, Some(32))
-        .expect("argon2 params are valid");
+    let params = Params::new(19_456, 2, 1, Some(32)).expect("argon2 params are valid");
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
 }
 
@@ -63,7 +63,10 @@ mod tests {
     #[test]
     fn hash_produces_phc_string() {
         let h = hash("correct-horse-battery").unwrap();
-        assert!(h.starts_with("$argon2id$"), "expected argon2id PHC string, got: {h}");
+        assert!(
+            h.starts_with("$argon2id$"),
+            "expected argon2id PHC string, got: {h}"
+        );
     }
 
     #[test]
@@ -103,10 +106,19 @@ mod tests {
     #[test]
     fn rejects_common_password() {
         // "password" and "iloveyou" are both ≥ 8 chars and on the common list
-        assert!(matches!(hash("password"), Err(AuthError::PasswordTooCommon)));
-        assert!(matches!(hash("iloveyou"), Err(AuthError::PasswordTooCommon)));
+        assert!(matches!(
+            hash("password"),
+            Err(AuthError::PasswordTooCommon)
+        ));
+        assert!(matches!(
+            hash("iloveyou"),
+            Err(AuthError::PasswordTooCommon)
+        ));
         // case-insensitive match
-        assert!(matches!(hash("PASSWORD"), Err(AuthError::PasswordTooCommon)));
+        assert!(matches!(
+            hash("PASSWORD"),
+            Err(AuthError::PasswordTooCommon)
+        ));
     }
 
     #[test]

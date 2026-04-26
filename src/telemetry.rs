@@ -158,7 +158,11 @@ pub fn extract_trace_context(traceparent: Option<&str>) -> opentelemetry::Contex
             key.eq_ignore_ascii_case("traceparent").then_some(self.0)?
         }
         fn keys(&self) -> Vec<&str> {
-            if self.0.is_some() { vec!["traceparent"] } else { vec![] }
+            if self.0.is_some() {
+                vec!["traceparent"]
+            } else {
+                vec![]
+            }
         }
     }
 

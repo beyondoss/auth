@@ -83,11 +83,7 @@ fn router(state: AppState) -> Router {
         )
 }
 
-async fn record_metrics(
-    State(state): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Response {
+async fn record_metrics(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let method = req.method().as_str().to_string();
     let path = req.uri().path().to_string();
     let timer = state
@@ -113,7 +109,10 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     match state.metrics.render() {
         Ok(body) => (
             axum::http::StatusCode::OK,
-            [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+            [(
+                header::CONTENT_TYPE,
+                "text/plain; version=0.0.4; charset=utf-8",
+            )],
             body,
         )
             .into_response(),

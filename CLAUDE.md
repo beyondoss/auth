@@ -35,11 +35,11 @@ This API is **resource-oriented REST**. If you're adding an endpoint, think noun
 
 **Resources are nouns. HTTP methods are the verbs.**
 
-| Intent | Correct | Wrong |
-|--------|---------|-------|
-| Create a session | `POST /v1/sessions` | `POST /v1/createSession` |
-| Get a token | `GET /v1/tokens/{id}` | `GET /v1/getToken?id=…` |
-| Revoke a key | `DELETE /v1/keys/{id}` | `POST /v1/revokeKey` |
+| Intent             | Correct                               | Wrong                        |
+| ------------------ | ------------------------------------- | ---------------------------- |
+| Create a session   | `POST /v1/sessions`                   | `POST /v1/createSession`     |
+| Get a token        | `GET /v1/tokens/{id}`                 | `GET /v1/getToken?id=…`      |
+| Revoke a key       | `DELETE /v1/keys/{id}`                | `POST /v1/revokeKey`         |
 | Rotate credentials | `POST /v1/credentials/{id}/rotations` | `POST /v1/rotateCredentials` |
 
 **HTTP methods map to intent:**
@@ -78,7 +78,7 @@ This API is **resource-oriented REST**. If you're adding an endpoint, think noun
 - No ignoring HTTP method semantics (e.g. mutations via `GET`)
 - No generic `/rpc` or `/api` catch-all endpoints
 
-If an action doesn't map cleanly to a resource + method, model it as a sub-resource (e.g. `POST /v1/sessions/{id}/revocations` to revoke a session). When genuinely stuck, ask: what *thing* is being created or changed?
+If an action doesn't map cleanly to a resource + method, model it as a sub-resource (e.g. `POST /v1/sessions/{id}/revocations` to revoke a session). When genuinely stuck, ask: what _thing_ is being created or changed?
 
 ## Operations & State
 

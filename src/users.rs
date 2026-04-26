@@ -43,11 +43,7 @@ pub async fn create(
     .map_err(AuthError::from)
 }
 
-pub async fn update(
-    pool: &PgPool,
-    user_id: Uuid,
-    patch: &UpdateUser,
-) -> Result<User, AuthError> {
+pub async fn update(pool: &PgPool, user_id: Uuid, patch: &UpdateUser) -> Result<User, AuthError> {
     sqlx::query_as!(
         User,
         "UPDATE auth.\"user\"

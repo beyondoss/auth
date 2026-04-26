@@ -67,11 +67,9 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
             tracing::info!(kid = %id, "generated and stored new signing key");
             Ok(LoadedKey { id, signing_key })
         }
-        None => {
-            fetch_active_key(pool, enc)
-                .await?
-                .context("active signing key disappeared after concurrent insert")
-        }
+        None => fetch_active_key(pool, enc)
+            .await?
+            .context("active signing key disappeared after concurrent insert"),
     }
 }
 
@@ -87,10 +85,16 @@ async fn fetch_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<Optio
         return Ok(None);
     };
 
-    let pem_bytes = Zeroizing::new(enc.decrypt(&row.private_key_enc).context("failed to decrypt signing key")?);
+    let pem_bytes = Zeroizing::new(
+        enc.decrypt(&row.private_key_enc)
+            .context("failed to decrypt signing key")?,
+    );
     let pem = std::str::from_utf8(&pem_bytes).context("signing key PEM is not valid UTF-8")?;
     let signing_key = SigningKey::from_pkcs8_pem(pem).context("failed to parse signing key PEM")?;
-    Ok(Some(LoadedKey { id: row.id, signing_key }))
+    Ok(Some(LoadedKey {
+        id: row.id,
+        signing_key,
+    }))
 }
 
 pub fn render_jwks(key: &LoadedKey) -> String {

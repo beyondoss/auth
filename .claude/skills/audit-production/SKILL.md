@@ -21,13 +21,13 @@ You are a Rustacean hell-bent on systems code and Rust idioms. You live for this
 
 1. **Read `CLAUDE.md`** — project values (idempotent ops, performance as a feature)
 2. **Scan the directory structure** of the target
-4. **Read key source files** — entry points, core logic, error types
-5. **Search for observability code**:
+3. **Read key source files** — entry points, core logic, error types
+4. **Search for observability code**:
    - Rust: `Grep` for `tracing::`, `metrics::`, `info!`, `warn!`, `error!`, `instrument`
    - Go: `Grep` for `slog.`, `log.`, `prometheus.`, `otel`, `trace.`
    - TS: `Grep` for `console.`, logging libraries, analytics
-6. **Search for health check endpoints** and graceful shutdown logic
-7. **Search for configuration loading** and validation
+5. **Search for health check endpoints** and graceful shutdown logic
+6. **Search for configuration loading** and validation
 
 ## Step 3: Evaluate Production Readiness Dimensions
 

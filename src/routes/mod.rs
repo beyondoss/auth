@@ -4,13 +4,13 @@ pub mod sessions;
 pub mod tokens;
 pub mod users;
 
-use axum::{Router, middleware as axum_middleware, routing::{delete, get, post}};
+use axum::{
+    Router, middleware as axum_middleware,
+    routing::{delete, get, post},
+};
 use utoipa::OpenApi;
 
-use crate::{
-    http::AppState,
-    middleware::auth::require_auth,
-};
+use crate::{http::AppState, middleware::auth::require_auth};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -44,7 +44,10 @@ pub fn router(state: AppState) -> Router<AppState> {
     let authenticated = Router::new()
         .route("/v1/users/me", get(users::get_me).patch(users::update_me))
         .route("/v1/sessions", get(sessions::list))
-        .route("/v1/sessions/current", get(sessions::get_current).delete(sessions::delete_current))
+        .route(
+            "/v1/sessions/current",
+            get(sessions::get_current).delete(sessions::delete_current),
+        )
         .route("/v1/sessions/{id}", delete(sessions::delete_by_id))
         .route("/v1/tokens", post(tokens::issue))
         .route_layer(axum_middleware::from_fn_with_state(state, require_auth));

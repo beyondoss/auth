@@ -52,21 +52,30 @@ pub enum AuthError {
 #[allow(dead_code)]
 impl AuthError {
     pub fn internal(msg: impl Into<String>) -> Self {
-        Self::Internal { message: msg.into(), source: None }
+        Self::Internal {
+            message: msg.into(),
+            source: None,
+        }
     }
 
     pub fn internal_with(
         msg: impl Into<String>,
         source: impl std::error::Error + Send + Sync + 'static,
     ) -> Self {
-        Self::Internal { message: msg.into(), source: Some(Box::new(source)) }
+        Self::Internal {
+            message: msg.into(),
+            source: Some(Box::new(source)),
+        }
     }
 
     pub fn db(
         msg: impl Into<String>,
         source: impl std::error::Error + Send + Sync + 'static,
     ) -> Self {
-        Self::Db { message: msg.into(), source: Some(Box::new(source)) }
+        Self::Db {
+            message: msg.into(),
+            source: Some(Box::new(source)),
+        }
     }
 }
 
@@ -86,27 +95,33 @@ impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, code, message) = match &self {
             AuthError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
-            AuthError::Unauthorized => {
-                (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string())
-            }
-            AuthError::InvalidCredentials => {
-                (StatusCode::UNAUTHORIZED, "invalid_credentials", self.to_string())
-            }
-            AuthError::EmailAlreadyExists => {
-                (StatusCode::CONFLICT, "email_already_exists", self.to_string())
-            }
-            AuthError::PasswordTooShort => {
-                (StatusCode::UNPROCESSABLE_ENTITY, "password_too_short", self.to_string())
-            }
-            AuthError::PasswordTooLong => {
-                (StatusCode::UNPROCESSABLE_ENTITY, "password_too_long", self.to_string())
-            }
-            AuthError::PasswordTooCommon => {
-                (StatusCode::UNPROCESSABLE_ENTITY, "password_too_common", self.to_string())
-            }
-            AuthError::JwtDisabled => {
-                (StatusCode::BAD_REQUEST, "jwt_disabled", self.to_string())
-            }
+            AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
+            AuthError::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_credentials",
+                self.to_string(),
+            ),
+            AuthError::EmailAlreadyExists => (
+                StatusCode::CONFLICT,
+                "email_already_exists",
+                self.to_string(),
+            ),
+            AuthError::PasswordTooShort => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "password_too_short",
+                self.to_string(),
+            ),
+            AuthError::PasswordTooLong => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "password_too_long",
+                self.to_string(),
+            ),
+            AuthError::PasswordTooCommon => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "password_too_common",
+                self.to_string(),
+            ),
+            AuthError::JwtDisabled => (StatusCode::BAD_REQUEST, "jwt_disabled", self.to_string()),
             AuthError::Internal { .. } | AuthError::Db { .. } => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",

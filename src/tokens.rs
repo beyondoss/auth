@@ -48,7 +48,12 @@ impl Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let secret_b64 = URL_SAFE_NO_PAD.encode(self.secret.as_ref());
-        write!(f, "{}_{}_{secret_b64}", self.prefix.as_str(), self.id.simple())
+        write!(
+            f,
+            "{}_{}_{secret_b64}",
+            self.prefix.as_str(),
+            self.id.simple()
+        )
     }
 }
 
@@ -79,7 +84,10 @@ pub fn parse(s: &str) -> Option<ParsedToken> {
         return None;
     }
 
-    Some(ParsedToken { id, secret_hash: sha256_hex(&secret_bytes) })
+    Some(ParsedToken {
+        id,
+        secret_hash: sha256_hex(&secret_bytes),
+    })
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -115,7 +123,10 @@ mod tests {
         assert_eq!(parts.len(), 3);
         assert_eq!(parts[0], "session");
         assert_eq!(parts[1].len(), 32, "id_hex should be 32 chars");
-        assert!(parts[1].chars().all(|c| c.is_ascii_hexdigit()), "id should be hex");
+        assert!(
+            parts[1].chars().all(|c| c.is_ascii_hexdigit()),
+            "id should be hex"
+        );
         // secret is 32 bytes → 43 base64url chars (no padding)
         assert_eq!(parts[2].len(), 43, "secret should be 43 base64url chars");
     }

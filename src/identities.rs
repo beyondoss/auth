@@ -51,7 +51,5 @@ pub async fn find_password_secret(
     .fetch_optional(pool)
     .await
     .map_err(AuthError::from)
-    .map(|row| {
-        row.and_then(|r| r.secret.map(|s| (r.user_id, s)))
-    })
+    .map(|row| row.and_then(|r| r.secret.map(|s| (r.user_id, s))))
 }

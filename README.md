@@ -14,13 +14,13 @@ Each project gets its own deployment, its own signing keys, and its own `auth` s
 
 ## Token shapes
 
-| Token | Used for | Revoke |
-|-------|----------|--------|
-| `session_{id}_{secret}` | End-user sessions (default) | Delete row |
-| `refresh_{id}_{secret}` | Long-lived SDK credential | Soft-delete row |
-| `pk_{id}_{secret}` / `sk_{id}_{secret}` | Server-to-server API keys | Soft-delete row |
-| Signed stateless | Magic links, password reset, 2FA ceremonies | Expiry |
-| JWT (EdDSA, opt-in) | Stateless edge verification | Key rotation |
+| Token                                   | Used for                                    | Revoke          |
+| --------------------------------------- | ------------------------------------------- | --------------- |
+| `session_{id}_{secret}`                 | End-user sessions (default)                 | Delete row      |
+| `refresh_{id}_{secret}`                 | Long-lived SDK credential                   | Soft-delete row |
+| `pk_{id}_{secret}` / `sk_{id}_{secret}` | Server-to-server API keys                   | Soft-delete row |
+| Signed stateless                        | Magic links, password reset, 2FA ceremonies | Expiry          |
+| JWT (EdDSA, opt-in)                     | Stateless edge verification                 | Key rotation    |
 
 ## Running
 
@@ -41,14 +41,14 @@ cargo build --release
 
 ## Configuration
 
-| Flag / Env | Default | Description |
-|-----------|---------|-------------|
-| `--database-url` / `DATABASE_URL` | — | Postgres connection string. The service operates within the `auth` schema. |
-| `--address` / `ADDRESS` | `0.0.0.0:8080` | Bind address |
-| `--signing-key-encryption-key` / `SIGNING_KEY_ENCRYPTION_KEY` | — | Base64url-encoded 32-byte AES-256-GCM key for signing key encryption at rest |
-| `--log-level` / `LOG_LEVEL` | `info` | Log verbosity |
-| `--otlp-enabled` / `OTLP_ENABLED` | `false` | Enable OpenTelemetry export |
-| `--otlp-endpoint` / `OTLP_ENDPOINT` | `http://localhost:4317` | OTLP collector endpoint |
+| Flag / Env                                                    | Default                 | Description                                                                  |
+| ------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `--database-url` / `DATABASE_URL`                             | —                       | Postgres connection string. The service operates within the `auth` schema.   |
+| `--address` / `ADDRESS`                                       | `0.0.0.0:8080`          | Bind address                                                                 |
+| `--signing-key-encryption-key` / `SIGNING_KEY_ENCRYPTION_KEY` | —                       | Base64url-encoded 32-byte AES-256-GCM key for signing key encryption at rest |
+| `--log-level` / `LOG_LEVEL`                                   | `info`                  | Log verbosity                                                                |
+| `--otlp-enabled` / `OTLP_ENABLED`                             | `false`                 | Enable OpenTelemetry export                                                  |
+| `--otlp-endpoint` / `OTLP_ENDPOINT`                           | `http://localhost:4317` | OTLP collector endpoint                                                      |
 
 Set `ENVIRONMENT=development` for human-readable logs.
 
@@ -73,7 +73,9 @@ Projects that opt in to JWT mode publish their public keys at `/v1/jwks.json`. T
 ```ts
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-const JWKS = createRemoteJWKSet(new URL("https://auth.yourproject.beyond.dev/v1/jwks.json"));
+const JWKS = createRemoteJWKSet(
+  new URL("https://auth.yourproject.beyond.dev/v1/jwks.json"),
+);
 
 const { payload } = await jwtVerify(token, JWKS);
 ```

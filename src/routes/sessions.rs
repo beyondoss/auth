@@ -10,13 +10,12 @@ use crate::{
     email,
     error::AuthError,
     http::AppState,
-    identities,
-    passwords,
+    identities, passwords,
     sessions::{self, RequestContext, SessionContext, SessionListItem},
     tokens::{Token, TokenPrefix},
 };
 
-use super::users::{make_auth_response, AuthResponse};
+use super::users::{AuthResponse, make_auth_response};
 
 // ── Request / response shapes ────────────────────────────────────────────────
 
@@ -99,13 +98,14 @@ pub async fn login(
 
     Ok((
         StatusCode::CREATED,
-        Json(make_auth_response(user, email, tenant, session_id, &token, expires_at)),
+        Json(make_auth_response(
+            user, email, tenant, session_id, &token, expires_at,
+        )),
     ))
 }
 
 // A known-invalid argon2id hash used for timing-safe dummy verifications.
-const DUMMY_HASH: &str =
-    "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 // ── GET /v1/sessions ──────────────────────────────────────────────────────────
 

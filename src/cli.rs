@@ -58,7 +58,8 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     keys::ensure_app_config(&pool).await?;
     let loaded_key = keys::load_or_create_active_key(&pool, &enc_key).await?;
     let jwks = keys::render_jwks(&loaded_key);
-    let app_config = app_config::load(&pool).await
+    let app_config = app_config::load(&pool)
+        .await
         .map_err(|e| anyhow::anyhow!("failed to load app_config: {e}"))?;
 
     let state = http::AppState {

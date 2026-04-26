@@ -169,7 +169,6 @@ A comprehensive checklist for auditing Rust codebases, focused on patterns that 
 - [ ] `#[deny(unused_must_use)]` at crate root
 - [ ] Clippy lints cannot be overridden by local `#[allow]` without review (enforce via CI grep or policy)
 
-
 ---
 
 ## 7. Process and System
@@ -306,8 +305,8 @@ Skip categories that don't apply.
 
 ## Concerns Summary
 
-| # | Gap           | Type                   | Effort   | ICE   |
-| - | ------------- | ---------------------- | -------- | ----- |
+| # | Gap           | Type          | Effort   | ICE   |
+| - | ------------- | ------------- | -------- | ----- |
 | 1 | {description} | {performance} | {effort} | {n.n} |
 
 ## Quick Wins

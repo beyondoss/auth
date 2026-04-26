@@ -28,17 +28,24 @@ pub async fn issue(
 
     let default_url = "https://auth.beyond.internal";
     let issuer_url = cfg.issuer_url.as_deref().unwrap_or(default_url);
-    let audience = cfg.jwt_audience.as_deref()
+    let audience = cfg
+        .jwt_audience
+        .as_deref()
         .or(cfg.issuer_url.as_deref())
         .unwrap_or(default_url);
     let ttl = cfg.access_token_ttl_seconds;
     let kid = state.signing_key.id;
     let signing_key = &state.signing_key.signing_key;
 
-    let access_token = jwt::issue_access_token(ctx.user.id, issuer_url, audience, ttl, kid, signing_key)?;
+    let access_token =
+        jwt::issue_access_token(ctx.user.id, issuer_url, audience, ttl, kid, signing_key)?;
 
     Ok((
         StatusCode::OK,
-        Json(TokenResponse { access_token, token_type: "Bearer", expires_in: ttl }),
+        Json(TokenResponse {
+            access_token,
+            token_type: "Bearer",
+            expires_in: ttl,
+        }),
     ))
 }

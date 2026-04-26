@@ -33,9 +33,9 @@ impl LocalKeyEncryptor {
         let bytes = URL_SAFE_NO_PAD
             .decode(b64)
             .map_err(|_| anyhow::anyhow!("SIGNING_KEY_ENCRYPTION_KEY is not valid base64url"))?;
-        let key = bytes
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("SIGNING_KEY_ENCRYPTION_KEY must decode to exactly 32 bytes"))?;
+        let key = bytes.try_into().map_err(|_| {
+            anyhow::anyhow!("SIGNING_KEY_ENCRYPTION_KEY must decode to exactly 32 bytes")
+        })?;
         Ok(Self { key })
     }
 }
