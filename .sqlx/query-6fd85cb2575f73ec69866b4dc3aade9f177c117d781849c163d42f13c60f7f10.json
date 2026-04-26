@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.app_config\n             (jwt_mode, access_token_ttl_seconds, refresh_token_ttl_seconds, session_ttl_seconds)\n         VALUES ('ed25519', 900, 2592000, 2592000)\n         ON CONFLICT (id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "6fd85cb2575f73ec69866b4dc3aade9f177c117d781849c163d42f13c60f7f10"
+}

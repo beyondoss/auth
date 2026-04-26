@@ -12,8 +12,8 @@ use axum::{
 };
 use bytes::Bytes;
 use sqlx::PgPool;
+use tokio::sync::RwLock;
 use tower::ServiceBuilder;
-use tower_helmet::HelmetLayer;
 use tower_http::{
     catch_panic::CatchPanicLayer,
     request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
@@ -24,15 +24,18 @@ use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{
+    app_config::AppConfig,
+    keys::LoadedKey,
     metrics::Metrics,
     routes::{self, ApiDoc},
 };
 
 #[derive(Clone)]
 pub struct AppState {
-    #[allow(dead_code)]
     pub pool: PgPool,
     pub jwks: Arc<Bytes>,
+    pub signing_key: Arc<LoadedKey>,
+    pub app_config: Arc<RwLock<AppConfig>>,
     pub metrics: Arc<Metrics>,
 }
 
@@ -62,14 +65,13 @@ pub async fn serve(bind_addr: &str, state: AppState) -> Result<()> {
 fn router(state: AppState) -> Router {
     let openapi = ApiDoc::openapi();
 
-    routes::router()
+    routes::router(state.clone())
         .route("/openapi.json", get(move || async move { Json(openapi) }))
         .route("/metrics", get(metrics_handler))
         .with_state(state.clone())
         .layer(middleware::from_fn_with_state(state, record_metrics))
         .layer(
             ServiceBuilder::new()
-                .layer(HelmetLayer::with_defaults())
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
                 .layer(PropagateRequestIdLayer::x_request_id())
                 .layer(TraceLayer::new_for_http())

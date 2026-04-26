@@ -1,0 +1,40 @@
+use axum::{
+    Json,
+    extract::{Extension, State},
+    http::StatusCode,
+};
+use serde::Serialize;
+
+use crate::{error::AuthError, http::AppState, jwt, sessions::SessionContext};
+
+#[derive(Serialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub token_type: &'static str,
+    pub expires_in: i32,
+}
+
+/// POST /v1/tokens — issue a short-lived JWT access token.
+/// Requires `jwt_enabled = true` in app_config; returns 400 otherwise.
+pub async fn issue(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<SessionContext>,
+) -> Result<(StatusCode, Json<TokenResponse>), AuthError> {
+    let cfg = state.app_config.read().await;
+
+    if !cfg.jwt_enabled {
+        return Err(AuthError::JwtDisabled);
+    }
+
+    let issuer_url = cfg.issuer_url.as_deref().unwrap_or("https://auth.beyond.internal");
+    let ttl = cfg.access_token_ttl_seconds;
+    let kid = state.signing_key.id;
+    let signing_key = &state.signing_key.signing_key;
+
+    let access_token = jwt::issue_access_token(ctx.user.id, issuer_url, ttl, kid, signing_key)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(TokenResponse { access_token, token_type: "Bearer", expires_in: ttl }),
+    ))
+}

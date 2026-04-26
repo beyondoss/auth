@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use tokio::sync::RwLock;
 
 use crate::{
+    app_config,
     config::{MigrateConfig, ServeConfig},
     crypto::LocalKeyEncryptor,
     db, http, keys, telemetry,
@@ -54,10 +58,14 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     keys::ensure_app_config(&pool).await?;
     let loaded_key = keys::load_or_create_active_key(&pool, &enc_key).await?;
     let jwks = keys::render_jwks(&loaded_key);
+    let app_config = app_config::load(&pool).await
+        .map_err(|e| anyhow::anyhow!("failed to load app_config: {e}"))?;
 
     let state = http::AppState {
         pool,
-        jwks: std::sync::Arc::new(bytes::Bytes::from(jwks)),
+        jwks: Arc::new(bytes::Bytes::from(jwks)),
+        signing_key: Arc::new(loaded_key),
+        app_config: Arc::new(RwLock::new(app_config)),
         metrics: crate::metrics::Metrics::new(),
     };
 

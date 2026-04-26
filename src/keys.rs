@@ -13,15 +13,15 @@ use zeroize::Zeroizing;
 
 use crate::crypto::KeyEncryptor;
 
+#[derive(Clone)]
 pub struct LoadedKey {
     pub id: Uuid,
     pub signing_key: SigningKey,
 }
 
-/// Inserts the default app_config row if one doesn't exist. Idempotent: safe to
-/// call on every boot and under concurrent startup.
+/// Inserts the default app_config row if one doesn't exist. Idempotent.
 pub async fn ensure_app_config(pool: &PgPool) -> Result<()> {
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO auth.app_config
              (jwt_mode, access_token_ttl_seconds, refresh_token_ttl_seconds, session_ttl_seconds)
          VALUES ('ed25519', 900, 2592000, 2592000)
@@ -35,9 +35,8 @@ pub async fn ensure_app_config(pool: &PgPool) -> Result<()> {
 }
 
 /// Loads the active signing key, generating and persisting one if none exists.
-/// Atomic under concurrent startup: if two instances race, the unique index on
-/// (status) WHERE status = 'active' ensures only one INSERT wins; the loser
-/// falls back to reading the winner's key.
+/// Atomic under concurrent startup: the unique partial index on (status) WHERE
+/// status = 'active' ensures only one INSERT wins; the loser reads the winner's key.
 pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<LoadedKey> {
     if let Some(key) = fetch_active_key(pool, enc).await? {
         return Ok(key);
@@ -52,13 +51,13 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
     let encrypted = enc.encrypt(private_pem.as_bytes())?;
 
     // ON CONFLICT DO NOTHING returns no rows if another instance beat us to it.
-    let inserted_id: Option<Uuid> = sqlx::query_scalar(
+    let inserted_id = sqlx::query_scalar!(
         "INSERT INTO auth.signing_key (algorithm, private_key_enc, status)
          VALUES ('ed25519', $1, 'active')
          ON CONFLICT (status) WHERE status = 'active' DO NOTHING
          RETURNING id",
+        encrypted,
     )
-    .bind(&encrypted)
     .fetch_optional(pool)
     .await
     .context("failed to insert signing key")?;
@@ -69,7 +68,6 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
             Ok(LoadedKey { id, signing_key })
         }
         None => {
-            // Another instance won the race — load and use their key.
             fetch_active_key(pool, enc)
                 .await?
                 .context("active signing key disappeared after concurrent insert")
@@ -78,21 +76,21 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
 }
 
 async fn fetch_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<Option<LoadedKey>> {
-    let row: Option<(Uuid, Vec<u8>)> = sqlx::query_as(
+    let row = sqlx::query!(
         "SELECT id, private_key_enc FROM auth.signing_key WHERE status = 'active' LIMIT 1",
     )
     .fetch_optional(pool)
     .await
     .context("failed to query signing key")?;
 
-    let Some((id, ciphertext)) = row else {
+    let Some(row) = row else {
         return Ok(None);
     };
 
-    let pem_bytes = Zeroizing::new(enc.decrypt(&ciphertext).context("failed to decrypt signing key")?);
+    let pem_bytes = Zeroizing::new(enc.decrypt(&row.private_key_enc).context("failed to decrypt signing key")?);
     let pem = std::str::from_utf8(&pem_bytes).context("signing key PEM is not valid UTF-8")?;
     let signing_key = SigningKey::from_pkcs8_pem(pem).context("failed to parse signing key PEM")?;
-    Ok(Some(LoadedKey { id, signing_key }))
+    Ok(Some(LoadedKey { id: row.id, signing_key }))
 }
 
 pub fn render_jwks(key: &LoadedKey) -> String {

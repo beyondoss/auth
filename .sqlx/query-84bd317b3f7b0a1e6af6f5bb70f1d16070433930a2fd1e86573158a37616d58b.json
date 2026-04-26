@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id                AS \"user_id!: Uuid\",\n            u.personal_tenant_id AS \"personal_tenant_id!: Uuid\",\n            u.primary_email_id  AS \"primary_email_id!: Uuid\",\n            u.display_name,\n            u.avatar_url,\n            u.created_at        AS \"user_created_at!: DateTime<Utc>\",\n            t.id                AS \"tenant_id!: Uuid\",\n            t.user_id           AS \"tenant_user_id!: Uuid\",\n            t.name              AS \"tenant_name!\",\n            t.slug              AS \"tenant_slug!\",\n            t.created_at        AS \"tenant_created_at!: DateTime<Utc>\",\n            e.id                AS \"email_id!: Uuid\",\n            e.email::text       AS \"email!\",\n            e.verified_at\n        FROM auth.\"user\" u\n        INNER JOIN auth.tenant t ON t.id = u.personal_tenant_id AND t.deleted_at IS NULL\n        LEFT  JOIN auth.email  e ON e.id = u.primary_email_id\n        WHERE u.id = $1 AND u.deleted_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "personal_tenant_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "primary_email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "avatar_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "tenant_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "tenant_user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "tenant_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "tenant_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "tenant_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "email!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "84bd317b3f7b0a1e6af6f5bb70f1d16070433930a2fd1e86573158a37616d58b"
+}
