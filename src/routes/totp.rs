@@ -47,13 +47,13 @@ pub async fn begin_enrollment(
 }
 
 #[utoipa::path(
-    put,
-    path = "/v1/totp",
+    post,
+    path = "/v1/totp/confirmations",
     tag = "totp",
     security(("BearerAuth" = [])),
     request_body = ConfirmRequest,
     responses(
-        (status = 200, description = "TOTP enrollment confirmed"),
+        (status = 204, description = "TOTP enrollment confirmed"),
         (status = 401, body = crate::error::ErrorResponse),
     )
 )]
@@ -61,9 +61,9 @@ pub async fn confirm_enrollment(
     State(state): State<AppState>,
     Extension(ctx): Extension<SessionContext>,
     Json(req): Json<ConfirmRequest>,
-) -> Result<Json<serde_json::Value>, AuthError> {
+) -> Result<StatusCode, AuthError> {
     totp::confirm(&state.pool, ctx.user.id, &req.code).await?;
-    Ok(Json(serde_json::json!({})))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(

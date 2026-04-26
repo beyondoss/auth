@@ -77,7 +77,6 @@ impl utoipa::Modify for BearerAuth {
         webauthn::update_credential,
         webauthn::delete_credential,
         webauthn::begin_authentication,
-        webauthn::finish_authentication,
     ),
     components(schemas(
         healthz::HealthzResponse,
@@ -114,7 +113,6 @@ impl utoipa::Modify for BearerAuth {
         webauthn::RegisteredCredential,
         webauthn::FinishRegistrationRequest,
         webauthn::UpdateCredentialRequest,
-        webauthn::FinishAuthenticationRequest,
         crate::mfa::webauthn::CredentialRecord,
     )),
     tags(
@@ -158,10 +156,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/emails/verifications",
             post(emails::confirm_verification),
         )
-        .route(
-            "/v1/passkey-authentications",
-            post(webauthn::begin_authentication).put(webauthn::finish_authentication),
-        );
+        .route("/v1/passkey-authentications", post(webauthn::begin_authentication));
 
     let authenticated = Router::new()
         .route("/v1/users/me", get(users::get_me).patch(users::update_me))
@@ -184,15 +179,14 @@ pub fn router(state: AppState) -> Router<AppState> {
         )
         .route(
             "/v1/totp",
-            post(totp::begin_enrollment)
-                .put(totp::confirm_enrollment)
-                .delete(totp::disable),
+            post(totp::begin_enrollment).delete(totp::disable),
         )
+        .route("/v1/totp/confirmations", post(totp::confirm_enrollment))
+        .route("/v1/passkey-registrations", post(webauthn::begin_registration))
         .route(
-            "/v1/passkey-registrations",
-            post(webauthn::begin_registration).put(webauthn::finish_registration),
+            "/v1/passkeys",
+            get(webauthn::list_credentials).post(webauthn::finish_registration),
         )
-        .route("/v1/passkeys", get(webauthn::list_credentials))
         .route(
             "/v1/passkeys/{id}",
             patch(webauthn::update_credential).delete(webauthn::delete_credential),

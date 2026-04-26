@@ -29,6 +29,11 @@ pub enum LoginRequest {
     EmailChange { token: String },
     TotpStepUp { step_up_token: String, code: String },
     TotpRecovery { step_up_token: String, code: String },
+    Passkey {
+        state_token: String,
+        #[schema(value_type = Object)]
+        credential: webauthn_rs::prelude::PublicKeyCredential,
+    },
 }
 
 /// Returned when the user has TOTP enrolled — caller must complete the step-up flow.
@@ -124,6 +129,10 @@ pub async fn login(
             step_up_token,
             code,
         } => login_totp_recovery(&state, &req_ctx, ttl, &step_up_token, &code).await,
+        LoginRequest::Passkey {
+            state_token,
+            credential,
+        } => login_passkey(&state, &req_ctx, ttl, &state_token, &credential).await,
     }
 }
 
@@ -403,6 +412,55 @@ async fn login_totp_recovery(
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (session_id, expires_at) =
         sessions::create(&mut tx, &session_token, claims.user_id, ttl, req_ctx).await?;
+    tx.commit().await.map_err(AuthError::from)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(make_auth_response(
+            user,
+            email,
+            tenant,
+            session_id,
+            &session_token,
+            expires_at,
+        )),
+    )
+        .into_response())
+}
+
+async fn login_passkey(
+    state: &AppState,
+    req_ctx: &RequestContext<'_>,
+    ttl: i32,
+    state_token: &str,
+    credential: &webauthn_rs::prelude::PublicKeyCredential,
+) -> Result<Response, AuthError> {
+    let user_id = mfa::webauthn::verify_authentication(
+        &state.pool,
+        &state.webauthn,
+        &state.signing_key,
+        state_token,
+        credential,
+    )
+    .await?;
+
+    if mfa::totp::is_enrolled(&state.pool, user_id).await? {
+        let step_up_token = mfa::step_up::issue(user_id, "totp", &state.signing_key);
+        return Ok((
+            StatusCode::OK,
+            Json(StepUpResponse {
+                step_up_required: "totp".into(),
+                step_up_token,
+            }),
+        )
+            .into_response());
+    }
+
+    let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
+    let session_token = Token::new(TokenPrefix::Session);
+    let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
+    let (session_id, expires_at) =
+        sessions::create(&mut tx, &session_token, user_id, ttl, req_ctx).await?;
     tx.commit().await.map_err(AuthError::from)?;
 
     Ok((

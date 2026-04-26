@@ -333,6 +333,32 @@ pub async fn update_nickname(
     Ok(())
 }
 
+pub async fn verify_authentication(
+    pool: &sqlx::PgPool,
+    webauthn: &webauthn_rs::Webauthn,
+    signing_key: &crate::keys::LoadedKey,
+    state_token: &str,
+    credential: &webauthn_rs::prelude::PublicKeyCredential,
+) -> Result<Uuid, crate::error::AuthError> {
+    let auth_state = unpack_auth_state(state_token, signing_key)?;
+
+    let cred_id_bytes: &[u8] = credential.raw_id.as_ref();
+    let (row_id, user_id, mut passkey) = find_credential(pool, cred_id_bytes)
+        .await?
+        .ok_or(crate::error::AuthError::InvalidCredentials)?;
+
+    let dkey: webauthn_rs::prelude::DiscoverableKey = (&passkey).into();
+    let creds: &[webauthn_rs::prelude::DiscoverableKey] = &[dkey];
+    let auth_result = webauthn
+        .finish_discoverable_authentication(credential, auth_state, creds)
+        .map_err(|e| crate::error::AuthError::internal_with("webauthn finish auth", e))?;
+
+    passkey.update_credential(&auth_result);
+    update_credential(pool, row_id, &passkey).await?;
+
+    Ok(user_id)
+}
+
 pub async fn delete_credential(
     pool: &sqlx::PgPool,
     id: Uuid,
