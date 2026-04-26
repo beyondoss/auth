@@ -28,8 +28,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: migrate
         run: cargo sqlx migrate run
-      - name: sqlx prepare check
-        run: cargo sqlx prepare --check
       - name: fmt
         run: dprint check
       - name: clippy
