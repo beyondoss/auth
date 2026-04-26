@@ -37,8 +37,14 @@ pub async fn ensure_app_config(pool: &PgPool) -> Result<()> {
 /// Loads the active signing key, generating and persisting one if none exists.
 /// Atomic under concurrent startup: the unique partial index on (status) WHERE
 /// status = 'active' ensures only one INSERT wins; the loser reads the winner's key.
+///
+/// If the existing key was encrypted with an old KEK or without AAD (legacy),
+/// it is immediately re-encrypted with the current key before returning.
 pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<LoadedKey> {
-    if let Some(key) = fetch_active_key(pool, enc).await? {
+    if let Some((key, needs_reencrypt)) = fetch_active_key(pool, enc).await? {
+        if needs_reencrypt {
+            reencrypt_key(pool, enc, &key).await?;
+        }
         return Ok(key);
     }
 
@@ -48,14 +54,18 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
     let private_pem = signing_key
         .to_pkcs8_pem(LineEnding::LF)
         .context("failed to encode private key")?;
-    let encrypted = enc.encrypt(private_pem.as_bytes())?;
+
+    // Generate the ID in Rust so we can use it as AAD before inserting.
+    let id = Uuid::now_v7();
+    let encrypted = enc.encrypt(private_pem.as_bytes(), id.as_bytes())?;
 
     // ON CONFLICT DO NOTHING returns no rows if another instance beat us to it.
     let inserted_id = sqlx::query_scalar!(
-        "INSERT INTO auth.signing_key (algorithm, private_key_enc, status)
-         VALUES ('ed25519', $1, 'active')
+        "INSERT INTO auth.signing_key (id, algorithm, private_key_enc, status)
+         VALUES ($1, 'ed25519', $2, 'active')
          ON CONFLICT (status) WHERE status = 'active' DO NOTHING
          RETURNING id",
+        id,
         encrypted,
     )
     .fetch_optional(pool)
@@ -67,13 +77,22 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
             tracing::info!(kid = %id, "generated and stored new signing key");
             Ok(LoadedKey { id, signing_key })
         }
-        None => fetch_active_key(pool, enc)
-            .await?
-            .context("active signing key disappeared after concurrent insert"),
+        None => {
+            let (key, needs_reencrypt) = fetch_active_key(pool, enc)
+                .await?
+                .context("active signing key disappeared after concurrent insert")?;
+            if needs_reencrypt {
+                reencrypt_key(pool, enc, &key).await?;
+            }
+            Ok(key)
+        }
     }
 }
 
-async fn fetch_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<Option<LoadedKey>> {
+async fn fetch_active_key(
+    pool: &PgPool,
+    enc: &dyn KeyEncryptor,
+) -> Result<Option<(LoadedKey, bool)>> {
     let row = sqlx::query!(
         "SELECT id, private_key_enc FROM auth.signing_key WHERE status = 'active' LIMIT 1",
     )
@@ -85,16 +104,39 @@ async fn fetch_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<Optio
         return Ok(None);
     };
 
-    let pem_bytes = Zeroizing::new(
-        enc.decrypt(&row.private_key_enc)
-            .context("failed to decrypt signing key")?,
-    );
+    let (pem_bytes, needs_reencrypt) = enc
+        .decrypt_with_fallback(&row.private_key_enc, row.id.as_bytes())
+        .context("failed to decrypt signing key")?;
+    let pem_bytes = Zeroizing::new(pem_bytes);
+
     let pem = std::str::from_utf8(&pem_bytes).context("signing key PEM is not valid UTF-8")?;
     let signing_key = SigningKey::from_pkcs8_pem(pem).context("failed to parse signing key PEM")?;
-    Ok(Some(LoadedKey {
-        id: row.id,
-        signing_key,
-    }))
+
+    Ok(Some((
+        LoadedKey {
+            id: row.id,
+            signing_key,
+        },
+        needs_reencrypt,
+    )))
+}
+
+async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -> Result<()> {
+    let pem = key
+        .signing_key
+        .to_pkcs8_pem(LineEnding::LF)
+        .context("failed to encode signing key for re-encryption")?;
+    let encrypted = enc.encrypt(pem.as_bytes(), key.id.as_bytes())?;
+    sqlx::query!(
+        "UPDATE auth.signing_key SET private_key_enc = $1 WHERE id = $2",
+        encrypted,
+        key.id,
+    )
+    .execute(pool)
+    .await
+    .context("failed to re-encrypt signing key")?;
+    tracing::info!(kid = %key.id, "re-encrypted signing key with current KEK");
+    Ok(())
 }
 
 pub fn render_jwks(key: &LoadedKey) -> String {

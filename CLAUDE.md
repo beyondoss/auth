@@ -9,11 +9,15 @@
 - Account lockout after N failed attempts — the network boundary and Argon2's cost parameter are the defenses. If an attacker is making requests, the operator's infrastructure should be stopping them, not us.
 - Any feature whose entire justification is "what if a bad actor hammers this endpoint" — wrong layer.
 
-When a feature is tempting because "this is what Auth0/Clerk does," stop and ask: do they need it because they're a *public multi-tenant service* taking traffic from the whole internet? If yes, we probably don't need it.
+When a feature is tempting because "this is what Auth0/Clerk does," stop and ask: do they need it because they're a _public multi-tenant service_ taking traffic from the whole internet? If yes, we probably don't need it.
 
 ## Architecture
 
 **Keep docs in sync**: When changing code that affects documented behavior (data flows, state machines, APIs, config), update the ARCHITECTURE.md in the same commit. Stale docs are worse than no docs.
+
+## Database
+
+**All sqlx queries must be type-safe.** Use `sqlx::query_as!`, `sqlx::query!`, and related macros — never `sqlx::query` with manual `.try_get()` calls or untyped row access. The compile-time checked macros are the guarantee that query results match Rust types; bypassing them removes that guarantee.
 
 ## Local Development
 

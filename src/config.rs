@@ -20,6 +20,13 @@ pub struct ServeConfig {
     /// Base64url-encoded 32-byte key used to AES-256-GCM encrypt signing key material at rest.
     #[arg(long, env = "SIGNING_KEY_ENCRYPTION_KEY")]
     pub signing_key_encryption_key: String,
+
+    /// Comma-separated old keys for zero-downtime KEK rotation. When set,
+    /// decryption falls back to these keys in order if the current key fails.
+    /// On successful fallback, the data is immediately re-encrypted with the
+    /// current key. Remove old keys once all data has been rotated.
+    #[arg(long, env = "SIGNING_KEY_ENCRYPTION_KEY_OLD")]
+    pub signing_key_encryption_key_old: Option<String>,
 }
 
 #[derive(Debug, Args)]

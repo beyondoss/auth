@@ -53,7 +53,15 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     db::migrate(&cfg.database_url).await?;
     let pool = db::connect(&cfg.database_url).await?;
 
-    let enc_key = LocalKeyEncryptor::from_base64(&cfg.signing_key_encryption_key)?;
+    let old_key_strs: Vec<&str> = cfg
+        .signing_key_encryption_key_old
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    let enc_key = LocalKeyEncryptor::from_base64(&cfg.signing_key_encryption_key, &old_key_strs)?;
 
     keys::ensure_app_config(&pool).await?;
     let loaded_key = keys::load_or_create_active_key(&pool, &enc_key).await?;
