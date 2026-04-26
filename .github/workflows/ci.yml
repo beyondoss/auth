@@ -10,18 +10,33 @@ env:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: paraglide
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: beyond-auth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.92"
-          components: rustfmt, clippy
+      - uses: jdx/mise-action@v2
       - uses: Swatinem/rust-cache@v2
       - name: fmt
-        run: cargo fmt --check
+        run: dprint check
       - name: clippy
         run: cargo clippy -- -D warnings
       - name: test
         run: cargo test
+      - name: sqlx prepare check
+        env:
+          SQLX_OFFLINE: "false"
+          DATABASE_URL: postgres://paraglide:password@localhost:5432/beyond-auth
+        run: |
+          cargo sqlx migrate run
+          cargo sqlx prepare --check
       - name: build
         run: cargo build --release

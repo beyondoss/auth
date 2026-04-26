@@ -3,6 +3,8 @@ dprint = "latest"
 node = "lts"
 rust = "1.92"
 yamlfmt = "latest"
+cargo-binstall = "latest"
+"cargo:sqlx-cli" = "latest"
 
 [tasks."format"]
 run = "dprint fmt"
