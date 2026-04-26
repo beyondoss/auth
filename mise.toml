@@ -11,3 +11,11 @@ run = "dprint fmt"
 
 [tasks."sqlx:prepare"]
 run = "cargo run --package xtask"
+
+[tasks."openapi:generate"]
+run = "cargo run -- generate-openapi"
+
+[tasks."sdk:generate-types"]
+run = ["cd ts && node scripts/generate-types.mjs"]
+dir = "sdk"
+depends = ["openapi:generate"]

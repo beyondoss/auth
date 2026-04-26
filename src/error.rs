@@ -3,8 +3,25 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
+use utoipa::ToSchema;
+
+/// Wire-format error body returned on all non-2xx responses.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ErrorBody {
+    /// Machine-readable error code, e.g. `"invalid_credentials"`.
+    pub code: String,
+    /// Human-readable description.
+    pub message: String,
+}
+
+/// Top-level error envelope for all API error responses.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ErrorResponse {
+    pub error: ErrorBody,
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Error)]
@@ -22,6 +39,9 @@ pub enum AuthError {
     #[error("email already exists")]
     EmailAlreadyExists,
 
+    #[error("conflict")]
+    Conflict,
+
     #[error("password must be at least 8 characters")]
     PasswordTooShort,
 
@@ -33,6 +53,27 @@ pub enum AuthError {
 
     #[error("JWT is not enabled")]
     JwtDisabled,
+
+    #[error("token is invalid")]
+    TokenInvalid,
+
+    #[error("token has expired")]
+    TokenExpired,
+
+    #[error("token has already been used")]
+    TokenUsed,
+
+    #[error("oauth error: {message}")]
+    OAuthError { message: String },
+
+    #[error("mfa error: {message}")]
+    MfaError { message: String },
+
+    #[error("admin authorization required")]
+    AdminRequired,
+
+    #[error("oauth provider is not configured")]
+    OAuthProviderNotConfigured,
 
     #[error("internal error: {message}")]
     Internal {
@@ -106,6 +147,7 @@ impl IntoResponse for AuthError {
                 "email_already_exists",
                 self.to_string(),
             ),
+            AuthError::Conflict => (StatusCode::CONFLICT, "conflict", self.to_string()),
             AuthError::PasswordTooShort => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "password_too_short",
@@ -122,6 +164,25 @@ impl IntoResponse for AuthError {
                 self.to_string(),
             ),
             AuthError::JwtDisabled => (StatusCode::BAD_REQUEST, "jwt_disabled", self.to_string()),
+            AuthError::TokenInvalid => {
+                (StatusCode::UNAUTHORIZED, "token_invalid", self.to_string())
+            }
+            AuthError::TokenExpired => {
+                (StatusCode::UNAUTHORIZED, "token_expired", self.to_string())
+            }
+            AuthError::TokenUsed => (StatusCode::UNAUTHORIZED, "token_used", self.to_string()),
+            AuthError::OAuthError { .. } => {
+                (StatusCode::BAD_REQUEST, "oauth_error", self.to_string())
+            }
+            AuthError::MfaError { .. } => (StatusCode::BAD_REQUEST, "mfa_error", self.to_string()),
+            AuthError::AdminRequired => {
+                (StatusCode::UNAUTHORIZED, "admin_required", self.to_string())
+            }
+            AuthError::OAuthProviderNotConfigured => (
+                StatusCode::BAD_REQUEST,
+                "oauth_provider_not_configured",
+                self.to_string(),
+            ),
             AuthError::Internal { .. } | AuthError::Db { .. } => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",

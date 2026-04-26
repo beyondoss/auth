@@ -44,7 +44,7 @@ pub struct RequestContext<'a> {
 pub async fn validate(
     pool: &PgPool,
     token_id: Uuid,
-    secret_hash: &str,
+    secret_hash: &[u8],
 ) -> Result<Option<SessionContext>, AuthError> {
     let row = sqlx::query!(
         r#"
@@ -135,7 +135,7 @@ pub async fn create(
          VALUES ($1, $2, clock_timestamp() + make_interval(secs => $3::int4))
          RETURNING expires_at",
         token.id,
-        token.secret_hash(),
+        &token.secret_hash() as &[u8],
         ttl_seconds,
     )
     .fetch_one(tx.as_mut())
@@ -282,7 +282,7 @@ pub async fn load_user_context(
     ))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SessionListItem {
     pub id: Uuid,
     pub token_id: Uuid,
@@ -291,5 +291,6 @@ pub struct SessionListItem {
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub last_used_at: Option<DateTime<Utc>>,
+    /// Whether this is the caller's current session.
     pub current: bool,
 }

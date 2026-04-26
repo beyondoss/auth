@@ -7,15 +7,28 @@ use serde::Serialize;
 
 use crate::{error::AuthError, http::AppState, jwt, sessions::SessionContext};
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct TokenResponse {
     pub access_token: String,
+    #[schema(value_type = String)]
     pub token_type: &'static str,
+    /// Lifetime in seconds.
     pub expires_in: i32,
 }
 
 /// POST /v1/tokens — issue a short-lived JWT access token.
 /// Requires `jwt_enabled = true` in app_config; returns 400 otherwise.
+#[utoipa::path(
+    post,
+    path = "/v1/tokens",
+    tag = "tokens",
+    security(("BearerAuth" = [])),
+    responses(
+        (status = 200, body = TokenResponse),
+        (status = 400, description = "JWT not enabled", body = crate::error::ErrorResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
 pub async fn issue(
     State(state): State<AppState>,
     Extension(ctx): Extension<SessionContext>,

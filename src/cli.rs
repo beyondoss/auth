@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use tokio::sync::RwLock;
 
@@ -8,7 +8,7 @@ use crate::{
     app_config,
     config::{MigrateConfig, ServeConfig},
     crypto::LocalKeyEncryptor,
-    db, http, keys, telemetry,
+    db, http, keys, routes, telemetry, token_gc,
 };
 
 #[derive(Parser)]
@@ -28,6 +28,8 @@ enum Command {
     Serve(ServeConfig),
     /// Run database migrations only (without starting the server)
     Migrate(MigrateConfig),
+    /// Write openapi/v1.json from the compiled route annotations
+    GenerateOpenapi,
 }
 
 pub async fn run() -> Result<()> {
@@ -36,6 +38,7 @@ pub async fn run() -> Result<()> {
     match cli.command {
         Command::Serve(cfg) => serve(cfg).await,
         Command::Migrate(cfg) => migrate(cfg).await,
+        Command::GenerateOpenapi => generate_openapi(),
     }
 }
 
@@ -70,12 +73,41 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("failed to load app_config: {e}"))?;
 
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .context("failed to build HTTP client")?;
+
+    let oauth = crate::oauth::OAuthProviders::load(
+        app_config.oauth_providers_enc.as_deref(),
+        &enc_key,
+        &http_client,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("failed to load oauth providers: {e}"))?;
+
+    let encryptor: std::sync::Arc<dyn crate::crypto::KeyEncryptor> = std::sync::Arc::new(enc_key);
+
+    let wn_origin =
+        reqwest::Url::parse(&cfg.webauthn_rp_origin).context("invalid WEBAUTHN_RP_ORIGIN")?;
+    let webauthn = webauthn_rs::WebauthnBuilder::new(&cfg.webauthn_rp_id, &wn_origin)
+        .map_err(|e| anyhow::anyhow!("WebauthnBuilder::new failed: {e}"))?
+        .build()
+        .map_err(|e| anyhow::anyhow!("Webauthn::build failed: {e}"))?;
+
+    tokio::spawn(token_gc::run(pool.clone()));
+
     let state = http::AppState {
         pool,
         jwks: Arc::new(bytes::Bytes::from(jwks)),
         signing_key: Arc::new(loaded_key),
         app_config: Arc::new(RwLock::new(app_config)),
         metrics: crate::metrics::Metrics::new(),
+        admin_secret: cfg.admin_secret.clone(),
+        http_client,
+        oauth: Arc::new(RwLock::new(oauth)),
+        webauthn: Arc::new(webauthn),
+        encryptor,
     };
 
     http::serve(&cfg.address, state).await
@@ -85,5 +117,15 @@ async fn migrate(cfg: MigrateConfig) -> Result<()> {
     telemetry::init_simple("info");
     db::migrate(&cfg.database_url).await?;
     tracing::info!("migrations applied successfully");
+    Ok(())
+}
+
+fn generate_openapi() -> Result<()> {
+    use utoipa::OpenApi as _;
+    let doc = routes::ApiDoc::openapi();
+    let json = serde_json::to_string_pretty(&doc)?;
+    std::fs::create_dir_all("openapi")?;
+    std::fs::write("openapi/v1.json", json)?;
+    println!("wrote openapi/v1.json");
     Ok(())
 }

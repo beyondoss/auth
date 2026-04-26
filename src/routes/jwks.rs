@@ -27,6 +27,7 @@ pub struct Jwk {
 #[utoipa::path(
     get,
     path = "/v1/jwks.json",
+    operation_id = "jwks",
     tag = "system",
     responses(
         (status = 200, body = JwkSet,

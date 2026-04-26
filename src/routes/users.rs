@@ -20,14 +20,14 @@ use crate::{
 
 // ── Request / response shapes ────────────────────────────────────────────────
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct SignupRequest {
     pub email: String,
     pub password: String,
     pub display_name: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct AuthResponse {
     pub user: UserBody,
     pub email: EmailBody,
@@ -35,14 +35,14 @@ pub struct AuthResponse {
     pub session: SessionBody,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct MeResponse {
     pub user: UserBody,
     pub email: EmailBody,
     pub tenant: TenantBody,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct UserBody {
     pub id: Uuid,
     pub display_name: Option<String>,
@@ -50,23 +50,24 @@ pub struct UserBody {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct EmailBody {
     pub id: Uuid,
     pub email: String,
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct TenantBody {
     pub id: Uuid,
     pub name: String,
     pub slug: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct SessionBody {
     pub id: Uuid,
+    /// Opaque bearer token — store securely, transmit as `Authorization: Bearer <token>`.
     pub token: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
@@ -152,6 +153,17 @@ fn make_slug(base: &str) -> String {
 
 // ── POST /v1/users ────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/v1/users",
+    tag = "users",
+    request_body = SignupRequest,
+    responses(
+        (status = 201, body = AuthResponse),
+        (status = 409, description = "Email already registered", body = crate::error::ErrorResponse),
+        (status = 422, description = "Password validation failed", body = crate::error::ErrorResponse),
+    )
+)]
 pub async fn signup(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -213,6 +225,16 @@ pub async fn signup(
 
 // ── GET /v1/users/me ──────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/v1/users/me",
+    tag = "users",
+    security(("BearerAuth" = [])),
+    responses(
+        (status = 200, body = MeResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
 pub async fn get_me(Extension(ctx): Extension<SessionContext>) -> Json<MeResponse> {
     Json(MeResponse {
         user: UserBody {
@@ -236,6 +258,18 @@ pub async fn get_me(Extension(ctx): Extension<SessionContext>) -> Json<MeRespons
 
 // ── PATCH /v1/users/me ────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    patch,
+    path = "/v1/users/me",
+    tag = "users",
+    security(("BearerAuth" = [])),
+    request_body = crate::users::UpdateUser,
+    responses(
+        (status = 200, body = MeResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+        (status = 404, body = crate::error::ErrorResponse),
+    )
+)]
 pub async fn update_me(
     State(state): State<AppState>,
     Extension(ctx): Extension<SessionContext>,
