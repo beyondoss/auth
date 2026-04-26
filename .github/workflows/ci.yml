@@ -28,6 +28,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: migrate
         run: cargo sqlx migrate run
+      - name: install rustfmt
+        run: rustup component add rustfmt
       - name: fmt
         run: dprint check
       - name: clippy
