@@ -98,6 +98,9 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("failed to load app_config: {e}"))?;
 
+    let compiled_authz = app_config::compile_authz_schema(&app_config)
+        .map_err(|e| anyhow::anyhow!("failed to compile authz schema: {e}"))?;
+
     let http_client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -127,6 +130,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         jwks: Arc::new(bytes::Bytes::from(jwks)),
         signing_key: Arc::new(loaded_key),
         app_config: Arc::new(RwLock::new(app_config)),
+        authz_schema: Arc::new(RwLock::new(compiled_authz)),
         metrics: crate::metrics::Metrics::new(),
         admin_secret: cfg.admin_secret.clone(),
         http_client,

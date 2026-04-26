@@ -4,6 +4,7 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 mod app_config;
+mod authz;
 mod cli;
 mod config;
 mod crypto;

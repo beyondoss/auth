@@ -40,6 +40,510 @@
         }
       }
     },
+    "/v1/admin/relation-partitions/{object_type}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ensure a dedicated LIST partition exists for `object_type`.",
+        "description": "Idempotent — safe to call multiple times. Existing rows in the default\npartition are moved to the new partition atomically.",
+        "operationId": "ensure_partition",
+        "parameters": [
+          {
+            "name": "object_type",
+            "in": "path",
+            "description": "Object type to partition (e.g. \"document\")",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Partition exists (created or already present)"
+          },
+          "422": {
+            "description": "Invalid object_type identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/authz/decisions": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Check whether the current session user (or an explicit user) has a permission\non a resource. Uses a bundled session-validation + authz CTE for one DB round-trip\nwhen checking the current session user.",
+        "operationId": "check_permission",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "description": "Explicit subject to check as. Defaults to the current session user.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "permission",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown resource/permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/authz/expansions": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Expand a relation: return all subjects who hold the given relation on the object.\nResolves subject sets recursively.",
+        "operationId": "expand_relation",
+        "parameters": [
+          {
+            "name": "object_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/authz/lookups": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "List all objects of the given type that the current user (or an explicit user)\ncan access via the resolved roles for a permission.",
+        "operationId": "lookup_objects",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "permission",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/authz/relations": {
+      "post": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Write a single relation tuple. Idempotent — duplicate writes are silently ignored.",
+        "operationId": "write_relation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Relation written"
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Delete a single relation tuple.",
+        "operationId": "delete_relation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Relation deleted"
+          },
+          "404": {
+            "description": "Relation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Batch write and/or delete relation tuples in a single transaction.",
+        "operationId": "batch_relations",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/authz/schema": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Get the current authz schema. Returns null if authz is not enabled.",
+        "operationId": "get_schema",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthzSchema"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Replace the authz schema. Validates and compiles before persisting.\nSetting schema to a valid document enables authz; this is the only way to enable it.",
+        "operationId": "put_schema",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthzSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthzSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Schema invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/authz/traces": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Explain why a permission check returned its result. Runs expand on all relevant\nrelations and reports which subjects appear, letting you trace a grant or denial.",
+        "operationId": "why_check",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "permission",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/emails": {
       "get": {
         "tags": [
@@ -542,6 +1046,230 @@
         }
       }
     },
+    "/v1/passkey-authentications": {
+      "post": {
+        "tags": [
+          "webauthn"
+        ],
+        "operationId": "begin_passkey_authentication",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/passkey-registrations": {
+      "post": {
+        "tags": [
+          "webauthn"
+        ],
+        "operationId": "begin_passkey_registration",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/passkeys": {
+      "get": {
+        "tags": [
+          "webauthn"
+        ],
+        "operationId": "list_passkeys",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CredentialRecord"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "webauthn"
+        ],
+        "operationId": "create_passkey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinishRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredCredential"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/passkeys/{id}": {
+      "delete": {
+        "tags": [
+          "webauthn"
+        ],
+        "operationId": "delete_passkey",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Credential ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Credential deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "webauthn"
+        ],
+        "operationId": "update_passkey",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Credential ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Credential updated"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/password-resets": {
       "post": {
         "tags": [
@@ -843,42 +1571,6 @@
       }
     },
     "/v1/totp": {
-      "put": {
-        "tags": [
-          "totp"
-        ],
-        "operationId": "confirm_enrollment",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "TOTP enrollment confirmed"
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      },
       "post": {
         "tags": [
           "totp"
@@ -920,6 +1612,44 @@
         "responses": {
           "204": {
             "description": "TOTP disabled"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/totp/confirmations": {
+      "post": {
+        "tags": [
+          "totp"
+        ],
+        "operationId": "confirm_enrollment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "TOTP enrollment confirmed"
           },
           "401": {
             "description": "",
@@ -1076,278 +1806,6 @@
           }
         ]
       }
-    },
-    "/v1/webauthn/authentications": {
-      "put": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "finish_webauthn_authentication",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FinishAuthenticationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "MFA step-up required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StepUpResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Authentication successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "begin_webauthn_authentication",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BeginResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/webauthn/credentials": {
-      "get": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "list_webauthn_credentials",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CredentialRecord"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/webauthn/credentials/{id}": {
-      "delete": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "delete_webauthn_credential",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Credential ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Credential deleted"
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      },
-      "patch": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "update_webauthn_credential",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Credential ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCredentialRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Credential updated"
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/webauthn/registrations": {
-      "put": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "finish_webauthn_registration",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FinishRegistrationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisteredCredential"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "webauthn"
-        ],
-        "operationId": "begin_webauthn_registration",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BeginResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
     }
   },
   "components": {
@@ -1407,6 +1865,68 @@
           }
         }
       },
+      "AuthzSchema": {
+        "type": "object",
+        "required": [
+          "version",
+          "resources"
+        ],
+        "properties": {
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourceDef"
+            }
+          },
+          "subject_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "BatchRequest": {
+        "type": "object",
+        "properties": {
+          "deletes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelationRequest"
+            }
+          },
+          "writes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelationRequest"
+            }
+          }
+        }
+      },
+      "BatchResponse": {
+        "type": "object",
+        "required": [
+          "written",
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "written": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "BeginResponse": {
         "type": "object",
         "required": [
@@ -1421,6 +1941,17 @@
           "state_token": {
             "type": "string",
             "description": "Opaque state token; include in the corresponding finish request."
+          }
+        }
+      },
+      "CheckResponse": {
+        "type": "object",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
           }
         }
       },
@@ -1645,18 +2176,31 @@
           }
         }
       },
-      "FinishAuthenticationRequest": {
+      "ExpandResponse": {
         "type": "object",
         "required": [
-          "state_token",
-          "credential"
+          "subjects"
         ],
         "properties": {
-          "credential": {
-            "type": "object",
-            "description": "WebAuthn `PublicKeyCredential` response from the browser."
+          "subjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpandSubject"
+            }
+          }
+        }
+      },
+      "ExpandSubject": {
+        "type": "object",
+        "required": [
+          "id",
+          "relation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
           },
-          "state_token": {
+          "relation": {
             "type": "string"
           }
         }
@@ -1695,6 +2239,23 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "HierarchyDef": {
+        "type": "object",
+        "required": [
+          "parent_relation",
+          "parent_resource"
+        ],
+        "properties": {
+          "parent_relation": {
+            "type": "string",
+            "description": "The relation name on this resource that points to parent objects."
+          },
+          "parent_resource": {
+            "type": "string",
+            "description": "The resource type of the parent."
           }
         }
       },
@@ -1868,8 +2429,50 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "state_token",
+              "credential",
+              "grant_type"
+            ],
+            "properties": {
+              "credential": {
+                "type": "object"
+              },
+              "grant_type": {
+                "type": "string",
+                "enum": [
+                  "passkey"
+                ]
+              },
+              "state_token": {
+                "type": "string"
+              }
+            }
           }
         ]
+      },
+      "LookupResponse": {
+        "type": "object",
+        "required": [
+          "object_ids"
+        ],
+        "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "MagicLinkRequest": {
         "type": "object",
@@ -1983,6 +2586,125 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "RelationObject": {
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "RelationRequest": {
+        "type": "object",
+        "required": [
+          "object",
+          "relation",
+          "subject"
+        ],
+        "properties": {
+          "object": {
+            "$ref": "#/components/schemas/RelationObject"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/RelationSubject"
+          }
+        }
+      },
+      "RelationSubject": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "relation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ResourceDef": {
+        "type": "object",
+        "required": [
+          "name",
+          "roles",
+          "permissions"
+        ],
+        "properties": {
+          "hierarchy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HierarchyDef"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "role_hierarchy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleEdge"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RoleEdge": {
+        "type": "object",
+        "required": [
+          "superior",
+          "inferior"
+        ],
+        "properties": {
+          "inferior": {
+            "type": "string"
+          },
+          "superior": {
+            "type": "string"
           }
         }
       },
@@ -2153,6 +2875,24 @@
           }
         }
       },
+      "TraceResponse": {
+        "type": "object",
+        "required": [
+          "allowed",
+          "subjects"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpandSubject"
+            }
+          }
+        }
+      },
       "UpdateCredentialRequest": {
         "type": "object",
         "required": [
@@ -2257,8 +2997,8 @@
       "description": "OAuth 2.0 provider login"
     },
     {
-      "name": "webauthn",
-      "description": "Passkey / WebAuthn registration and authentication"
+      "name": "passkeys",
+      "description": "Passkey registration and authentication"
     }
   ]
 }

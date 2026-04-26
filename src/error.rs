@@ -78,6 +78,18 @@ pub enum AuthError {
     #[error("redirect_url is not in the configured allowlist")]
     OAuthRedirectNotAllowed,
 
+    #[error("authz is not enabled — PUT /v1/authz/schema to enable it")]
+    AuthzNotEnabled,
+
+    #[error("authz schema is invalid: {message}")]
+    AuthzSchemaInvalid { message: String },
+
+    #[error("unknown resource type: {resource_type}")]
+    AuthzUnknownResource { resource_type: String },
+
+    #[error("unknown permission: {permission}")]
+    AuthzUnknownPermission { permission: String },
+
     #[error("internal error: {message}")]
     Internal {
         message: String,
@@ -189,6 +201,26 @@ impl IntoResponse for AuthError {
             AuthError::OAuthRedirectNotAllowed => (
                 StatusCode::BAD_REQUEST,
                 "oauth_redirect_not_allowed",
+                self.to_string(),
+            ),
+            AuthError::AuthzNotEnabled => (
+                StatusCode::BAD_REQUEST,
+                "authz_not_enabled",
+                self.to_string(),
+            ),
+            AuthError::AuthzSchemaInvalid { .. } => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "authz_schema_invalid",
+                self.to_string(),
+            ),
+            AuthError::AuthzUnknownResource { .. } => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "authz_unknown_resource",
+                self.to_string(),
+            ),
+            AuthError::AuthzUnknownPermission { .. } => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "authz_unknown_permission",
                 self.to_string(),
             ),
             AuthError::Internal { .. } | AuthError::Db { .. } => (

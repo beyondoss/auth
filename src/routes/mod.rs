@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod authz;
 pub mod emails;
 pub mod healthz;
 pub mod jwks;
@@ -13,7 +14,7 @@ pub mod webauthn;
 
 use axum::{
     Router, middleware as axum_middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
 };
 use utoipa::OpenApi;
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
@@ -77,6 +78,17 @@ impl utoipa::Modify for BearerAuth {
         webauthn::update_credential,
         webauthn::delete_credential,
         webauthn::begin_authentication,
+        admin::partitions::ensure_partition,
+        authz::check_permission,
+        authz::write_relation,
+        authz::delete_relation,
+        authz::batch_relations,
+        authz::get_schema,
+        authz::put_schema,
+        authz::expand_relation,
+        authz::lookup_objects,
+        authz::why_check,
+
     ),
     components(schemas(
         healthz::HealthzResponse,
@@ -114,6 +126,20 @@ impl utoipa::Modify for BearerAuth {
         webauthn::FinishRegistrationRequest,
         webauthn::UpdateCredentialRequest,
         crate::mfa::webauthn::CredentialRecord,
+        authz::CheckResponse,
+        authz::RelationRequest,
+        authz::RelationObject,
+        authz::RelationSubject,
+        authz::BatchRequest,
+        authz::BatchResponse,
+        authz::ExpandResponse,
+        authz::ExpandSubject,
+        authz::LookupResponse,
+        authz::TraceResponse,
+        crate::authz::schema::AuthzSchema,
+        crate::authz::schema::ResourceDef,
+        crate::authz::schema::RoleEdge,
+        crate::authz::schema::HierarchyDef,
     )),
     tags(
         (name = "system", description = "Health and key material"),
@@ -136,12 +162,29 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/admin/oauth-providers",
             get(admin::oauth::get).put(admin::oauth::put),
         )
+        .route(
+            "/v1/admin/relation-partitions/{object_type}",
+            put(admin::partitions::ensure_partition),
+        )
+        .route(
+            "/v1/authz/relations",
+            post(authz::write_relation)
+                .delete(authz::delete_relation)
+                .patch(authz::batch_relations),
+        )
+        .route(
+            "/v1/authz/schema",
+            get(authz::get_schema).put(authz::put_schema),
+        )
+        .route("/v1/authz/expansions", get(authz::expand_relation))
+        .route("/v1/authz/traces", get(authz::why_check))
         .route_layer(axum_middleware::from_fn_with_state(
             state.clone(),
             crate::middleware::admin::require_admin,
         ));
 
     let public = Router::new()
+        .route("/v1/authz/decisions", get(authz::check_permission))
         .route("/healthz", get(healthz::handler))
         .route("/v1/jwks.json", get(jwks::handler))
         .route("/v1/users", post(users::signup))
@@ -197,6 +240,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/passkeys/{id}",
             patch(webauthn::update_credential).delete(webauthn::delete_credential),
         )
+        .route("/v1/authz/lookups", get(authz::lookup_objects))
         .route_layer(axum_middleware::from_fn_with_state(state, require_auth));
 
     Router::new()

@@ -25,6 +25,7 @@ use uuid::Uuid;
 
 use crate::{
     app_config::AppConfig,
+    authz::schema::CompiledSchema,
     keys::LoadedKey,
     metrics::Metrics,
     routes::{self, ApiDoc},
@@ -36,6 +37,7 @@ pub struct AppState {
     pub jwks: Arc<Bytes>,
     pub signing_key: Arc<LoadedKey>,
     pub app_config: Arc<RwLock<AppConfig>>,
+    pub authz_schema: Arc<RwLock<Option<CompiledSchema>>>,
     pub metrics: Arc<Metrics>,
     pub admin_secret: String,
     pub http_client: reqwest::Client,

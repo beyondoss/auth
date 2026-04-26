@@ -1,6 +1,9 @@
 use sqlx::PgPool;
 
-use crate::error::AuthError;
+use crate::{
+    authz::schema::{AuthzSchema, CompiledSchema, SchemaError, compile},
+    error::AuthError,
+};
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -13,17 +16,39 @@ pub struct AppConfig {
     pub jwt_audience: Option<String>,
     pub oauth_providers_enc: Option<Vec<u8>>,
     pub oauth_email_link: bool,
+    pub authz_schema: Option<serde_json::Value>,
 }
 
 pub async fn load(pool: &PgPool) -> Result<AppConfig, AuthError> {
     sqlx::query_as!(
         AppConfig,
-        "SELECT jwt_mode, access_token_ttl_seconds, session_ttl_seconds, jwt_enabled, issuer_url,
-                jwt_audience, oauth_providers_enc, oauth_email_link
-         FROM auth.app_config
-         WHERE id = true"
+        r#"
+        SELECT jwt_mode,
+               access_token_ttl_seconds,
+               session_ttl_seconds,
+               jwt_enabled,
+               issuer_url,
+               jwt_audience,
+               oauth_providers_enc,
+               oauth_email_link,
+               authz_schema AS "authz_schema: serde_json::Value"
+        FROM auth.app_config
+        WHERE id = true
+        "#
     )
     .fetch_one(pool)
     .await
     .map_err(AuthError::from)
+}
+
+/// Compile the stored authz schema JSON into a `CompiledSchema`, if present.
+pub fn compile_authz_schema(cfg: &AppConfig) -> Result<Option<CompiledSchema>, SchemaError> {
+    cfg.authz_schema
+        .as_ref()
+        .map(|v| {
+            serde_json::from_value::<AuthzSchema>(v.clone())
+                .map_err(|e| SchemaError::InvalidIdentifier(e.to_string()))
+                .and_then(|s| compile(&s))
+        })
+        .transpose()
 }

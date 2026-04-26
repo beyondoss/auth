@@ -1,0 +1,593 @@
+use std::collections::{HashMap, HashSet};
+
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::{HeaderMap, StatusCode, header},
+};
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+
+use crate::{
+    authz::{
+        engine::{self, BatchOp},
+        schema::{AuthzCheckCall, AuthzSchema, CompiledSchema, compile},
+    },
+    error::AuthError,
+    http::AppState,
+    sessions::SessionContext,
+    tokens,
+};
+
+// ── Request / response types ──────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct CheckQuery {
+    /// Explicit subject to check as. Defaults to the current session user.
+    pub user: Option<String>,
+    pub permission: String,
+    pub resource_type: String,
+    pub resource_id: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CheckResponse {
+    pub allowed: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RelationRequest {
+    pub object: RelationObject,
+    pub relation: String,
+    pub subject: RelationSubject,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RelationObject {
+    #[serde(rename = "type")]
+    pub object_type: String,
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RelationSubject {
+    pub id: String,
+    #[serde(rename = "type", default)]
+    pub subject_type: Option<String>,
+    #[serde(default)]
+    pub relation: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct BatchRequest {
+    #[serde(default)]
+    pub writes: Vec<RelationRequest>,
+    #[serde(default)]
+    pub deletes: Vec<RelationRequest>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BatchResponse {
+    pub written: u64,
+    pub deleted: u64,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct ExpandQuery {
+    pub object_type: String,
+    pub object_id: String,
+    pub relation: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ExpandResponse {
+    pub subjects: Vec<ExpandSubject>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ExpandSubject {
+    pub id: String,
+    pub relation: String,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct LookupQuery {
+    pub user: Option<String>,
+    pub permission: String,
+    pub resource_type: String,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    pub cursor: Option<String>,
+}
+
+fn default_limit() -> i64 {
+    100
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LookupResponse {
+    pub object_ids: Vec<String>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct TraceQuery {
+    pub user: String,
+    pub permission: String,
+    pub resource_type: String,
+    pub resource_id: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TraceResponse {
+    pub allowed: bool,
+    pub subjects: Vec<ExpandSubject>,
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+fn schema_guard_to_compiled(guard: &Option<CompiledSchema>) -> Result<&CompiledSchema, AuthError> {
+    guard.as_ref().ok_or(AuthError::AuthzNotEnabled)
+}
+
+fn resolve_or_chain(
+    schema: &CompiledSchema,
+    resource_type: &str,
+    permission: &str,
+    bundled: bool,
+) -> Result<String, AuthError> {
+    let chain = if bundled {
+        schema.build_or_chain(resource_type, permission)
+    } else {
+        schema.build_standalone_or_chain(resource_type, permission)
+    };
+    chain.ok_or_else(|| {
+        if schema.resource_exists(resource_type) {
+            AuthError::AuthzUnknownPermission {
+                permission: permission.to_owned(),
+            }
+        } else {
+            AuthError::AuthzUnknownResource {
+                resource_type: resource_type.to_owned(),
+            }
+        }
+    })
+}
+
+fn into_batch_op(r: RelationRequest) -> BatchOp {
+    BatchOp {
+        object_type: r.object.object_type,
+        object_id: r.object.id,
+        relation: r.relation,
+        subject_id: r.subject.id,
+        subject_type: r.subject.subject_type,
+        subject_relation: r.subject.relation,
+    }
+}
+
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
+/// Check whether the current session user (or an explicit user) has a permission
+/// on a resource. Uses a bundled session-validation + authz CTE for one DB round-trip
+/// when checking the current session user.
+#[utoipa::path(
+    get,
+    path = "/v1/authz/decisions",
+    tag = "authz",
+    params(CheckQuery),
+    responses(
+        (status = 200, body = CheckResponse),
+        (status = 400, description = "Authz not enabled",           body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized",                body = crate::error::ErrorResponse),
+        (status = 422, description = "Unknown resource/permission", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn check_permission(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(params): Query<CheckQuery>,
+) -> Result<Json<CheckResponse>, AuthError> {
+    let schema_guard = state.authz_schema.read().await;
+    let schema = schema_guard_to_compiled(&schema_guard)?;
+
+    if let Some(explicit_user) = params.user {
+        let or_chain = resolve_or_chain(schema, &params.resource_type, &params.permission, false)?;
+        let allowed =
+            engine::check_standalone(&state.pool, &explicit_user, &params.resource_id, &or_chain)
+                .await?;
+        return Ok(Json(CheckResponse { allowed }));
+    }
+
+    // Hot path: bundled session-validate + authz check in one DB round-trip.
+    let bearer = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|s| s.to_owned())
+        .ok_or(AuthError::Unauthorized)?;
+
+    let parsed = tokens::parse(&bearer).ok_or(AuthError::Unauthorized)?;
+    let or_chain = resolve_or_chain(schema, &params.resource_type, &params.permission, true)?;
+
+    let allowed = engine::check_with_session(
+        &state.pool,
+        parsed.id,
+        &parsed.secret_hash,
+        &params.resource_id,
+        &or_chain,
+    )
+    .await?
+    .ok_or(AuthError::Unauthorized)?;
+
+    Ok(Json(CheckResponse { allowed }))
+}
+
+/// Write a single relation tuple. Idempotent — duplicate writes are silently ignored.
+#[utoipa::path(
+    post,
+    path = "/v1/authz/relations",
+    tag = "authz",
+    request_body = RelationRequest,
+    responses(
+        (status = 201, description = "Relation written"),
+        (status = 400, description = "Authz not enabled", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn write_relation(
+    State(state): State<AppState>,
+    Json(req): Json<RelationRequest>,
+) -> Result<StatusCode, AuthError> {
+    let _ = {
+        let g = state.authz_schema.read().await;
+        schema_guard_to_compiled(&g)?;
+    };
+    engine::write_relation(
+        &state.pool,
+        &req.object.object_type,
+        &req.object.id,
+        &req.relation,
+        &req.subject.id,
+        req.subject.subject_type.as_deref(),
+        req.subject.relation.as_deref(),
+    )
+    .await?;
+    Ok(StatusCode::CREATED)
+}
+
+/// Delete a single relation tuple.
+#[utoipa::path(
+    delete,
+    path = "/v1/authz/relations",
+    tag = "authz",
+    request_body = RelationRequest,
+    responses(
+        (status = 204, description = "Relation deleted"),
+        (status = 400, description = "Authz not enabled", body = crate::error::ErrorResponse),
+        (status = 404, description = "Relation not found", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn delete_relation(
+    State(state): State<AppState>,
+    Json(req): Json<RelationRequest>,
+) -> Result<StatusCode, AuthError> {
+    let _ = {
+        let g = state.authz_schema.read().await;
+        schema_guard_to_compiled(&g)?;
+    };
+    let deleted = engine::delete_relation(
+        &state.pool,
+        &req.object.object_type,
+        &req.object.id,
+        &req.relation,
+        &req.subject.id,
+        req.subject.subject_type.as_deref(),
+        req.subject.relation.as_deref(),
+    )
+    .await?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AuthError::NotFound)
+    }
+}
+
+/// Batch write and/or delete relation tuples in a single transaction.
+#[utoipa::path(
+    patch,
+    path = "/v1/authz/relations",
+    tag = "authz",
+    request_body = BatchRequest,
+    responses(
+        (status = 200, body = BatchResponse),
+        (status = 400, description = "Authz not enabled", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn batch_relations(
+    State(state): State<AppState>,
+    Json(req): Json<BatchRequest>,
+) -> Result<Json<BatchResponse>, AuthError> {
+    let _ = {
+        let g = state.authz_schema.read().await;
+        schema_guard_to_compiled(&g)?;
+    };
+    let writes = req.writes.into_iter().map(into_batch_op).collect();
+    let deletes = req.deletes.into_iter().map(into_batch_op).collect();
+    let result = engine::batch_relations(&state.pool, writes, deletes).await?;
+    Ok(Json(BatchResponse {
+        written: result.written,
+        deleted: result.deleted,
+    }))
+}
+
+/// Get the current authz schema. Returns null if authz is not enabled.
+#[utoipa::path(
+    get,
+    path = "/v1/authz/schema",
+    tag = "authz",
+    responses(
+        (status = 200, body = Option<AuthzSchema>),
+    )
+)]
+pub async fn get_schema(
+    State(state): State<AppState>,
+) -> Result<Json<Option<AuthzSchema>>, AuthError> {
+    let cfg = state.app_config.read().await;
+    let schema = cfg
+        .authz_schema
+        .as_ref()
+        .map(|v| serde_json::from_value::<AuthzSchema>(v.clone()))
+        .transpose()
+        .map_err(|e| AuthError::AuthzSchemaInvalid {
+            message: e.to_string(),
+        })?;
+    Ok(Json(schema))
+}
+
+/// Replace the authz schema. Validates and compiles before persisting.
+/// Setting schema to a valid document enables authz; this is the only way to enable it.
+#[utoipa::path(
+    put,
+    path = "/v1/authz/schema",
+    tag = "authz",
+    request_body = AuthzSchema,
+    responses(
+        (status = 200, body = AuthzSchema),
+        (status = 422, description = "Schema invalid", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn put_schema(
+    State(state): State<AppState>,
+    Json(req): Json<AuthzSchema>,
+) -> Result<Json<AuthzSchema>, AuthError> {
+    let compiled = compile(&req).map_err(|e| AuthError::AuthzSchemaInvalid {
+        message: e.to_string(),
+    })?;
+
+    let raw = serde_json::to_value(&req).map_err(|e| AuthError::internal(e.to_string()))?;
+
+    sqlx::query!(
+        "UPDATE auth.app_config SET authz_schema = $1 WHERE id = true",
+        raw.clone() as serde_json::Value,
+    )
+    .execute(&state.pool)
+    .await
+    .map_err(AuthError::from)?;
+
+    state.app_config.write().await.authz_schema = Some(raw);
+    *state.authz_schema.write().await = Some(compiled);
+
+    Ok(Json(req))
+}
+
+/// Expand a relation: return all subjects who hold the given relation on the object.
+/// Resolves subject sets recursively.
+#[utoipa::path(
+    get,
+    path = "/v1/authz/expansions",
+    tag = "authz",
+    params(ExpandQuery),
+    responses(
+        (status = 200, body = ExpandResponse),
+        (status = 400, description = "Authz not enabled", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn expand_relation(
+    State(state): State<AppState>,
+    Query(params): Query<ExpandQuery>,
+) -> Result<Json<ExpandResponse>, AuthError> {
+    let _ = {
+        let g = state.authz_schema.read().await;
+        schema_guard_to_compiled(&g)?;
+    };
+    let rows = engine::expand(
+        &state.pool,
+        &params.object_type,
+        &params.object_id,
+        &[params.relation],
+    )
+    .await?;
+    let subjects = rows
+        .into_iter()
+        .map(|r| ExpandSubject {
+            id: r.subject_id,
+            relation: r.relation,
+        })
+        .collect();
+    Ok(Json(ExpandResponse { subjects }))
+}
+
+/// List all objects of the given type that the current user (or an explicit user)
+/// can access via the resolved roles for a permission. Includes both direct role
+/// assignments and access granted via parent hierarchy.
+#[utoipa::path(
+    get,
+    path = "/v1/authz/lookups",
+    tag = "authz",
+    security(("BearerAuth" = [])),
+    params(LookupQuery),
+    responses(
+        (status = 200, body = LookupResponse),
+        (status = 400, description = "Authz not enabled",           body = crate::error::ErrorResponse),
+        (status = 422, description = "Unknown resource/permission", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn lookup_objects(
+    State(state): State<AppState>,
+    axum::Extension(ctx): axum::Extension<SessionContext>,
+    Query(params): Query<LookupQuery>,
+) -> Result<Json<LookupResponse>, AuthError> {
+    let schema_guard = state.authz_schema.read().await;
+    let schema = schema_guard_to_compiled(&schema_guard)?;
+
+    let subject_id = params.user.unwrap_or_else(|| ctx.user.id.to_string());
+    let limit = params.limit.clamp(1, 1000);
+    let cursor = params.cursor.as_deref();
+    let fetch_limit = limit + 1;
+
+    let checks = schema
+        .get_checks(&params.resource_type, &params.permission)
+        .ok_or_else(|| {
+            if schema.resource_exists(&params.resource_type) {
+                AuthError::AuthzUnknownPermission {
+                    permission: params.permission.clone(),
+                }
+            } else {
+                AuthError::AuthzUnknownResource {
+                    resource_type: params.resource_type.clone(),
+                }
+            }
+        })?;
+
+    // Partition checks into single-hop direct relations and multi-hop parent paths.
+    // Multi-hop groups by (parent_link_relation, parent_type) to batch roles together.
+    let mut direct_relations: HashSet<String> = HashSet::new();
+    let mut multi_hop: HashMap<(String, String), Vec<String>> = HashMap::new();
+    for c in checks {
+        match c {
+            AuthzCheckCall::SingleHop { relations, .. } => {
+                direct_relations.extend(relations.iter().cloned());
+            }
+            AuthzCheckCall::MultiHop {
+                relation_path,
+                object_type_path,
+            } => {
+                multi_hop
+                    .entry((relation_path[0].clone(), object_type_path[1].clone()))
+                    .or_default()
+                    .push(relation_path[1].clone());
+            }
+        }
+    }
+
+    let direct_relations: Vec<String> = direct_relations.into_iter().collect();
+    let mut all_ids: HashSet<String> = HashSet::new();
+
+    if !direct_relations.is_empty() {
+        let ids = engine::enumerate_ids(
+            &state.pool,
+            &subject_id,
+            &direct_relations,
+            &params.resource_type,
+            fetch_limit,
+            cursor,
+        )
+        .await?;
+        all_ids.extend(ids);
+    }
+
+    for ((parent_link_rel, parent_type), parent_roles) in &multi_hop {
+        let ids = engine::enumerate_via_parent(
+            &state.pool,
+            &subject_id,
+            &params.resource_type,
+            parent_link_rel,
+            parent_roles,
+            parent_type,
+            fetch_limit,
+            cursor,
+        )
+        .await?;
+        all_ids.extend(ids);
+    }
+
+    let mut object_ids: Vec<String> = all_ids.into_iter().collect();
+    object_ids.sort_unstable();
+
+    let has_more = object_ids.len() as i64 > limit;
+    object_ids.truncate(limit as usize);
+    let next_cursor = if has_more {
+        object_ids.last().cloned()
+    } else {
+        None
+    };
+
+    Ok(Json(LookupResponse {
+        object_ids,
+        next_cursor,
+    }))
+}
+
+/// Explain why a permission check returned its result. Runs expand on all direct
+/// role relations and reports which subjects appear, letting you trace a grant or
+/// denial. Note: access granted purely via parent hierarchy is not reflected here.
+#[utoipa::path(
+    get,
+    path = "/v1/authz/traces",
+    tag = "authz",
+    params(TraceQuery),
+    responses(
+        (status = 200, body = TraceResponse),
+        (status = 400, description = "Authz not enabled",           body = crate::error::ErrorResponse),
+        (status = 422, description = "Unknown resource/permission", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn why_check(
+    State(state): State<AppState>,
+    Query(params): Query<TraceQuery>,
+) -> Result<Json<TraceResponse>, AuthError> {
+    let schema_guard = state.authz_schema.read().await;
+    let schema = schema_guard_to_compiled(&schema_guard)?;
+
+    let relations: Vec<String> = schema
+        .get_checks(&params.resource_type, &params.permission)
+        .ok_or_else(|| {
+            if schema.resource_exists(&params.resource_type) {
+                AuthError::AuthzUnknownPermission {
+                    permission: params.permission.clone(),
+                }
+            } else {
+                AuthError::AuthzUnknownResource {
+                    resource_type: params.resource_type.clone(),
+                }
+            }
+        })?
+        .iter()
+        .flat_map(|c| match c {
+            AuthzCheckCall::SingleHop { relations, .. } => relations.clone(),
+            // Multi-hop hierarchy traversal can't be traced via expand; only direct
+            // role assignments appear in the subject list.
+            AuthzCheckCall::MultiHop { .. } => vec![],
+        })
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    let rows = engine::expand(
+        &state.pool,
+        &params.resource_type,
+        &params.resource_id,
+        &relations,
+    )
+    .await?;
+
+    let allowed = rows.iter().any(|r| r.subject_id == params.user);
+    let subjects = rows
+        .into_iter()
+        .map(|r| ExpandSubject {
+            id: r.subject_id,
+            relation: r.relation,
+        })
+        .collect();
+
+    Ok(Json(TraceResponse { allowed, subjects }))
+}

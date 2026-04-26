@@ -20,6 +20,148 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/admin/relation-partitions/{object_type}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Ensure a dedicated LIST partition exists for `object_type`.
+     * @description Idempotent — safe to call multiple times. Existing rows in the default
+     *     partition are moved to the new partition atomically.
+     */
+    put: operations["ensure_partition"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Check whether the current session user (or an explicit user) has a permission
+     *     on a resource. Uses a bundled session-validation + authz CTE for one DB round-trip
+     *     when checking the current session user.
+     */
+    get: operations["check_permission"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/expansions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Expand a relation: return all subjects who hold the given relation on the object.
+     *     Resolves subject sets recursively.
+     */
+    get: operations["expand_relation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/lookups": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List all objects of the given type that the current user (or an explicit user)
+     *     can access via the resolved roles for a permission.
+     */
+    get: operations["lookup_objects"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/relations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Write a single relation tuple. Idempotent — duplicate writes are silently ignored. */
+    post: operations["write_relation"];
+    /** Delete a single relation tuple. */
+    delete: operations["delete_relation"];
+    options?: never;
+    head?: never;
+    /** Batch write and/or delete relation tuples in a single transaction. */
+    patch: operations["batch_relations"];
+    trace?: never;
+  };
+  "/v1/authz/schema": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the current authz schema. Returns null if authz is not enabled. */
+    get: operations["get_schema"];
+    /**
+     * Replace the authz schema. Validates and compiles before persisting.
+     *     Setting schema to a valid document enables authz; this is the only way to enable it.
+     */
+    put: operations["put_schema"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/traces": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Explain why a permission check returned its result. Runs expand on all relevant
+     *     relations and reports which subjects appear, letting you trace a grant or denial.
+     */
+    get: operations["why_check"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/emails": {
     parameters: {
       query?: never;
@@ -164,6 +306,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/passkey-authentications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["begin_passkey_authentication"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/passkey-registrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["begin_passkey_registration"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/passkeys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["list_passkeys"];
+    put?: never;
+    post: operations["create_passkey"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/passkeys/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["delete_passkey"];
+    options?: never;
+    head?: never;
+    patch: operations["update_passkey"];
+    trace?: never;
+  };
   "/v1/password-resets": {
     parameters: {
       query?: never;
@@ -256,9 +462,25 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    put: operations["confirm_enrollment"];
+    put?: never;
     post: operations["begin_enrollment"];
     delete: operations["disable"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/totp/confirmations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["confirm_enrollment"];
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -296,70 +518,6 @@ export interface paths {
     patch: operations["update_me"];
     trace?: never;
   };
-  "/v1/webauthn/authentications": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put: operations["finish_webauthn_authentication"];
-    post: operations["begin_webauthn_authentication"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/webauthn/credentials": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get: operations["list_webauthn_credentials"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/webauthn/credentials/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete: operations["delete_webauthn_credential"];
-    options?: never;
-    head?: never;
-    patch: operations["update_webauthn_credential"];
-    trace?: never;
-  };
-  "/v1/webauthn/registrations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put: operations["finish_webauthn_registration"];
-    post: operations["begin_webauthn_registration"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -378,11 +536,30 @@ export interface components {
       tenant: components["schemas"]["TenantBody"];
       user: components["schemas"]["UserBody"];
     };
+    AuthzSchema: {
+      resources: components["schemas"]["ResourceDef"][];
+      subject_types?: string[];
+      /** Format: int32 */
+      version: number;
+    };
+    BatchRequest: {
+      deletes?: components["schemas"]["RelationRequest"][];
+      writes?: components["schemas"]["RelationRequest"][];
+    };
+    BatchResponse: {
+      /** Format: int64 */
+      deleted: number;
+      /** Format: int64 */
+      written: number;
+    };
     BeginResponse: {
       /** @description WebAuthn options object — pass directly to the browser's WebAuthn API. */
       options: Record<string, never>;
       /** @description Opaque state token; include in the corresponding finish request. */
       state_token: string;
+    };
+    CheckResponse: {
+      allowed: boolean;
     };
     ConfirmRequest: {
       code: string;
@@ -451,10 +628,12 @@ export interface components {
     ErrorResponse: {
       error: components["schemas"]["ErrorBody"];
     };
-    FinishAuthenticationRequest: {
-      /** @description WebAuthn `PublicKeyCredential` response from the browser. */
-      credential: Record<string, never>;
-      state_token: string;
+    ExpandResponse: {
+      subjects: components["schemas"]["ExpandSubject"][];
+    };
+    ExpandSubject: {
+      id: string;
+      relation: string;
     };
     FinishRegistrationRequest: {
       /** @description WebAuthn `PublicKeyCredential` response from the browser. */
@@ -465,6 +644,12 @@ export interface components {
     HealthzResponse: {
       status: string;
       version: string;
+    };
+    HierarchyDef: {
+      /** @description The relation name on this resource that points to parent objects. */
+      parent_relation: string;
+      /** @description The resource type of the parent. */
+      parent_resource: string;
     };
     Jwk: {
       alg: string;
@@ -505,6 +690,15 @@ export interface components {
       /** @enum {string} */
       grant_type: "totp_recovery";
       step_up_token: string;
+    } | {
+      credential: Record<string, never>;
+      /** @enum {string} */
+      grant_type: "passkey";
+      state_token: string;
+    };
+    LookupResponse: {
+      next_cursor?: string | null;
+      object_ids: string[];
     };
     MagicLinkRequest: {
       email: string;
@@ -541,6 +735,33 @@ export interface components {
       /** Format: uuid */
       id: string;
       nickname?: string | null;
+    };
+    RelationObject: {
+      id: string;
+      type: string;
+    };
+    RelationRequest: {
+      object: components["schemas"]["RelationObject"];
+      relation: string;
+      subject: components["schemas"]["RelationSubject"];
+    };
+    RelationSubject: {
+      id: string;
+      relation?: string | null;
+      type?: string | null;
+    };
+    ResourceDef: {
+      hierarchy?: null | components["schemas"]["HierarchyDef"];
+      name: string;
+      permissions: {
+        [key: string]: string[];
+      };
+      role_hierarchy?: components["schemas"]["RoleEdge"][];
+      roles: string[];
+    };
+    RoleEdge: {
+      inferior: string;
+      superior: string;
     };
     SessionBody: {
       /** Format: date-time */
@@ -596,6 +817,10 @@ export interface components {
       expires_in: number;
       token_type: string;
     };
+    TraceResponse: {
+      allowed: boolean;
+      subjects: components["schemas"]["ExpandSubject"][];
+    };
     UpdateCredentialRequest: {
       nickname: string;
     };
@@ -643,6 +868,332 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HealthzResponse"];
+        };
+      };
+    };
+  };
+  ensure_partition: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Object type to partition (e.g. "document") */
+        object_type: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Partition exists (created or already present) */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid object_type identifier */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  check_permission: {
+    parameters: {
+      query: {
+        /** @description Explicit subject to check as. Defaults to the current session user. */
+        user?: string | null;
+        permission: string;
+        resource_type: string;
+        resource_id: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CheckResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  expand_relation: {
+    parameters: {
+      query: {
+        object_type: string;
+        object_id: string;
+        relation: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExpandResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  lookup_objects: {
+    parameters: {
+      query: {
+        user?: string | null;
+        permission: string;
+        resource_type: string;
+        limit?: number;
+        cursor?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LookupResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  write_relation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RelationRequest"];
+      };
+    };
+    responses: {
+      /** @description Relation written */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_relation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RelationRequest"];
+      };
+    };
+    responses: {
+      /** @description Relation deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Relation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  batch_relations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BatchResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_schema: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": null | components["schemas"]["AuthzSchema"];
+        };
+      };
+    };
+  };
+  put_schema: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AuthzSchema"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthzSchema"];
+        };
+      };
+      /** @description Schema invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  why_check: {
+    parameters: {
+      query: {
+        user: string;
+        permission: string;
+        resource_type: string;
+        resource_id: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TraceResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -1031,6 +1582,172 @@ export interface operations {
       };
     };
   };
+  begin_passkey_authentication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BeginResponse"];
+        };
+      };
+    };
+  };
+  begin_passkey_registration: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BeginResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_passkeys: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CredentialRecord"][];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_passkey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FinishRegistrationRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RegisteredCredential"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_passkey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Credential ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Credential deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_passkey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Credential ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateCredentialRequest"];
+      };
+    };
+    responses: {
+      /** @description Credential updated */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   create_password_reset: {
     parameters: {
       query?: never;
@@ -1275,36 +1992,6 @@ export interface operations {
       };
     };
   };
-  confirm_enrollment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ConfirmRequest"];
-      };
-    };
-    responses: {
-      /** @description TOTP enrollment confirmed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
   begin_enrollment: {
     parameters: {
       query?: never;
@@ -1342,6 +2029,36 @@ export interface operations {
     requestBody?: never;
     responses: {
       /** @description TOTP disabled */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  confirm_enrollment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmRequest"];
+      };
+    };
+    responses: {
+      /** @description TOTP enrollment confirmed */
       204: {
         headers: {
           [name: string]: unknown;
@@ -1456,214 +2173,6 @@ export interface operations {
         };
       };
       404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  finish_webauthn_authentication: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json":
-          components["schemas"]["FinishAuthenticationRequest"];
-      };
-    };
-    responses: {
-      /** @description MFA step-up required */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["StepUpResponse"];
-        };
-      };
-      /** @description Authentication successful */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AuthResponse"];
-        };
-      };
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  begin_webauthn_authentication: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BeginResponse"];
-        };
-      };
-    };
-  };
-  list_webauthn_credentials: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["CredentialRecord"][];
-        };
-      };
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  delete_webauthn_credential: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Credential ID */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Credential deleted */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  update_webauthn_credential: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Credential ID */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UpdateCredentialRequest"];
-      };
-    };
-    responses: {
-      /** @description Credential updated */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  finish_webauthn_registration: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["FinishRegistrationRequest"];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RegisteredCredential"];
-        };
-      };
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  begin_webauthn_registration: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BeginResponse"];
-        };
-      };
-      401: {
         headers: {
           [name: string]: unknown;
         };
