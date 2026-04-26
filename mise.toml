@@ -1,0 +1,8 @@
+[tools]
+dprint = "latest"
+node = "lts"
+rust = "1.92"
+yamlfmt = "latest"
+
+[tasks."format"]
+run = "dprint fmt"

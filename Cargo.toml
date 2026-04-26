@@ -1,0 +1,57 @@
+[package]
+name = "beyond-auth"
+version = "0.1.0"
+edition = "2024"
+description = "Beyond authentication and authorization service"
+license = "AGPL-3.0"
+
+[[bin]]
+name = "beyond-auth"
+path = "src/main.rs"
+
+[dependencies]
+aes-gcm = "0.10"
+anyhow = "1"
+axum = "0.8"
+base64 = "0.22"
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+ed25519-dalek = { version = "2.2", features = ["pkcs8", "pem", "rand_core"] }
+mimalloc = { version = "0.1", features = ["v3"] }
+pkcs8 = "0.10"
+rand_core = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = [
+  "postgres",
+  "runtime-tokio",
+  "uuid",
+  "chrono",
+  "json",
+  "migrate",
+] }
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = [
+  "trace",
+  "request-id",
+  "catch-panic",
+  "timeout",
+] }
+tracing = "0.1"
+tracing-opentelemetry = "0.32"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+opentelemetry = { version = "0.31", default-features = false, features = ["trace"] }
+prometheus = "0.14"
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+tower-helmet = "0.3.0"
+zeroize = { version = "1.8.2", features = ["derive"] }
+
+[dev-dependencies]
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["postgres"] }
