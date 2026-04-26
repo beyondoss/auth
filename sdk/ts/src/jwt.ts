@@ -1,5 +1,6 @@
 import {
   createRemoteJWKSet,
+  errors as joseErrors,
   type JWTPayload,
   jwtVerify,
   type JWTVerifyOptions,
@@ -98,9 +99,14 @@ export function createJwtVerifier(opts: JwtVerifierOptions): JwtVerifier {
         return payload as JwtClaims;
       } catch (err) {
         if (err instanceof JwtVerificationError) throw err;
+        // JWKSTimeout = explicit JWKS fetch timeout; non-JOSEError = network failure.
+        const retryable =
+          err instanceof joseErrors.JWKSTimeout ||
+          !(err instanceof joseErrors.JOSEError);
         throw new JwtVerificationError(
           err instanceof Error ? err.message : "JWT verification failed",
           err,
+          retryable,
         );
       }
     },

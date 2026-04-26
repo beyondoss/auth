@@ -2,6 +2,7 @@ import type {
   NextRequest,
   NextResponse as NextResponseType,
 } from "next/server";
+import { AuthServiceError } from "../errors.js";
 import { getSessionToken } from "../server/cookie.js";
 
 /** Options for {@link createAuthMiddleware}. */
@@ -12,8 +13,13 @@ export interface AuthMiddlewareOptions {
    */
   redirectTo?: string;
   /**
-   * Paths that bypass the auth check. Supports exact strings and simple
-   * `*` wildcards, e.g. `'/api/public/*'`.
+   * Paths that bypass the auth check.
+   *
+   * Supports two forms only:
+   * - Exact match: `'/login'`
+   * - Trailing wildcard: `'/api/public/*'` (matches any path that starts with `/api/public/`)
+   *
+   * Mid-path wildcards (`/api/*/public`) and regex patterns are not supported.
    */
   publicPaths?: string[];
 }
@@ -80,7 +86,8 @@ export function createAuthMiddleware(
     try {
       await verifier.verify(token);
       return NextResponse.next();
-    } catch {
+    } catch (err) {
+      if (err instanceof AuthServiceError && err.status >= 500) throw err;
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
   };

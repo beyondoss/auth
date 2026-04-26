@@ -42,8 +42,12 @@ export class AuthServiceError extends Error {
  * ```
  */
 export class JwtVerificationError extends Error {
-  constructor(message: string, cause?: unknown) {
+  /** `true` when the failure is transient (e.g. JWKS fetch timeout) and a retry may succeed. */
+  readonly retryable: boolean;
+
+  constructor(message: string, cause?: unknown, retryable = false) {
     super(message, { cause });
     this.name = "JwtVerificationError";
+    this.retryable = retryable;
   }
 }

@@ -6,7 +6,7 @@ export type { components, operations } from "./types.js";
 
 /** Options for {@link createAdminClient}. */
 export interface AdminClientOptions {
-  /** Base URL of the auth service, e.g. `http://auth:8080`. No trailing slash. */
+  /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
   baseUrl: string;
 }
 
@@ -36,5 +36,5 @@ export interface AdminClientOptions {
 export function createAdminClient(
   opts: AdminClientOptions,
 ): Client<paths, `${string}/${string}`> {
-  return createFetchClient<paths>({ baseUrl: opts.baseUrl });
+  return createFetchClient<paths>({ baseUrl: opts.baseUrl.replace(/\/+$/, "") });
 }

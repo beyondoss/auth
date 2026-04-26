@@ -1,10 +1,20 @@
 import createFetchClient from "openapi-fetch";
+import * as v from "valibot";
 import { AuthServiceError } from "./errors.js";
 import type { components, paths } from "./types.js";
 
+const ErrorBody = v.object({
+  error: v.optional(
+    v.object({
+      code: v.optional(v.string()),
+      message: v.optional(v.string()),
+    }),
+  ),
+});
+
 /** Options for {@link createSessionVerifier}. */
 export interface SessionVerifierOptions {
-  /** Base URL of the auth service, e.g. `http://auth:8080`. No trailing slash. */
+  /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
   baseUrl: string;
 }
 
@@ -56,7 +66,7 @@ export interface SessionVerifier {
 export function createSessionVerifier(
   opts: SessionVerifierOptions,
 ): SessionVerifier {
-  const client = createFetchClient<paths>({ baseUrl: opts.baseUrl });
+  const client = createFetchClient<paths>({ baseUrl: opts.baseUrl.replace(/\/+$/, "") });
 
   return {
     async verify(token: string): Promise<SessionContext | null> {
@@ -68,7 +78,8 @@ export function createSessionVerifier(
       if (response.status === 401) return null;
 
       if (error !== undefined) {
-        const body = error as { error?: { code?: string; message?: string } };
+        const parsed = v.safeParse(ErrorBody, error);
+        const body = parsed.success ? parsed.output : {};
         throw new AuthServiceError(
           body.error?.code ?? "unknown_error",
           body.error?.message ?? response.statusText,
@@ -76,7 +87,14 @@ export function createSessionVerifier(
         );
       }
 
-      return data ?? null;
+      if (data === undefined) {
+        throw new AuthServiceError(
+          "unexpected_response",
+          "Auth service returned success with no session data",
+          response.status,
+        );
+      }
+      return data;
     },
   };
 }
