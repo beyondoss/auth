@@ -16,12 +16,16 @@ mod identities;
 mod jwt;
 mod keys;
 mod metrics;
+mod mfa;
 mod middleware;
+mod oauth;
+mod one_time_token;
 mod passwords;
 mod routes;
 mod sessions;
 mod telemetry;
 mod tenants;
+mod token_gc;
 mod tokens;
 mod users;
 

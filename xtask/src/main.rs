@@ -14,7 +14,10 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to start postgres container")?;
 
     let port = container.get_host_port_ipv4(5432).await?;
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    // search_path must include auth (citext lives there) and public (pg builtins).
+    let url = format!(
+        "postgres://postgres:postgres@127.0.0.1:{port}/postgres?options=-csearch_path%3Dauth%2Cpublic"
+    );
 
     let pool = sqlx::PgPool::connect(&url)
         .await

@@ -37,6 +37,11 @@ pub struct AppState {
     pub signing_key: Arc<LoadedKey>,
     pub app_config: Arc<RwLock<AppConfig>>,
     pub metrics: Arc<Metrics>,
+    pub admin_secret: String,
+    pub http_client: reqwest::Client,
+    pub oauth: Arc<RwLock<crate::oauth::OAuthProviders>>,
+    pub webauthn: Arc<webauthn_rs::Webauthn>,
+    pub encryptor: std::sync::Arc<dyn crate::crypto::KeyEncryptor>,
 }
 
 #[derive(Clone)]

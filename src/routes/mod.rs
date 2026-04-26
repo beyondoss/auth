@@ -127,7 +127,7 @@ impl utoipa::Modify for BearerAuth {
         (name = "password-resets", description = "Password reset flow"),
         (name = "totp", description = "TOTP enrollment and management"),
         (name = "oauth", description = "OAuth 2.0 provider login"),
-        (name = "webauthn", description = "Passkey / WebAuthn registration and authentication"),
+        (name = "passkeys", description = "Passkey registration and authentication"),
     )
 )]
 pub struct ApiDoc;
@@ -159,7 +159,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             post(emails::confirm_verification),
         )
         .route(
-            "/v1/webauthn/authentications",
+            "/v1/passkey-authentications",
             post(webauthn::begin_authentication).put(webauthn::finish_authentication),
         );
 
@@ -189,12 +189,12 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .delete(totp::disable),
         )
         .route(
-            "/v1/webauthn/registrations",
+            "/v1/passkey-registrations",
             post(webauthn::begin_registration).put(webauthn::finish_registration),
         )
-        .route("/v1/webauthn/credentials", get(webauthn::list_credentials))
+        .route("/v1/passkeys", get(webauthn::list_credentials))
         .route(
-            "/v1/webauthn/credentials/{id}",
+            "/v1/passkeys/{id}",
             patch(webauthn::update_credential).delete(webauthn::delete_credential),
         )
         .route_layer(axum_middleware::from_fn_with_state(state, require_auth));

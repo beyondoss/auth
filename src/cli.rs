@@ -95,7 +95,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         .build()
         .map_err(|e| anyhow::anyhow!("Webauthn::build failed: {e}"))?;
 
-    tokio::spawn(token_gc::run(pool.clone()));
+    let gc_handle = tokio::spawn(token_gc::run(pool.clone()));
 
     let state = http::AppState {
         pool,
@@ -110,7 +110,10 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         encryptor,
     };
 
-    http::serve(&cfg.address, state).await
+    let result = http::serve(&cfg.address, state).await;
+    gc_handle.abort();
+    let _ = gc_handle.await; // JoinError here means cancelled (expected) or panicked (already exiting)
+    result
 }
 
 async fn migrate(cfg: MigrateConfig) -> Result<()> {

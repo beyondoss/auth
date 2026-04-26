@@ -27,6 +27,18 @@ pub struct ServeConfig {
     /// current key. Remove old keys once all data has been rotated.
     #[arg(long, env = "SIGNING_KEY_ENCRYPTION_KEY_OLD")]
     pub signing_key_encryption_key_old: Option<String>,
+
+    /// Secret token required for admin endpoints (e.g. PUT /v1/admin/oauth-providers).
+    #[arg(long, env = "ADMIN_SECRET")]
+    pub admin_secret: String,
+
+    /// WebAuthn relying party ID (e.g. "example.com").
+    #[arg(long, env = "WEBAUTHN_RP_ID")]
+    pub webauthn_rp_id: String,
+
+    /// WebAuthn relying party origin (e.g. "https://example.com").
+    #[arg(long, env = "WEBAUTHN_RP_ORIGIN")]
+    pub webauthn_rp_origin: String,
 }
 
 #[derive(Debug, Args)]

@@ -8,12 +8,20 @@ use zeroize::Zeroizing;
 
 pub enum TokenPrefix {
     Session,
+    MagicLink,
+    PasswordReset,
+    EmailVerification,
+    EmailChange,
 }
 
 impl TokenPrefix {
-    fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             TokenPrefix::Session => "session",
+            TokenPrefix::MagicLink => "ml",
+            TokenPrefix::PasswordReset => "pwr",
+            TokenPrefix::EmailVerification => "ev",
+            TokenPrefix::EmailChange => "ec",
         }
     }
 }
@@ -24,7 +32,7 @@ impl TokenPrefix {
 /// - `id_hex`: UUID v7 as 32 lowercase hex chars (no dashes) — no underscores, safe as delimiter
 /// - `secret_b64url`: 32 random bytes, base64url no-padding — may contain underscores, always last
 ///
-/// The DB stores only `SHA-256(secret_bytes)` hex-encoded, never the raw secret.
+/// The DB stores only `SHA-256(secret_bytes)` as raw bytes (bytea), never the raw secret.
 pub struct Token {
     pub prefix: TokenPrefix,
     pub id: Uuid,
@@ -39,9 +47,9 @@ impl Token {
         Self { prefix, id, secret }
     }
 
-    /// SHA-256 of the secret bytes, hex-encoded. Store this in the DB.
-    pub fn secret_hash(&self) -> String {
-        sha256_hex(self.secret.as_ref())
+    /// SHA-256 of the secret bytes as raw bytes. Bind to bytea columns in the DB.
+    pub fn secret_hash(&self) -> [u8; 32] {
+        sha256_bytes(self.secret.as_ref())
     }
 }
 
@@ -59,8 +67,9 @@ impl fmt::Display for Token {
 
 /// Extracted from a bearer token string. Contains what you need to authenticate against the DB.
 pub struct ParsedToken {
+    pub prefix: String,
     pub id: Uuid,
-    pub secret_hash: String,
+    pub secret_hash: [u8; 32],
 }
 
 /// Parse a bearer token string into its ID and secret hash.
@@ -69,7 +78,7 @@ pub fn parse(s: &str) -> Option<ParsedToken> {
     // Split into exactly 3 parts: prefix, id_hex, secret_b64url
     // id_hex has no underscores; secret_b64url may, so splitn(3) is safe.
     let mut parts = s.splitn(3, '_');
-    let _prefix = parts.next()?;
+    let prefix = parts.next()?.to_string();
     let id_hex = parts.next()?;
     let secret_b64 = parts.next()?;
 
@@ -85,18 +94,14 @@ pub fn parse(s: &str) -> Option<ParsedToken> {
     }
 
     Some(ParsedToken {
+        prefix,
         id,
-        secret_hash: sha256_hex(&secret_bytes),
+        secret_hash: sha256_bytes(&secret_bytes),
     })
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    let hash = Sha256::digest(bytes);
-    hash.iter().fold(String::with_capacity(64), |mut s, b| {
-        use std::fmt::Write as _;
-        write!(s, "{b:02x}").unwrap();
-        s
-    })
+fn sha256_bytes(bytes: &[u8]) -> [u8; 32] {
+    Sha256::digest(bytes).into()
 }
 
 #[cfg(test)]
@@ -135,7 +140,31 @@ mod tests {
     fn secret_hash_deterministic_within_token() {
         let token = Token::new(TokenPrefix::Session);
         assert_eq!(token.secret_hash(), token.secret_hash());
-        assert_eq!(token.secret_hash().len(), 64, "SHA-256 hex is 64 chars");
+        assert_eq!(token.secret_hash().len(), 32, "SHA-256 is 32 bytes");
+    }
+
+    #[test]
+    fn prefix_variants() {
+        assert!(
+            Token::new(TokenPrefix::MagicLink)
+                .to_string()
+                .starts_with("ml_")
+        );
+        assert!(
+            Token::new(TokenPrefix::PasswordReset)
+                .to_string()
+                .starts_with("pwr_")
+        );
+        assert!(
+            Token::new(TokenPrefix::EmailVerification)
+                .to_string()
+                .starts_with("ev_")
+        );
+        assert!(
+            Token::new(TokenPrefix::EmailChange)
+                .to_string()
+                .starts_with("ec_")
+        );
     }
 
     #[test]

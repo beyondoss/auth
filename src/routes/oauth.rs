@@ -69,8 +69,6 @@ async fn complete_oauth_login(
     user_id: Uuid,
     redirect_url: &str,
 ) -> Result<Response, AuthError> {
-    let (_user, _tenant, _email) = sessions::load_user_context(&state.pool, user_id).await?;
-
     let ttl = {
         let cfg = state.app_config.read().await;
         cfg.session_ttl_seconds
