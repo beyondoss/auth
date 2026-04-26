@@ -7,12 +7,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::{
-    error::AuthError,
-    http::AppState,
-    mfa::webauthn as wn,
-    sessions::SessionContext,
-};
+use crate::{error::AuthError, http::AppState, mfa::webauthn as wn, sessions::SessionContext};
 
 // ── Shared response types ─────────────────────────────────────────────────────
 
@@ -47,7 +42,6 @@ pub struct FinishRegistrationRequest {
 pub struct UpdateCredentialRequest {
     pub nickname: String,
 }
-
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -205,4 +199,3 @@ pub async fn begin_authentication(
         "state_token": state_token,
     })))
 }
-

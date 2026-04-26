@@ -19,7 +19,7 @@ export interface AuthMiddlewareOptions {
    * - Exact match: `'/login'`
    * - Trailing wildcard: `'/api/public/*'` (matches any path that starts with `/api/public/`)
    *
-   * Mid-path wildcards (`/api/*/public`) and regex patterns are not supported.
+   * Mid-path wildcards and regex patterns are not supported.
    */
   publicPaths?: string[];
 }

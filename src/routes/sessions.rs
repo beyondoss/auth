@@ -23,12 +23,28 @@ use super::users::make_auth_response;
 #[derive(Deserialize, utoipa::ToSchema)]
 #[serde(tag = "grant_type", rename_all = "snake_case")]
 pub enum LoginRequest {
-    Password { email: String, password: String },
-    MagicLink { token: String },
-    PasswordReset { token: String, new_password: String },
-    EmailChange { token: String },
-    TotpStepUp { step_up_token: String, code: String },
-    TotpRecovery { step_up_token: String, code: String },
+    Password {
+        email: String,
+        password: String,
+    },
+    MagicLink {
+        token: String,
+    },
+    PasswordReset {
+        token: String,
+        new_password: String,
+    },
+    EmailChange {
+        token: String,
+    },
+    TotpStepUp {
+        step_up_token: String,
+        code: String,
+    },
+    TotpRecovery {
+        step_up_token: String,
+        code: String,
+    },
     Passkey {
         state_token: String,
         #[schema(value_type = Object)]

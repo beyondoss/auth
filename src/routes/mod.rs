@@ -156,7 +156,10 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/emails/verifications",
             post(emails::confirm_verification),
         )
-        .route("/v1/passkey-authentications", post(webauthn::begin_authentication));
+        .route(
+            "/v1/passkey-authentications",
+            post(webauthn::begin_authentication),
+        );
 
     let authenticated = Router::new()
         .route("/v1/users/me", get(users::get_me).patch(users::update_me))
@@ -182,7 +185,10 @@ pub fn router(state: AppState) -> Router<AppState> {
             post(totp::begin_enrollment).delete(totp::disable),
         )
         .route("/v1/totp/confirmations", post(totp::confirm_enrollment))
-        .route("/v1/passkey-registrations", post(webauthn::begin_registration))
+        .route(
+            "/v1/passkey-registrations",
+            post(webauthn::begin_registration),
+        )
         .route(
             "/v1/passkeys",
             get(webauthn::list_credentials).post(webauthn::finish_registration),
