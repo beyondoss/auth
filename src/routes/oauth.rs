@@ -32,7 +32,13 @@ pub struct AppleCallbackForm {
     pub user: Option<String>,
 }
 
-fn callback_uri(headers: &HeaderMap, provider: &str) -> String {
+fn callback_uri(headers: &HeaderMap, provider: &str, public_url: Option<&str>) -> String {
+    if let Some(base) = public_url {
+        return format!(
+            "{}/v1/oauth/{provider}/callback",
+            base.trim_end_matches('/')
+        );
+    }
     let proto = headers
         .get("x-forwarded-proto")
         .and_then(|v| v.to_str().ok())
@@ -42,6 +48,24 @@ fn callback_uri(headers: &HeaderMap, provider: &str) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("localhost");
     format!("{proto}://{host}/v1/oauth/{provider}/callback")
+}
+
+fn validate_redirect_url(url: &str, allowlist: &[String]) -> Result<(), crate::error::AuthError> {
+    if allowlist.is_empty() {
+        return Ok(());
+    }
+    let parsed =
+        reqwest::Url::parse(url).map_err(|_| crate::error::AuthError::OAuthRedirectNotAllowed)?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => return Err(crate::error::AuthError::OAuthRedirectNotAllowed),
+    }
+    let origin = parsed.origin().ascii_serialization();
+    if allowlist.iter().any(|o| o == &origin) {
+        Ok(())
+    } else {
+        Err(crate::error::AuthError::OAuthRedirectNotAllowed)
+    }
 }
 
 fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
@@ -119,9 +143,11 @@ pub async fn authorize(
             .clone()
     };
 
+    validate_redirect_url(&params.redirect_url, &state.oauth_redirect_allowlist)?;
+
     let verifier = PkceVerifier::new();
     let challenge = verifier.challenge();
-    let redirect_uri = callback_uri(&headers, &provider);
+    let redirect_uri = callback_uri(&headers, &provider, state.public_url.as_deref());
 
     let state_jwt =
         oauth::state::issue(verifier.as_str(), &params.redirect_url, &state.signing_key);
@@ -160,7 +186,7 @@ pub async fn callback(
             .clone()
     };
 
-    let redirect_uri = callback_uri(&headers, &provider);
+    let redirect_uri = callback_uri(&headers, &provider, state.public_url.as_deref());
 
     let profile = client
         .exchange_and_profile(&params.code, &claims.pkce_verifier, &redirect_uri)
@@ -206,7 +232,7 @@ pub async fn apple_callback(
             .clone()
     };
 
-    let redirect_uri = callback_uri(&headers, "apple");
+    let redirect_uri = callback_uri(&headers, "apple", state.public_url.as_deref());
 
     let mut profile = client
         .exchange_and_profile(&params.code, "", &redirect_uri)

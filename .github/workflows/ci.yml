@@ -38,3 +38,7 @@ jobs:
         run: cargo test
       - name: build
         run: cargo build --release
+      - name: audit
+        run: |
+          cargo install cargo-audit --quiet
+          cargo audit

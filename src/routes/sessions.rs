@@ -191,7 +191,8 @@ async fn login_one_time_token(
     ttl: i32,
     raw_token: &str,
 ) -> Result<Response, AuthError> {
-    let (user_id, _ctx) = one_time_token::consume(&state.pool, TokenPrefix::MagicLink, raw_token).await?;
+    let (user_id, _ctx) =
+        one_time_token::consume(&state.pool, TokenPrefix::MagicLink, raw_token).await?;
 
     let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);
@@ -221,7 +222,8 @@ async fn login_password_reset(
     raw_token: &str,
     new_password: &str,
 ) -> Result<Response, AuthError> {
-    let (user_id, _ctx) = one_time_token::consume(&state.pool, TokenPrefix::PasswordReset, raw_token).await?;
+    let (user_id, _ctx) =
+        one_time_token::consume(&state.pool, TokenPrefix::PasswordReset, raw_token).await?;
 
     let new_hash = passwords::hash(new_password)?;
 
@@ -273,7 +275,8 @@ async fn login_email_change(
     ttl: i32,
     raw_token: &str,
 ) -> Result<Response, AuthError> {
-    let (user_id, context) = one_time_token::consume(&state.pool, TokenPrefix::EmailChange, raw_token).await?;
+    let (user_id, context) =
+        one_time_token::consume(&state.pool, TokenPrefix::EmailChange, raw_token).await?;
 
     let new_email: String = context
         .as_ref()

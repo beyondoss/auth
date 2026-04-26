@@ -100,9 +100,8 @@ export function createJwtVerifier(opts: JwtVerifierOptions): JwtVerifier {
       } catch (err) {
         if (err instanceof JwtVerificationError) throw err;
         // JWKSTimeout = explicit JWKS fetch timeout; non-JOSEError = network failure.
-        const retryable =
-          err instanceof joseErrors.JWKSTimeout ||
-          !(err instanceof joseErrors.JOSEError);
+        const retryable = err instanceof joseErrors.JWKSTimeout
+          || !(err instanceof joseErrors.JOSEError);
         throw new JwtVerificationError(
           err instanceof Error ? err.message : "JWT verification failed",
           err,

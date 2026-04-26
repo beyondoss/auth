@@ -1,9 +1,4 @@
-import {
-  exportJWK,
-  generateKeyPair,
-  type KeyLike,
-  SignJWT,
-} from "jose";
+import { exportJWK, generateKeyPair, type KeyLike, SignJWT } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { JwtVerificationError } from "../errors.js";
 import { createJwtVerifier } from "../jwt.js";

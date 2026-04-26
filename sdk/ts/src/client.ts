@@ -36,5 +36,7 @@ export interface AdminClientOptions {
 export function createAdminClient(
   opts: AdminClientOptions,
 ): Client<paths, `${string}/${string}`> {
-  return createFetchClient<paths>({ baseUrl: opts.baseUrl.replace(/\/+$/, "") });
+  return createFetchClient<paths>({
+    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+  });
 }

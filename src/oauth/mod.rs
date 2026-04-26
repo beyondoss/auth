@@ -231,9 +231,11 @@ pub async fn find_or_create_oauth_user(
         .await
         .map_err(AuthError::from)?
         {
-            match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, "").await {
+            match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, "").await
+            {
                 Ok(_) => {}
-                Err(e) if is_identity_conflict(&e) => { /* another request won the race; row.id is still correct */ }
+                Err(e) if is_identity_conflict(&e) => { /* another request won the race; row.id is still correct */
+                }
                 Err(e) => return Err(e),
             }
             tx.commit().await.map_err(AuthError::from)?;
@@ -267,7 +269,9 @@ pub async fn find_or_create_oauth_user(
     let email_str = profile.email.as_deref().unwrap_or("");
     let _email = emails::create(&mut tx, email_id, user_id, email_str).await?;
 
-    if let Err(e) = identities::create(&mut tx, user_id, provider_slug, &profile.external_id, "").await {
+    if let Err(e) =
+        identities::create(&mut tx, user_id, provider_slug, &profile.external_id, "").await
+    {
         if !is_identity_conflict(&e) {
             return Err(e);
         }

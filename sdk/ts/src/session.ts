@@ -66,7 +66,9 @@ export interface SessionVerifier {
 export function createSessionVerifier(
   opts: SessionVerifierOptions,
 ): SessionVerifier {
-  const client = createFetchClient<paths>({ baseUrl: opts.baseUrl.replace(/\/+$/, "") });
+  const client = createFetchClient<paths>({
+    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+  });
 
   return {
     async verify(token: string): Promise<SessionContext | null> {

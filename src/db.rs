@@ -7,6 +7,7 @@ pub async fn connect(database_url: &str) -> Result<PgPool> {
         .max_connections(16)
         .after_connect(|conn, _| {
             Box::pin(async move {
+                // Literal constant, no user input, no row access — intentionally untyped.
                 sqlx::query("SET search_path = auth, public")
                     .execute(conn)
                     .await?;

@@ -9,4 +9,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   treeshake: true,
+  deps: { neverBundle: ["next", "react"] },
 });

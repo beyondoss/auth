@@ -75,6 +75,9 @@ pub enum AuthError {
     #[error("oauth provider is not configured")]
     OAuthProviderNotConfigured,
 
+    #[error("redirect_url is not in the configured allowlist")]
+    OAuthRedirectNotAllowed,
+
     #[error("internal error: {message}")]
     Internal {
         message: String,
@@ -181,6 +184,11 @@ impl IntoResponse for AuthError {
             AuthError::OAuthProviderNotConfigured => (
                 StatusCode::BAD_REQUEST,
                 "oauth_provider_not_configured",
+                self.to_string(),
+            ),
+            AuthError::OAuthRedirectNotAllowed => (
+                StatusCode::BAD_REQUEST,
+                "oauth_redirect_not_allowed",
                 self.to_string(),
             ),
             AuthError::Internal { .. } | AuthError::Db { .. } => (

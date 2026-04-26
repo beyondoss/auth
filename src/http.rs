@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use axum::{
     Json, Router,
-    extract::{MatchedPath, Request, State},
+    extract::{DefaultBodyLimit, MatchedPath, Request, State},
     http::header,
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -42,6 +42,12 @@ pub struct AppState {
     pub oauth: Arc<RwLock<crate::oauth::OAuthProviders>>,
     pub webauthn: Arc<webauthn_rs::Webauthn>,
     pub encryptor: std::sync::Arc<dyn crate::crypto::KeyEncryptor>,
+    /// Parsed origins (e.g. "https://app.example.com") allowed as OAuth redirect targets.
+    /// Empty means no validation is performed — callers should warn at startup.
+    pub oauth_redirect_allowlist: Vec<String>,
+    /// Public base URL of this service (e.g. "https://auth.example.com"), used to construct
+    /// OAuth callback URIs. When None, derived from the incoming request Host header.
+    pub public_url: Option<String>,
 }
 
 #[derive(Clone)]
@@ -75,6 +81,7 @@ fn router(state: AppState) -> Router {
         .route("/metrics", get(metrics_handler))
         .with_state(state.clone())
         .route_layer(middleware::from_fn_with_state(state, record_metrics))
+        .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(
             ServiceBuilder::new()
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))

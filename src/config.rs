@@ -39,6 +39,18 @@ pub struct ServeConfig {
     /// WebAuthn relying party origin (e.g. "https://example.com").
     #[arg(long, env = "WEBAUTHN_RP_ORIGIN")]
     pub webauthn_rp_origin: String,
+
+    /// Public base URL of this service (e.g. "https://auth.example.com").
+    /// Used to construct OAuth callback URIs. If unset, derived from the
+    /// incoming request Host header (less reliable behind some proxies).
+    #[arg(long, env = "PUBLIC_URL")]
+    pub public_url: Option<String>,
+
+    /// Comma-separated list of origins allowed as OAuth post-login redirect targets.
+    /// Example: "https://app.example.com,https://app.example.com:3000"
+    /// If unset, redirect URL validation is skipped — configure this in production.
+    #[arg(long, env = "OAUTH_ALLOWED_REDIRECT_ORIGINS")]
+    pub oauth_allowed_redirect_origins: Option<String>,
 }
 
 #[derive(Debug, Args)]

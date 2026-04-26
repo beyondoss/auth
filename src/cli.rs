@@ -43,6 +43,31 @@ pub async fn run() -> Result<()> {
 }
 
 async fn serve(cfg: ServeConfig) -> Result<()> {
+    if cfg.admin_secret.is_empty() {
+        anyhow::bail!("ADMIN_SECRET must not be empty");
+    }
+
+    let oauth_redirect_allowlist: Vec<String> = cfg
+        .oauth_allowed_redirect_origins
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| {
+            reqwest::Url::parse(s)
+                .ok()
+                .map(|u| u.origin().ascii_serialization())
+        })
+        .collect();
+
+    if oauth_redirect_allowlist.is_empty() {
+        tracing::warn!(
+            "OAUTH_ALLOWED_REDIRECT_ORIGINS is not configured — OAuth redirect URLs are not \
+             validated. Set this to a comma-separated list of allowed origins in production."
+        );
+    }
+
     let otel_config = telemetry::OtelConfig {
         enabled: cfg.otlp_enabled,
         otlp_endpoint: cfg.otlp_endpoint.clone(),
@@ -108,6 +133,8 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         oauth: Arc::new(RwLock::new(oauth)),
         webauthn: Arc::new(webauthn),
         encryptor,
+        oauth_redirect_allowlist,
+        public_url: cfg.public_url.clone(),
     };
 
     let result = http::serve(&cfg.address, state).await;

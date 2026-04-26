@@ -292,7 +292,12 @@ pub async fn confirm_verification(
     State(state): State<AppState>,
     Json(req): Json<ConfirmVerificationRequest>,
 ) -> Result<Json<ConfirmVerificationResponse>, AuthError> {
-    let (user_id, context) = one_time_token::consume(&state.pool, crate::tokens::TokenPrefix::EmailVerification, &req.token).await?;
+    let (user_id, context) = one_time_token::consume(
+        &state.pool,
+        crate::tokens::TokenPrefix::EmailVerification,
+        &req.token,
+    )
+    .await?;
 
     let email_id: Uuid = context
         .as_ref()
