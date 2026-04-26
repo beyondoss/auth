@@ -44,12 +44,19 @@ pub struct CurrentSessionResponse {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn request_context(headers: &HeaderMap) -> RequestContext<'_> {
+fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
+    let ip_address = headers
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| {
+            headers
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .map(str::trim)
+        });
     RequestContext {
-        ip_address: headers
-            .get("x-real-ip")
-            .or_else(|| headers.get("x-forwarded-for"))
-            .and_then(|v| v.to_str().ok()),
+        ip_address,
         user_agent: headers
             .get(header::USER_AGENT)
             .and_then(|v| v.to_str().ok()),
@@ -123,10 +130,8 @@ pub async fn get_current(
     State(state): State<AppState>,
     Extension(ctx): Extension<SessionContext>,
 ) -> Result<Json<CurrentSessionResponse>, AuthError> {
-    let row = sessions::list(&state.pool, ctx.user.id, ctx.token_id)
+    let row = sessions::get_current_session(&state.pool, ctx.user.id, ctx.token_id)
         .await?
-        .into_iter()
-        .find(|s| s.current)
         .ok_or(AuthError::NotFound)?;
 
     Ok(Json(CurrentSessionResponse {
@@ -148,8 +153,7 @@ pub async fn delete_current(
 ) -> Result<StatusCode, AuthError> {
     // The middleware already authenticated this token. We trust ctx.token_id.
     // Idempotent: if already deleted, the no-op DELETE still returns 204.
-    sqlx::query("DELETE FROM auth.token WHERE id = $1")
-        .bind(ctx.token_id)
+    sqlx::query!("DELETE FROM auth.token WHERE id = $1", ctx.token_id)
         .execute(&state.pool)
         .await
         .map_err(AuthError::from)?;
@@ -166,8 +170,7 @@ pub async fn delete_by_id(
 ) -> Result<StatusCode, AuthError> {
     // Fast path: caller is revoking their own current session.
     if session_id == ctx.session_id {
-        sqlx::query("DELETE FROM auth.token WHERE id = $1")
-            .bind(ctx.token_id)
+        sqlx::query!("DELETE FROM auth.token WHERE id = $1", ctx.token_id)
             .execute(&state.pool)
             .await
             .map_err(AuthError::from)?;
@@ -177,7 +180,7 @@ pub async fn delete_by_id(
     // Delete the token only if the session belongs to the authenticated user.
     // Zero rows deleted → session doesn't exist or belongs to another user → 404.
     // Same response for both cases prevents IDOR information disclosure.
-    let result = sqlx::query(
+    let result = sqlx::query!(
         r#"
         WITH target AS (
             SELECT s.token_id
@@ -186,9 +189,9 @@ pub async fn delete_by_id(
         )
         DELETE FROM auth.token WHERE id = (SELECT token_id FROM target)
         "#,
+        session_id,
+        ctx.user.id,
     )
-    .bind(session_id)
-    .bind(ctx.user.id)
     .execute(&state.pool)
     .await
     .map_err(AuthError::from)?;

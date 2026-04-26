@@ -158,6 +158,39 @@ pub async fn create(
     Ok((session_id, expires_at))
 }
 
+/// Fetch the single active session matching `token_id` for the given user.
+/// Returns `None` if the session is expired or not found.
+pub async fn get_current_session(
+    pool: &PgPool,
+    user_id: Uuid,
+    token_id: Uuid,
+) -> Result<Option<SessionListItem>, AuthError> {
+    sqlx::query_as!(
+        SessionListItem,
+        r#"
+        SELECT
+            s.id,
+            s.token_id,
+            s.ip_address::text   AS ip_address,
+            s.user_agent,
+            s.created_at,
+            tok.expires_at,
+            tok.last_used_at,
+            true                 AS "current!"
+        FROM auth.session s
+        INNER JOIN auth.token tok ON tok.id = s.token_id
+        WHERE s.user_id  = $1
+          AND s.token_id = $2
+          AND tok.expires_at > clock_timestamp()
+        "#,
+        user_id,
+        token_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)
+}
+
 /// List all non-expired sessions for the caller's user.
 pub async fn list(
     pool: &PgPool,

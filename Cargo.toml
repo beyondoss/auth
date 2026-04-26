@@ -46,5 +46,5 @@ uuid = { version = "1", features = ["v7", "serde"] }
 zeroize = { version = "1.8.2", features = ["derive"] }
 
 [dev-dependencies]
-testcontainers = "0.23"
-testcontainers-modules = { version = "0.11", features = ["postgres"] }
+testcontainers = "0.27"
+testcontainers-modules = { version = "0.15", features = ["postgres"] }

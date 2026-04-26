@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use axum::{
     Json, Router,
-    extract::{Request, State},
+    extract::{MatchedPath, Request, State},
     http::header,
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -69,7 +69,7 @@ fn router(state: AppState) -> Router {
         .route("/openapi.json", get(move || async move { Json(openapi) }))
         .route("/metrics", get(metrics_handler))
         .with_state(state.clone())
-        .layer(middleware::from_fn_with_state(state, record_metrics))
+        .route_layer(middleware::from_fn_with_state(state, record_metrics))
         .layer(
             ServiceBuilder::new()
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
@@ -85,7 +85,11 @@ fn router(state: AppState) -> Router {
 
 async fn record_metrics(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let method = req.method().as_str().to_string();
-    let path = req.uri().path().to_string();
+    let path = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_else(|| req.uri().path().to_string());
     let timer = state
         .metrics
         .http_request_duration_seconds

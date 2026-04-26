@@ -73,12 +73,19 @@ pub struct SessionBody {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn request_context(headers: &HeaderMap) -> RequestContext<'_> {
+fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
+    let ip_address = headers
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| {
+            headers
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .map(str::trim)
+        });
     RequestContext {
-        ip_address: headers
-            .get("x-real-ip")
-            .or_else(|| headers.get("x-forwarded-for"))
-            .and_then(|v| v.to_str().ok()),
+        ip_address,
         user_agent: headers
             .get(header::USER_AGENT)
             .and_then(|v| v.to_str().ok()),
