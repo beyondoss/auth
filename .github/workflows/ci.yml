@@ -6,7 +6,8 @@ on:
     branches: [main]
 env:
   CARGO_TERM_COLOR: always
-  SQLX_OFFLINE: "true"
+  SQLX_OFFLINE: "false"
+  DATABASE_URL: postgres://paraglide:password@localhost:5432/beyond-auth
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -25,18 +26,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - uses: Swatinem/rust-cache@v2
+      - name: migrate
+        run: cargo sqlx migrate run
+      - name: sqlx prepare check
+        run: cargo sqlx prepare --check
       - name: fmt
         run: dprint check
       - name: clippy
         run: cargo clippy -- -D warnings
       - name: test
         run: cargo test
-      - name: sqlx prepare check
-        env:
-          SQLX_OFFLINE: "false"
-          DATABASE_URL: postgres://paraglide:password@localhost:5432/beyond-auth
-        run: |
-          cargo sqlx migrate run
-          cargo sqlx prepare --check
       - name: build
         run: cargo build --release
