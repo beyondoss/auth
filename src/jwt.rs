@@ -9,6 +9,7 @@ use crate::error::AuthError;
 pub fn issue_access_token(
     user_id: Uuid,
     issuer_url: &str,
+    audience: &str,
     ttl_seconds: i32,
     kid: Uuid,
     signing_key: &SigningKey,
@@ -30,9 +31,12 @@ pub fn issue_access_token(
 
     let claims = URL_SAFE_NO_PAD.encode(
         serde_json::to_string(&json!({
+            "jti": Uuid::new_v4().to_string(),
             "sub": user_id.to_string(),
             "iss": issuer_url,
+            "aud": audience,
             "iat": now,
+            "nbf": now - 5,
             "exp": exp,
         }))
         .map_err(|e| AuthError::internal_with("JWT claims serialization", e))?,

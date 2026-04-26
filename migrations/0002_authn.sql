@@ -4,7 +4,8 @@ SET search_path = auth, public;
 
 ALTER TABLE auth.app_config
     ADD COLUMN jwt_enabled  bool NOT NULL DEFAULT false,
-    ADD COLUMN issuer_url   text;
+    ADD COLUMN issuer_url   text,
+    ADD COLUMN jwt_audience text;
 
 -- Tenants: personal (1:1 with user, created atomically on signup) and team tenants (Phase 3+)
 

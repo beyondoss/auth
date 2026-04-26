@@ -25,6 +25,9 @@ pub enum AuthError {
     #[error("password must be at least 8 characters")]
     PasswordTooShort,
 
+    #[error("password must be at most 128 characters")]
+    PasswordTooLong,
+
     #[error("password is too common")]
     PasswordTooCommon,
 
@@ -94,6 +97,9 @@ impl IntoResponse for AuthError {
             }
             AuthError::PasswordTooShort => {
                 (StatusCode::UNPROCESSABLE_ENTITY, "password_too_short", self.to_string())
+            }
+            AuthError::PasswordTooLong => {
+                (StatusCode::UNPROCESSABLE_ENTITY, "password_too_long", self.to_string())
             }
             AuthError::PasswordTooCommon => {
                 (StatusCode::UNPROCESSABLE_ENTITY, "password_too_common", self.to_string())

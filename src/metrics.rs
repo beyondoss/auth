@@ -46,6 +46,12 @@ impl Metrics {
         use prometheus::{Encoder, TextEncoder};
         let mut buf = Vec::new();
         TextEncoder::new().encode(&self.registry.gather(), &mut buf)?;
-        Ok(String::from_utf8(buf).unwrap_or_default())
+        match String::from_utf8(buf) {
+            Ok(s) => Ok(s),
+            Err(e) => {
+                tracing::error!(error = %e, "metrics render produced invalid UTF-8");
+                Ok(String::new())
+            }
+        }
     }
 }

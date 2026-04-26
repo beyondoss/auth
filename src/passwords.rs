@@ -6,6 +6,7 @@ use argon2::{
 use crate::error::AuthError;
 
 const MIN_LENGTH: usize = 8;
+const MAX_LENGTH: usize = 128;
 
 static COMMON_PASSWORDS: &str =
     include_str!("../tests/fixtures/common_passwords.txt");
@@ -15,6 +16,9 @@ static COMMON_PASSWORDS: &str =
 pub fn hash(password: &str) -> Result<String, AuthError> {
     if password.len() < MIN_LENGTH {
         return Err(AuthError::PasswordTooShort);
+    }
+    if password.len() > MAX_LENGTH {
+        return Err(AuthError::PasswordTooLong);
     }
     if is_common(password) {
         return Err(AuthError::PasswordTooCommon);
@@ -31,6 +35,9 @@ pub fn hash(password: &str) -> Result<String, AuthError> {
 /// Verify a password against an argon2 PHC hash string.
 /// Returns `true` if it matches, `false` if it doesn't.
 pub fn verify(password: &str, hash_str: &str) -> Result<bool, AuthError> {
+    if password.len() > MAX_LENGTH {
+        return Ok(false);
+    }
     let parsed = PasswordHash::new(hash_str)
         .map_err(|e| AuthError::internal_with("invalid password hash", e))?;
     // Parameters come from the PHC string; Argon2::default() handles all variants.
@@ -76,6 +83,21 @@ mod tests {
         assert!(matches!(hash("short"), Err(AuthError::PasswordTooShort)));
         assert!(matches!(hash("sevench"), Err(AuthError::PasswordTooShort)));
         assert!(hash("eightchr").is_ok());
+    }
+
+    #[test]
+    fn rejects_too_long() {
+        let long = "a".repeat(MAX_LENGTH + 1);
+        assert!(matches!(hash(&long), Err(AuthError::PasswordTooLong)));
+        let ok = "a".repeat(MAX_LENGTH);
+        assert!(hash(&ok).is_ok());
+    }
+
+    #[test]
+    fn verify_too_long_returns_false() {
+        let h = hash("correct-horse-battery").unwrap();
+        let long = "a".repeat(MAX_LENGTH + 1);
+        assert!(!verify(&long, &h).unwrap());
     }
 
     #[test]

@@ -6,3 +6,6 @@ yamlfmt = "latest"
 
 [tasks."format"]
 run = "dprint fmt"
+
+[tasks."sqlx:prepare"]
+run = "cargo run --package xtask"

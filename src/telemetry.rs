@@ -52,6 +52,8 @@ pub fn init(
         SdkTracerProvider::builder().build()
     };
 
+    // SAFETY: `tracer()` requires `&'static str`; service_name is set once at startup
+    // and must live for the process lifetime.
     let service_name: &'static str = Box::leak(config.service_name.clone().into_boxed_str());
     let tracer = provider.tracer(service_name);
     let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
