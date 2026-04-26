@@ -1,7 +1,7 @@
 [tools]
 dprint = "latest"
 node = "lts"
-rust = "1.92"
+rust = { version = "1.92", components = ["rustfmt", "clippy"] }
 yamlfmt = "latest"
 cargo-binstall = "latest"
 "cargo:sqlx-cli" = "latest"
