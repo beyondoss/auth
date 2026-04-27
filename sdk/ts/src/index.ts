@@ -1,11 +1,25 @@
 export {
+  type AuthzClient,
+  type AuthzClientOptions,
+  type AuthzSchema,
+  createAuthzClient,
+  type LookupOptions,
+  type LookupPage,
+  type Relation,
+  type ResolvedSubject,
+} from "./authz.js";
+export {
   type AdminClientOptions,
   type components,
   createAdminClient,
   type operations,
   type paths,
 } from "./client.js";
-export { AuthServiceError, JwtVerificationError } from "./errors.js";
+export {
+  AuthServiceError,
+  AuthzError,
+  JwtVerificationError,
+} from "./errors.js";
 export {
   createJwtVerifier,
   type JwtClaims,

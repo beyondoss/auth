@@ -89,13 +89,6 @@ export function createSessionVerifier(
         );
       }
 
-      if (data === undefined) {
-        throw new AuthServiceError(
-          "unexpected_response",
-          "Auth service returned success with no session data",
-          response.status,
-        );
-      }
       return data;
     },
   };

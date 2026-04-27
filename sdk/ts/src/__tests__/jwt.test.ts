@@ -1,4 +1,4 @@
-import { exportJWK, generateKeyPair, type KeyLike, SignJWT } from "jose";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { JwtVerificationError } from "../errors.js";
 import { createJwtVerifier } from "../jwt.js";
@@ -7,7 +7,7 @@ const ISSUER = "https://auth.example.com";
 const JWKS_URI = "https://auth.example.com/v1/jwks.json";
 const KID = "test-key-1";
 
-let privateKey: KeyLike;
+let privateKey: CryptoKey;
 let jwksResponse: string;
 
 beforeAll(async () => {
