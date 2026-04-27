@@ -2,18 +2,33 @@ use std::sync::Arc;
 
 use crate::harness::Scenario;
 
+pub mod batch_check;
 pub mod bulk_write;
 pub mod corpus;
 pub mod depth_sweep;
 pub mod depth_sweep_cold;
 pub mod invalidation_storm;
 pub mod multi_decision_serial;
+pub mod scale_sweep;
 pub mod single_check;
+
+/// Chain depths seeded into the shared corpus. Kept in sync with the depth
+/// values used by `depth_sweep` and `depth_sweep_cold` so a single seed pass
+/// covers both.
+pub const CHAIN_DEPTHS: &[(usize, usize)] = &[
+    (1, 5_000),
+    (3, 5_000),
+    (5, 5_000),
+    (10, 5_000),
+];
 
 pub fn all() -> Vec<Arc<dyn Scenario>> {
     vec![
         Arc::new(single_check::SingleCheck::new()),
         Arc::new(multi_decision_serial::MultiDecisionSerial::new()),
+        Arc::new(batch_check::BatchCheck::new(4)),
+        Arc::new(batch_check::BatchCheck::new(16)),
+        Arc::new(batch_check::BatchCheck::new(64)),
         Arc::new(depth_sweep::DepthSweep::new(1)),
         Arc::new(depth_sweep::DepthSweep::new(3)),
         Arc::new(depth_sweep::DepthSweep::new(5)),
@@ -22,6 +37,9 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(depth_sweep_cold::DepthSweepCold::new(3)),
         Arc::new(depth_sweep_cold::DepthSweepCold::new(5)),
         Arc::new(depth_sweep_cold::DepthSweepCold::new(10)),
+        Arc::new(scale_sweep::ScaleSweep::new(10_000)),
+        Arc::new(scale_sweep::ScaleSweep::new(100_000)),
+        Arc::new(scale_sweep::ScaleSweep::new(1_000_000)),
         Arc::new(bulk_write::BulkWrite::new(1)),
         Arc::new(bulk_write::BulkWrite::new(10)),
         Arc::new(bulk_write::BulkWrite::new(100)),

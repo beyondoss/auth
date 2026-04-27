@@ -5,8 +5,6 @@ use sqlx::PgPool;
 
 use crate::harness::{Scenario, WorkerCtx};
 
-use super::corpus::reset;
-
 /// Inserts batches of `batch_size` relation_tuple rows per unit of work.
 /// Run with multiple `batch_size` instances to measure how the statement-level
 /// invalidation trigger scales with bulk size.
@@ -30,8 +28,11 @@ impl Scenario for BulkWrite {
         "What is sustained tuple-write throughput at this batch size?"
     }
 
-    async fn setup(&self, pool: &PgPool) -> Result<()> {
-        reset(pool).await?;
+    async fn setup(&self, _pool: &PgPool) -> Result<()> {
+        // No reset: bulk_write inserts unique-per-call ids and uses
+        // ON CONFLICT DO NOTHING, so it's safe to coexist with the shared
+        // corpus. Object_type "doc" (vs "document") avoids tripping flat-corpus
+        // count checks.
         Ok(())
     }
 

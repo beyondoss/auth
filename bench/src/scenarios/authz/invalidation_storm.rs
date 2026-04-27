@@ -9,7 +9,7 @@ use tokio::time::sleep;
 
 use crate::harness::{Metric, Scenario, WorkerCtx};
 
-use super::corpus::{FlatCorpus, seed_flat};
+use super::corpus::{FlatCorpus, reset_cache_only};
 
 /// Steady-state read workload with a periodic mass-invalidation pulse fired
 /// from a background task. The test measures whether p99 latency on reads
@@ -42,7 +42,9 @@ impl Scenario for InvalidationStorm {
     }
 
     async fn setup(&self, pool: &PgPool) -> Result<()> {
-        seed_flat(pool, &self.corpus).await?;
+        // Flat corpus is seeded globally in main; we only need to start from
+        // a cold cache so the storm's first pulse has something to invalidate.
+        reset_cache_only(pool).await?;
         Ok(())
     }
 

@@ -15,6 +15,12 @@ run = "cargo run --package xtask"
 [tasks."bench"]
 run = "cargo run --release --package bench -- run-all"
 
+[tasks."bench:quick"]
+run = "cargo run --release -p bench -- run-all --profile quick"
+
+[tasks."bench:full"]
+run = "cargo run --release -p bench -- run-all --profile full"
+
 [tasks."openapi:generate"]
 run = "cargo run -- generate-openapi"
 

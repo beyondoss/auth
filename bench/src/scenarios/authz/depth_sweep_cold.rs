@@ -1,11 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use rand::Rng;
 use sqlx::PgPool;
 
-use crate::harness::{Scenario, WorkerCtx};
-
-use super::corpus::{ChainCorpus, seed_chain};
+use crate::harness::{Scenario, WorkerCtx, ZipfSampler};
 
 /// Cold-cache variant of `depth_sweep`: calls `auth.authz_check_direct`,
 /// which bypasses `authz_check_cache` entirely. Every call pays the full
@@ -19,13 +16,16 @@ use super::corpus::{ChainCorpus, seed_chain};
 pub struct DepthSweepCold {
     pub depth: usize,
     pub n_chains: usize,
+    sampler: ZipfSampler,
 }
 
 impl DepthSweepCold {
     pub fn new(depth: usize) -> Self {
+        let n_chains = 5_000;
         Self {
             depth,
-            n_chains: 5_000,
+            n_chains,
+            sampler: ZipfSampler::new(n_chains, 1.0),
         }
     }
 }
@@ -40,27 +40,20 @@ impl Scenario for DepthSweepCold {
         "How does pure recursive-CTE latency scale with hierarchy depth (no cache fronting)?"
     }
 
-    async fn setup(&self, pool: &PgPool) -> Result<()> {
-        seed_chain(
-            pool,
-            &ChainCorpus {
-                n_chains: self.n_chains,
-                depth: self.depth,
-                seed: 0xC0_FFEE + self.depth as u64,
-            },
-        )
-        .await?;
+    async fn setup(&self, _pool: &PgPool) -> Result<()> {
+        // Corpus is seeded once globally by `seed_all` in main.
         Ok(())
     }
 
     async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
-        let i = ctx.rng.gen_range(0..self.n_chains);
+        let i = self.sampler.sample(&mut ctx.rng);
+        let depth = self.depth;
         let row: (bool,) = sqlx::query_as(
             "SELECT auth.authz_check_direct($1, ARRAY[$2]::text[], 'head', $3)",
         )
-        .bind(format!("u_{i}"))
+        .bind(format!("u{depth}_{i}"))
         .bind("link")
-        .bind(format!("h_{i}"))
+        .bind(format!("h{depth}_{i}"))
         .fetch_one(ctx.pool)
         .await?;
         let _ = row.0;

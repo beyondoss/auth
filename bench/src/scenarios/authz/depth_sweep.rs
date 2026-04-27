@@ -1,11 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use rand::Rng;
 use sqlx::PgPool;
 
-use crate::harness::{Scenario, WorkerCtx};
-
-use super::corpus::{ChainCorpus, seed_chain};
+use crate::harness::{Scenario, WorkerCtx, ZipfSampler};
 
 /// Pure depth-N chains, one chain per (user, head_object) pair. Each check
 /// must traverse exactly N recursive steps on cache miss. Run as multiple
@@ -14,13 +11,16 @@ use super::corpus::{ChainCorpus, seed_chain};
 pub struct DepthSweep {
     pub depth: usize,
     pub n_chains: usize,
+    sampler: ZipfSampler,
 }
 
 impl DepthSweep {
     pub fn new(depth: usize) -> Self {
+        let n_chains = 5_000;
         Self {
             depth,
-            n_chains: 5_000,
+            n_chains,
+            sampler: ZipfSampler::new(n_chains, 1.0),
         }
     }
 
@@ -41,27 +41,20 @@ impl Scenario for DepthSweep {
         "How does cache-miss latency scale with hierarchy depth?"
     }
 
-    async fn setup(&self, pool: &PgPool) -> Result<()> {
-        seed_chain(
-            pool,
-            &ChainCorpus {
-                n_chains: self.n_chains,
-                depth: self.depth,
-                seed: 0xC0_FFEE + self.depth as u64,
-            },
-        )
-        .await?;
+    async fn setup(&self, _pool: &PgPool) -> Result<()> {
+        // Corpus is seeded once globally by `seed_all` in main.
         Ok(())
     }
 
     async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
-        let i = ctx.rng.gen_range(0..self.n_chains);
+        let i = self.sampler.sample(&mut ctx.rng);
+        let depth = self.depth;
         let row: (bool,) = sqlx::query_as(
             "SELECT auth.authz_check($1, ARRAY[$2]::text[], 'head', $3)",
         )
-        .bind(format!("u_{i}"))
+        .bind(format!("u{depth}_{i}"))
         .bind("link")
-        .bind(format!("h_{i}"))
+        .bind(format!("h{depth}_{i}"))
         .fetch_one(ctx.pool)
         .await?;
         let _ = row.0;

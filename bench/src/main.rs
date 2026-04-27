@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use sqlx::PgPool;
 use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
@@ -10,12 +10,43 @@ use testcontainers_modules::postgres::Postgres;
 
 use bench::harness::{RunConfig, ScenarioReport, render_compare, render_report, run_scenario};
 use bench::scenarios;
+use bench::scenarios::authz::corpus::{FlatCorpus, seed_all};
+use bench::scenarios::authz::CHAIN_DEPTHS;
 
 #[derive(Parser)]
 #[command(name = "bench", about = "generic benchmark harness")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum Profile {
+    /// Tight defaults for fast feedback: concurrency [1,8], 5s/1s.
+    Quick,
+    /// Full sweep: concurrency [1,8,32,128], 30s/5s.
+    Full,
+}
+
+impl Profile {
+    fn concurrency(self) -> Vec<usize> {
+        match self {
+            Profile::Quick => vec![1, 8],
+            Profile::Full => vec![1, 8, 32, 128],
+        }
+    }
+    fn duration_secs(self) -> u64 {
+        match self {
+            Profile::Quick => 5,
+            Profile::Full => 30,
+        }
+    }
+    fn warmup_secs(self) -> u64 {
+        match self {
+            Profile::Quick => 1,
+            Profile::Full => 5,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -25,23 +56,27 @@ enum Cmd {
     /// Run a single scenario by name (substring match).
     Run {
         scenario: String,
-        #[arg(long, default_value = "10")]
-        duration_secs: u64,
-        #[arg(long, default_value = "2")]
-        warmup_secs: u64,
-        #[arg(long, value_delimiter = ',', default_value = "1,8,32,128")]
-        concurrency: Vec<usize>,
+        #[arg(long, value_enum, default_value_t = Profile::Full)]
+        profile: Profile,
+        #[arg(long)]
+        duration_secs: Option<u64>,
+        #[arg(long)]
+        warmup_secs: Option<u64>,
+        #[arg(long, value_delimiter = ',')]
+        concurrency: Option<Vec<usize>>,
         #[arg(long, default_value = "bench/out/report.md")]
         output: PathBuf,
     },
     /// Run every registered scenario.
     RunAll {
-        #[arg(long, default_value = "10")]
-        duration_secs: u64,
-        #[arg(long, default_value = "2")]
-        warmup_secs: u64,
-        #[arg(long, value_delimiter = ',', default_value = "1,8,32,128")]
-        concurrency: Vec<usize>,
+        #[arg(long, value_enum, default_value_t = Profile::Full)]
+        profile: Profile,
+        #[arg(long)]
+        duration_secs: Option<u64>,
+        #[arg(long)]
+        warmup_secs: Option<u64>,
+        #[arg(long, value_delimiter = ',')]
+        concurrency: Option<Vec<usize>>,
         #[arg(long, default_value = "bench/out/report.md")]
         output: PathBuf,
     },
@@ -52,6 +87,20 @@ enum Cmd {
         #[arg(long, default_value = "bench/out/compare.md")]
         output: PathBuf,
     },
+}
+
+fn build_cfg(
+    profile: Profile,
+    duration_secs: Option<u64>,
+    warmup_secs: Option<u64>,
+    concurrency: Option<Vec<usize>>,
+) -> RunConfig {
+    RunConfig {
+        concurrency: concurrency.unwrap_or_else(|| profile.concurrency()),
+        duration: Duration::from_secs(duration_secs.unwrap_or(profile.duration_secs())),
+        warmup: Duration::from_secs(warmup_secs.unwrap_or(profile.warmup_secs())),
+        seed: 0x5EED_5EED_5EED_5EED,
+    }
 }
 
 #[tokio::main]
@@ -66,17 +115,13 @@ async fn main() -> Result<()> {
         }
         Cmd::Run {
             scenario,
+            profile,
             duration_secs,
             warmup_secs,
             concurrency,
             output,
         } => {
-            let cfg = RunConfig {
-                concurrency,
-                duration: Duration::from_secs(duration_secs),
-                warmup: Duration::from_secs(warmup_secs),
-                seed: 0x5EED_5EED_5EED_5EED,
-            };
+            let cfg = build_cfg(profile, duration_secs, warmup_secs, concurrency);
             let scenarios: Vec<_> = scenarios::all()
                 .into_iter()
                 .filter(|s| s.name().contains(&scenario))
@@ -87,17 +132,13 @@ async fn main() -> Result<()> {
             run_set(&scenarios, &cfg, &output).await
         }
         Cmd::RunAll {
+            profile,
             duration_secs,
             warmup_secs,
             concurrency,
             output,
         } => {
-            let cfg = RunConfig {
-                concurrency,
-                duration: Duration::from_secs(duration_secs),
-                warmup: Duration::from_secs(warmup_secs),
-                seed: 0x5EED_5EED_5EED_5EED,
-            };
+            let cfg = build_cfg(profile, duration_secs, warmup_secs, concurrency);
             let scenarios = scenarios::all();
             run_set(&scenarios, &cfg, &output).await
         }
@@ -146,11 +187,30 @@ async fn run_set(
         .await
         .context("failed to connect to postgres")?;
 
+    // Load migrations at runtime (NOT via the compile-time `sqlx::migrate!`
+    // macro) so swapping migration files on disk between bench runs takes
+    // effect without needing to recompile the bench binary. Without this,
+    // ablation comparisons silently use the same embedded migration set.
     eprintln!("[bench] running migrations");
-    sqlx::migrate!("../migrations")
+    let migrations_path = std::env::var("BENCH_MIGRATIONS_PATH")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("migrations"));
+    eprintln!("[bench] migrations path: {}", migrations_path.display());
+    let migrator = sqlx::migrate::Migrator::new(migrations_path.as_path())
+        .await
+        .context("failed to load migrations")?;
+    migrator
         .run(&pool)
         .await
         .context("failed to run migrations")?;
+
+    // Seed the shared corpus once for the entire run. Individual scenario
+    // setups are no-ops or near no-ops; scale_sweep and bulk_write manage
+    // their own prefixed data inside their own setups.
+    eprintln!("[bench] seeding shared corpus (flat + chain depths)");
+    seed_all(&pool, &FlatCorpus::default(), CHAIN_DEPTHS)
+        .await
+        .context("failed to seed shared corpus")?;
 
     let mut reports: Vec<ScenarioReport> = Vec::new();
     for scenario in scenarios {
