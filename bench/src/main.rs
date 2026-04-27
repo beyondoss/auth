@@ -8,7 +8,7 @@ use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
-use bench::harness::{RunConfig, ScenarioReport, render_report, run_scenario};
+use bench::harness::{RunConfig, ScenarioReport, render_compare, render_report, run_scenario};
 use bench::scenarios;
 
 #[derive(Parser)]
@@ -43,6 +43,13 @@ enum Cmd {
         #[arg(long, value_delimiter = ',', default_value = "1,8,32,128")]
         concurrency: Vec<usize>,
         #[arg(long, default_value = "bench/out/report.md")]
+        output: PathBuf,
+    },
+    /// Diff two JSON reports — e.g. baseline vs a treatment branch.
+    Compare {
+        baseline: PathBuf,
+        treatment: PathBuf,
+        #[arg(long, default_value = "bench/out/compare.md")]
         output: PathBuf,
     },
 }
@@ -94,6 +101,28 @@ async fn main() -> Result<()> {
             let scenarios = scenarios::all();
             run_set(&scenarios, &cfg, &output).await
         }
+        Cmd::Compare {
+            baseline,
+            treatment,
+            output,
+        } => {
+            let base: Vec<ScenarioReport> = serde_json::from_str(
+                &std::fs::read_to_string(&baseline)
+                    .with_context(|| format!("reading baseline {}", baseline.display()))?,
+            )?;
+            let treat: Vec<ScenarioReport> = serde_json::from_str(
+                &std::fs::read_to_string(&treatment)
+                    .with_context(|| format!("reading treatment {}", treatment.display()))?,
+            )?;
+            let body = render_compare(&base, &treat);
+            if let Some(parent) = output.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            std::fs::write(&output, &body)?;
+            eprintln!("[bench] compare report: {}", output.display());
+            println!("{body}");
+            Ok(())
+        }
     }
 }
 
@@ -138,7 +167,18 @@ async fn run_set(
         std::fs::create_dir_all(parent).ok();
     }
     std::fs::write(output, &body).context("failed to write report")?;
-    eprintln!("[bench] report written to {}", output.display());
+
+    // Sidecar JSON next to the markdown — same stem, .json extension. Used by
+    // `bench compare` to diff baseline vs treatment runs.
+    let json_path = output.with_extension("json");
+    let json = serde_json::to_string_pretty(&reports)?;
+    std::fs::write(&json_path, json).context("failed to write JSON report")?;
+
+    eprintln!(
+        "[bench] reports written: {} (markdown), {} (json)",
+        output.display(),
+        json_path.display()
+    );
     println!("{body}");
     Ok(())
 }

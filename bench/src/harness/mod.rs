@@ -4,6 +4,6 @@ pub mod runner;
 pub mod scenario;
 
 pub use metrics::{LatencyStats, Metric, PgStatSnapshot};
-pub use report::render_report;
+pub use report::{render_compare, render_report};
 pub use runner::{LevelReport, RunConfig, ScenarioReport, run_scenario};
 pub use scenario::{Scenario, WorkerCtx};
