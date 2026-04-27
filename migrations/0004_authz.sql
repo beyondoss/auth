@@ -71,26 +71,35 @@ CREATE INDEX relation_tuple_subject_set_idx ON auth.relation_tuple (
 
 -- authz_check_cache: DB-side permission result cache, invalidated by trigger on
 -- relation_tuple writes. HASH-partitioned for parallel cache eviction under load.
+-- UNLOGGED on every leaf partition: the cache is throwaway, so skipping WAL on
+-- writes and truncating on crash is fine — relation_tuple is logged and any
+-- miss recomputes via authz_check_direct. The partitioned parent must remain
+-- logged because Postgres disallows UNLOGGED on partitioned tables (the parent
+-- holds no data; persistence is set per partition).
+-- cache_hash is hashtextextended of the canonical key; the four text columns are
+-- still the identity (verified on every hit), so a hash collision causes a miss
+-- and recompute, never a wrong answer.
 
 CREATE TABLE auth.authz_check_cache (
-    cache_key   text        PRIMARY KEY,
+    cache_hash  bigint      NOT NULL,
     object_type text        NOT NULL,
     object_id   text        NOT NULL,
     relation    text        NOT NULL,
     subject_id  text        NOT NULL,
     is_allowed  boolean     NOT NULL,
     computed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    expires_at  timestamptz NOT NULL DEFAULT clock_timestamp() + interval '5 minutes'
-) PARTITION BY HASH (cache_key);
+    expires_at  timestamptz NOT NULL DEFAULT clock_timestamp() + interval '5 minutes',
+    PRIMARY KEY (cache_hash)
+) PARTITION BY HASH (cache_hash);
 
-CREATE TABLE auth.authz_check_cache_0 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 0);
-CREATE TABLE auth.authz_check_cache_1 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 1);
-CREATE TABLE auth.authz_check_cache_2 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 2);
-CREATE TABLE auth.authz_check_cache_3 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 3);
-CREATE TABLE auth.authz_check_cache_4 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 4);
-CREATE TABLE auth.authz_check_cache_5 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 5);
-CREATE TABLE auth.authz_check_cache_6 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 6);
-CREATE TABLE auth.authz_check_cache_7 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 7);
+CREATE UNLOGGED TABLE auth.authz_check_cache_0 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 0);
+CREATE UNLOGGED TABLE auth.authz_check_cache_1 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 1);
+CREATE UNLOGGED TABLE auth.authz_check_cache_2 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 2);
+CREATE UNLOGGED TABLE auth.authz_check_cache_3 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 3);
+CREATE UNLOGGED TABLE auth.authz_check_cache_4 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 4);
+CREATE UNLOGGED TABLE auth.authz_check_cache_5 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 5);
+CREATE UNLOGGED TABLE auth.authz_check_cache_6 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 6);
+CREATE UNLOGGED TABLE auth.authz_check_cache_7 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 7);
 
 -- BRIN is tiny and sufficient here: cache rows are append-mostly and cleanup
 -- queries scan by expires_at range.
@@ -215,24 +224,41 @@ CREATE OR REPLACE FUNCTION auth.authz_check(
     LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_cache_key  text;
+    v_cache_hash bigint;
     v_is_allowed boolean;
     v_expires_at timestamptz;
 BEGIN
-    v_cache_key := p_subject_id || ':' || p_relation || ':' || p_object_type || ':' || p_object_id;
+    -- chr(31) (ASCII unit separator) is used as the field delimiter so a
+    -- delimiter character inside a caller-supplied id can't produce the same
+    -- canonical key as a different decomposition.
+    v_cache_hash := hashtextextended(
+        p_subject_id || chr(31) || p_relation || chr(31) ||
+        p_object_type || chr(31) || p_object_id, 0);
+    -- Verify-on-hit: cache_hash is a seek hint; the four text columns are the
+    -- identity. Hash collision -> predicate fails -> miss -> recompute.
     SELECT is_allowed, expires_at
       INTO v_is_allowed, v_expires_at
       FROM auth.authz_check_cache
-     WHERE cache_key = v_cache_key
-       AND expires_at > clock_timestamp();
+     WHERE cache_hash  = v_cache_hash
+       AND subject_id  = p_subject_id
+       AND relation    = p_relation
+       AND object_type = p_object_type
+       AND object_id   = p_object_id
+       AND expires_at  > clock_timestamp();
     IF FOUND THEN
         RETURN v_is_allowed;
     END IF;
     v_is_allowed := auth.authz_check_direct(p_subject_id, p_relation, p_object_type, p_object_id);
-    INSERT INTO auth.authz_check_cache (cache_key, object_type, object_id, relation, subject_id, is_allowed)
-         VALUES (v_cache_key, p_object_type, p_object_id, p_relation, p_subject_id, v_is_allowed)
-    ON CONFLICT (cache_key) DO UPDATE
-        SET is_allowed  = EXCLUDED.is_allowed,
+    -- ON CONFLICT updates the text columns too: under a hash collision the
+    -- newest writer wins the slot, so its future lookups verify successfully.
+    INSERT INTO auth.authz_check_cache (cache_hash, object_type, object_id, relation, subject_id, is_allowed)
+         VALUES (v_cache_hash, p_object_type, p_object_id, p_relation, p_subject_id, v_is_allowed)
+    ON CONFLICT (cache_hash) DO UPDATE
+        SET object_type = EXCLUDED.object_type,
+            object_id   = EXCLUDED.object_id,
+            relation    = EXCLUDED.relation,
+            subject_id  = EXCLUDED.subject_id,
+            is_allowed  = EXCLUDED.is_allowed,
             computed_at = clock_timestamp(),
             expires_at  = clock_timestamp() + interval '5 minutes';
     RETURN v_is_allowed;
@@ -248,24 +274,39 @@ CREATE OR REPLACE FUNCTION auth.authz_check(
     LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_cache_key  text;
-    v_is_allowed boolean;
-    v_expires_at timestamptz;
+    v_canonical_rel text;
+    v_cache_hash    bigint;
+    v_is_allowed    boolean;
+    v_expires_at    timestamptz;
 BEGIN
-    v_cache_key := p_subject_id || ':' || array_to_string(auth.array_sort(p_relation), ',') || ':' || p_object_type || ':' || p_object_id;
+    -- Canonicalize the relation set so caller order doesn't change the key.
+    -- chr(31) joiner so a relation name containing the joiner can't collide
+    -- with a different array decomposition.
+    v_canonical_rel := array_to_string(auth.array_sort(p_relation), chr(31));
+    v_cache_hash := hashtextextended(
+        p_subject_id || chr(31) || v_canonical_rel || chr(31) ||
+        p_object_type || chr(31) || p_object_id, 0);
     SELECT is_allowed, expires_at
       INTO v_is_allowed, v_expires_at
       FROM auth.authz_check_cache
-     WHERE cache_key = v_cache_key
-       AND expires_at > clock_timestamp();
+     WHERE cache_hash  = v_cache_hash
+       AND subject_id  = p_subject_id
+       AND relation    = v_canonical_rel
+       AND object_type = p_object_type
+       AND object_id   = p_object_id
+       AND expires_at  > clock_timestamp();
     IF FOUND THEN
         RETURN v_is_allowed;
     END IF;
     v_is_allowed := auth.authz_check_direct(p_subject_id, p_relation, p_object_type, p_object_id);
-    INSERT INTO auth.authz_check_cache (cache_key, object_type, object_id, relation, subject_id, is_allowed)
-         VALUES (v_cache_key, p_object_type, p_object_id, array_to_string(auth.array_sort(p_relation), ','), p_subject_id, v_is_allowed)
-    ON CONFLICT (cache_key) DO UPDATE
-        SET is_allowed  = EXCLUDED.is_allowed,
+    INSERT INTO auth.authz_check_cache (cache_hash, object_type, object_id, relation, subject_id, is_allowed)
+         VALUES (v_cache_hash, p_object_type, p_object_id, v_canonical_rel, p_subject_id, v_is_allowed)
+    ON CONFLICT (cache_hash) DO UPDATE
+        SET object_type = EXCLUDED.object_type,
+            object_id   = EXCLUDED.object_id,
+            relation    = EXCLUDED.relation,
+            subject_id  = EXCLUDED.subject_id,
+            is_allowed  = EXCLUDED.is_allowed,
             computed_at = clock_timestamp(),
             expires_at  = clock_timestamp() + interval '5 minutes';
     RETURN v_is_allowed;
@@ -503,29 +544,76 @@ $$;
 -- for the affected object and subject. Handles inherited permission changes.
 -- ──────────────────────────────────────────────────────────────────────────────
 
-CREATE OR REPLACE FUNCTION auth.authz_invalidate_cache()
-    RETURNS trigger
-    LANGUAGE plpgsql
-AS $$
+-- Statement-level invalidation with transition tables: bulk writes invalidate
+-- once instead of once per row. Set of cache rows deleted is identical to the
+-- previous row-level behavior — the trigger fires AFTER the write, deletes the
+-- union of cache entries matching any affected (object_type, object_id) plus
+-- any matching subject_id. DISTINCT deduplicates redundant DELETEs.
+--
+-- Three triggers are needed because INSERT exposes only NEW TABLE, DELETE only
+-- OLD TABLE, and UPDATE exposes both — the function bodies differ accordingly.
+
+CREATE OR REPLACE FUNCTION auth.authz_invalidate_cache_ins()
+    RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF TG_OP = 'UPDATE' AND OLD IS NOT DISTINCT FROM NEW THEN
-        RETURN NULL;
-    END IF;
-    IF TG_OP = 'DELETE' THEN
-        DELETE FROM auth.authz_check_cache
-         WHERE object_type = OLD.object_type AND object_id = OLD.object_id;
-        DELETE FROM auth.authz_check_cache
-         WHERE subject_id = OLD.subject_id;
-    ELSE
-        DELETE FROM auth.authz_check_cache
-         WHERE object_type = NEW.object_type AND object_id = NEW.object_id;
-        DELETE FROM auth.authz_check_cache
-         WHERE subject_id = NEW.subject_id;
-    END IF;
+    DELETE FROM auth.authz_check_cache c
+     USING (SELECT DISTINCT object_type, object_id FROM new_rows) n
+     WHERE c.object_type = n.object_type AND c.object_id = n.object_id;
+    DELETE FROM auth.authz_check_cache c
+     USING (SELECT DISTINCT subject_id FROM new_rows) n
+     WHERE c.subject_id = n.subject_id;
     RETURN NULL;
 END;
 $$;
 
-CREATE TRIGGER trigger_invalidate_cache
-    AFTER INSERT OR UPDATE OR DELETE ON auth.relation_tuple
-    FOR EACH ROW EXECUTE FUNCTION auth.authz_invalidate_cache();
+CREATE OR REPLACE FUNCTION auth.authz_invalidate_cache_upd()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    -- Invalidate for both old and new values: an UPDATE may have changed
+    -- object_id/subject_id, in which case both the prior and new identities
+    -- have stale cache entries.
+    DELETE FROM auth.authz_check_cache c
+     USING (
+         SELECT object_type, object_id FROM new_rows
+         UNION
+         SELECT object_type, object_id FROM old_rows
+     ) n
+     WHERE c.object_type = n.object_type AND c.object_id = n.object_id;
+    DELETE FROM auth.authz_check_cache c
+     USING (
+         SELECT subject_id FROM new_rows
+         UNION
+         SELECT subject_id FROM old_rows
+     ) n
+     WHERE c.subject_id = n.subject_id;
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION auth.authz_invalidate_cache_del()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    DELETE FROM auth.authz_check_cache c
+     USING (SELECT DISTINCT object_type, object_id FROM old_rows) o
+     WHERE c.object_type = o.object_type AND c.object_id = o.object_id;
+    DELETE FROM auth.authz_check_cache c
+     USING (SELECT DISTINCT subject_id FROM old_rows) o
+     WHERE c.subject_id = o.subject_id;
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER trigger_invalidate_cache_ins
+    AFTER INSERT ON auth.relation_tuple
+    REFERENCING NEW TABLE AS new_rows
+    FOR EACH STATEMENT EXECUTE FUNCTION auth.authz_invalidate_cache_ins();
+
+CREATE TRIGGER trigger_invalidate_cache_upd
+    AFTER UPDATE ON auth.relation_tuple
+    REFERENCING NEW TABLE AS new_rows OLD TABLE AS old_rows
+    FOR EACH STATEMENT EXECUTE FUNCTION auth.authz_invalidate_cache_upd();
+
+CREATE TRIGGER trigger_invalidate_cache_del
+    AFTER DELETE ON auth.relation_tuple
+    REFERENCING OLD TABLE AS old_rows
+    FOR EACH STATEMENT EXECUTE FUNCTION auth.authz_invalidate_cache_del();
