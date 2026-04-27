@@ -79,10 +79,6 @@ CREATE INDEX relation_tuple_subject_set_idx ON auth.relation_tuple (
 -- cache_hash is hashtextextended of the canonical key; the four text columns are
 -- still the identity (verified on every hit), so a hash collision causes a miss
 -- and recompute, never a wrong answer.
--- No TTL: trigger-based invalidation is the sole freshness mechanism. Every
--- relation_tuple mutation fires a statement-level trigger that deletes affected
--- cache entries immediately, so time-based expiry adds nothing but spurious misses.
-
 CREATE TABLE auth.authz_check_cache (
     cache_hash  bigint      NOT NULL,
     object_type text        NOT NULL,
@@ -91,6 +87,7 @@ CREATE TABLE auth.authz_check_cache (
     subject_id  text        NOT NULL,
     is_allowed  boolean     NOT NULL,
     computed_at timestamptz NOT NULL DEFAULT now(),
+    expires_at  timestamptz NOT NULL DEFAULT now() + interval '5 minutes',
     PRIMARY KEY (cache_hash)
 ) PARTITION BY HASH (cache_hash);
 
@@ -103,6 +100,9 @@ CREATE UNLOGGED TABLE auth.authz_check_cache_5 PARTITION OF auth.authz_check_cac
 CREATE UNLOGGED TABLE auth.authz_check_cache_6 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 6);
 CREATE UNLOGGED TABLE auth.authz_check_cache_7 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 7);
 
+-- BRIN is tiny and sufficient here: cache rows are append-mostly and cleanup
+-- queries scan by expires_at range.
+CREATE INDEX authz_check_cache_expires_at_idx  ON auth.authz_check_cache USING BRIN (expires_at);
 CREATE INDEX authz_check_cache_object_idx      ON auth.authz_check_cache (object_type, object_id);
 CREATE INDEX authz_check_cache_subject_idx     ON auth.authz_check_cache USING HASH (subject_id);
 
@@ -210,7 +210,7 @@ $$;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- authz_check: cached wrapper around authz_check_direct. Three overloads matching
--- authz_check_direct. Results are cached indefinitely; the trigger below
+-- authz_check_direct. Results are cached for 5 minutes; the trigger below
 -- invalidates relevant cache entries on any relation_tuple mutation.
 -- ──────────────────────────────────────────────────────────────────────────────
 
@@ -241,7 +241,8 @@ BEGIN
        AND subject_id  = p_subject_id
        AND relation    = p_relation
        AND object_type = p_object_type
-       AND object_id   = p_object_id;
+       AND object_id   = p_object_id
+       AND expires_at  > now();
     IF FOUND THEN
         RETURN v_is_allowed;
     END IF;
@@ -256,7 +257,8 @@ BEGIN
             relation    = EXCLUDED.relation,
             subject_id  = EXCLUDED.subject_id,
             is_allowed  = EXCLUDED.is_allowed,
-            computed_at = now();
+            computed_at = now(),
+            expires_at  = now() + interval '5 minutes';
     RETURN v_is_allowed;
 END;
 $$;
@@ -288,7 +290,8 @@ BEGIN
        AND subject_id  = p_subject_id
        AND relation    = v_canonical_rel
        AND object_type = p_object_type
-       AND object_id   = p_object_id;
+       AND object_id   = p_object_id
+       AND expires_at  > now();
     IF FOUND THEN
         RETURN v_is_allowed;
     END IF;
@@ -301,7 +304,8 @@ BEGIN
             relation    = EXCLUDED.relation,
             subject_id  = EXCLUDED.subject_id,
             is_allowed  = EXCLUDED.is_allowed,
-            computed_at = now();
+            computed_at = now(),
+            expires_at  = now() + interval '5 minutes';
     RETURN v_is_allowed;
 END;
 $$;
