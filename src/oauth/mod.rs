@@ -185,7 +185,7 @@ fn make_slug(base: &str) -> String {
 }
 
 fn is_identity_conflict(e: &AuthError) -> bool {
-    matches!(e, AuthError::Db { message, .. } if message.contains("identity_provider_subject_idx"))
+    matches!(e, AuthError::Db { message, .. } if message.contains("identities_provider_subject_idx"))
 }
 
 pub async fn find_or_create_oauth_user(
@@ -198,7 +198,7 @@ pub async fn find_or_create_oauth_user(
 
     // 1. Look for an existing identity by (provider, subject)
     if let Some(row) = sqlx::query!(
-        "SELECT user_id FROM auth.identity WHERE provider = $1 AND subject = $2 LIMIT 1",
+        "SELECT user_id FROM auth.identities WHERE provider = $1 AND subject = $2 LIMIT 1",
         provider_slug,
         profile.external_id,
     )
@@ -218,8 +218,8 @@ pub async fn find_or_create_oauth_user(
         if let Some(row) = sqlx::query!(
             r#"
             SELECT u.id AS "id!: Uuid"
-            FROM auth."user" u
-            INNER JOIN auth.email e ON e.id = u.primary_email_id
+            FROM auth.users u
+            INNER JOIN auth.emails e ON e.id = u.primary_email_id
             WHERE e.email = $1::citext
               AND e.verified_at IS NOT NULL
               AND u.deleted_at IS NULL
@@ -282,7 +282,7 @@ pub async fn find_or_create_oauth_user(
         // orphaned user/org/email and return the winner's user_id.
         drop(tx);
         return sqlx::query_scalar!(
-            r#"SELECT user_id AS "user_id: Uuid" FROM auth.identity WHERE provider = $1 AND subject = $2"#,
+            r#"SELECT user_id AS "user_id: Uuid" FROM auth.identities WHERE provider = $1 AND subject = $2"#,
             provider_slug,
             profile.external_id,
         )
@@ -294,7 +294,7 @@ pub async fn find_or_create_oauth_user(
 
     if profile.email_verified == Some(true) {
         sqlx::query!(
-            "UPDATE auth.email SET verified_at = now() WHERE id = $1",
+            "UPDATE auth.emails SET verified_at = now() WHERE id = $1",
             email_id,
         )
         .execute(tx.as_mut())

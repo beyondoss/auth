@@ -201,8 +201,8 @@ fn into_batch_op(r: RelationRequest) -> BatchOp {
         object_id: r.object.id,
         relation: r.relation,
         subject_id: r.subject.id,
-        subject_type: r.subject.subject_type,
-        subject_relation: r.subject.relation,
+        subject_set_type: r.subject.subject_type,
+        subject_set_relation: r.subject.relation,
     }
 }
 
@@ -493,6 +493,9 @@ pub async fn put_schema(
     .execute(&state.pool)
     .await
     .map_err(AuthError::from)?;
+
+    let resource_names: Vec<&str> = req.resources.iter().map(|r| r.name.as_str()).collect();
+    engine::ensure_partitions(&state.pool, &resource_names).await?;
 
     state.app_config.write().await.authz_schema = Some(raw);
     *state.authz_schema.write().await = Some(compiled);

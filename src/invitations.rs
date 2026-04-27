@@ -36,7 +36,7 @@ pub async fn create(
 ) -> Result<Invitation, AuthError> {
     sqlx::query_as!(
         Invitation,
-        r#"INSERT INTO auth.org_invitation (org_id, invited_by, email, role, token_hash)
+        r#"INSERT INTO auth.org_invitations (org_id, invited_by, email, role, token_hash)
            VALUES ($1, $2, $3, $4, $5)
            RETURNING id, org_id, invited_by, email, role, created_at, expires_at"#,
         org_id,
@@ -49,7 +49,7 @@ pub async fn create(
     .await
     .map_err(|e| {
         if let sqlx::Error::Database(ref db) = e {
-            if db.constraint() == Some("org_invitation_email_unique") {
+            if db.constraint() == Some("org_invitations_email_unique") {
                 return AuthError::Conflict;
             }
         }
@@ -61,7 +61,7 @@ pub async fn list(pool: &PgPool, org_id: Uuid) -> Result<Vec<Invitation>, AuthEr
     sqlx::query_as!(
         Invitation,
         r#"SELECT id, org_id, invited_by, email, role, created_at, expires_at
-           FROM auth.org_invitation
+           FROM auth.org_invitations
            WHERE org_id = $1 AND expires_at > now()
            ORDER BY created_at DESC"#,
         org_id,
@@ -81,8 +81,8 @@ pub async fn get_by_token(
     sqlx::query_as!(
         InvitationView,
         r#"SELECT i.id, i.org_id, o.name as org_name, i.role, i.expires_at
-           FROM auth.org_invitation i
-           JOIN auth.org o ON o.id = i.org_id
+           FROM auth.org_invitations i
+           JOIN auth.orgs o ON o.id = i.org_id
            WHERE i.id = $1
              AND i.token_hash = $2
              AND i.expires_at > now()"#,
@@ -104,7 +104,7 @@ pub async fn consume(
 ) -> Result<Invitation, AuthError> {
     sqlx::query_as!(
         Invitation,
-        r#"DELETE FROM auth.org_invitation
+        r#"DELETE FROM auth.org_invitations
            WHERE id = $1
              AND token_hash = $2
              AND expires_at > now()
@@ -121,7 +121,7 @@ pub async fn consume(
 /// Revoke an invitation without a token (owner action). Returns NotFound if missing.
 pub async fn revoke(pool: &PgPool, inv_id: Uuid, org_id: Uuid) -> Result<(), AuthError> {
     let rows = sqlx::query!(
-        "DELETE FROM auth.org_invitation WHERE id = $1 AND org_id = $2",
+        "DELETE FROM auth.org_invitations WHERE id = $1 AND org_id = $2",
         inv_id,
         org_id,
     )

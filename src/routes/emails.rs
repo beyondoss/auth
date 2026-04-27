@@ -44,8 +44,8 @@ pub async fn list(
         r#"
         SELECT e.id, e.email::text AS "email!", e.verified_at,
                (e.id = u.primary_email_id) AS "is_primary!"
-        FROM auth.email e
-        INNER JOIN auth."user" u ON u.id = e.user_id
+        FROM auth.emails e
+        INNER JOIN auth.users u ON u.id = e.user_id
         WHERE e.user_id = $1
         ORDER BY e.created_at ASC
         "#,
@@ -104,7 +104,7 @@ pub async fn add(
     let normalized = email::normalize(&req.email);
 
     let taken = sqlx::query_scalar!(
-        "SELECT 1 FROM auth.email WHERE email = $1::citext",
+        "SELECT 1 FROM auth.emails WHERE email = $1::citext",
         normalized,
     )
     .fetch_optional(&state.pool)
@@ -157,7 +157,7 @@ pub async fn remove(
     }
 
     let result = sqlx::query!(
-        "DELETE FROM auth.email WHERE id = $1 AND user_id = $2",
+        "DELETE FROM auth.emails WHERE id = $1 AND user_id = $2",
         id,
         ctx.user.id,
     )
@@ -193,10 +193,10 @@ pub async fn make_primary(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     let result = sqlx::query!(
-        r#"UPDATE auth."user" SET primary_email_id = $1
+        r#"UPDATE auth.users SET primary_email_id = $1
          WHERE id = $2
            AND EXISTS (
-               SELECT 1 FROM auth.email
+               SELECT 1 FROM auth.emails
                WHERE id = $1 AND user_id = $2 AND verified_at IS NOT NULL
            )"#,
         id,
@@ -235,7 +235,7 @@ pub async fn create_verification(
 ) -> Result<Json<TokenResponse>, AuthError> {
     // Confirm the email belongs to this user and isn't already verified.
     let exists = sqlx::query_scalar!(
-        "SELECT 1 FROM auth.email
+        "SELECT 1 FROM auth.emails
          WHERE id = $1 AND user_id = $2 AND verified_at IS NULL",
         id,
         ctx.user.id,
@@ -307,7 +307,7 @@ pub async fn confirm_verification(
         .ok_or_else(|| AuthError::internal("email_id missing from token context"))?;
 
     let verified_at = sqlx::query_scalar!(
-        "UPDATE auth.email SET verified_at = now()
+        "UPDATE auth.emails SET verified_at = now()
          WHERE id = $1 AND user_id = $2
          RETURNING verified_at",
         email_id,

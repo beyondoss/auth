@@ -23,7 +23,7 @@ pub async fn create(
 ) -> Result<Identity, AuthError> {
     sqlx::query_as!(
         Identity,
-        "INSERT INTO auth.identity (user_id, provider, subject, secret)
+        "INSERT INTO auth.identities (user_id, provider, subject, secret)
          VALUES ($1, $2, $3, $4)
          RETURNING id, user_id, provider, subject, created_at",
         user_id,
@@ -43,7 +43,7 @@ pub async fn find_password_secret(
 ) -> Result<Option<(Uuid, String)>, AuthError> {
     let row = sqlx::query!(
         "SELECT user_id, secret
-         FROM auth.identity
+         FROM auth.identities
          WHERE provider = 'password' AND subject = $1
          LIMIT 1",
         subject,

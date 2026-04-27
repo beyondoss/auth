@@ -255,7 +255,7 @@ async fn login_password_reset(
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
 
     sqlx::query!(
-        "UPDATE auth.identity SET secret = $1 WHERE user_id = $2 AND provider = 'password'",
+        "UPDATE auth.identities SET secret = $1 WHERE user_id = $2 AND provider = 'password'",
         new_hash.as_bytes() as &[u8],
         user_id,
     )
@@ -264,8 +264,8 @@ async fn login_password_reset(
     .map_err(AuthError::from)?;
 
     sqlx::query!(
-        "DELETE FROM auth.token WHERE id IN (
-             SELECT token_id FROM auth.session WHERE user_id = $1
+        "DELETE FROM auth.tokens WHERE id IN (
+             SELECT token_id FROM auth.sessions WHERE user_id = $1
          )",
         user_id,
     )
@@ -314,7 +314,7 @@ async fn login_email_change(
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
 
     sqlx::query!(
-        "INSERT INTO auth.email (id, user_id, email, verified_at)
+        "INSERT INTO auth.emails (id, user_id, email, verified_at)
          VALUES ($1, $2, $3::citext, now())",
         email_id,
         user_id,
@@ -326,7 +326,7 @@ async fn login_email_change(
         if let sqlx::Error::Database(ref db) = e
             && db
                 .constraint()
-                .is_some_and(|c| c.contains("email_email_idx"))
+                .is_some_and(|c| c.contains("emails_email_idx"))
         {
             return AuthError::EmailAlreadyExists;
         }
@@ -334,7 +334,7 @@ async fn login_email_change(
     })?;
 
     sqlx::query!(
-        "UPDATE auth.\"user\" SET primary_email_id = $1 WHERE id = $2",
+        "UPDATE auth.users SET primary_email_id = $1 WHERE id = $2",
         email_id,
         user_id,
     )
@@ -343,8 +343,8 @@ async fn login_email_change(
     .map_err(AuthError::from)?;
 
     sqlx::query!(
-        "DELETE FROM auth.token WHERE id IN (
-             SELECT token_id FROM auth.session WHERE user_id = $1
+        "DELETE FROM auth.tokens WHERE id IN (
+             SELECT token_id FROM auth.sessions WHERE user_id = $1
          )",
         user_id,
     )
@@ -567,7 +567,7 @@ pub async fn delete_current(
 ) -> Result<StatusCode, AuthError> {
     // The middleware already authenticated this token. We trust ctx.token_id.
     // Idempotent: if already deleted, the no-op DELETE still returns 204.
-    sqlx::query!("DELETE FROM auth.token WHERE id = $1", ctx.token_id)
+    sqlx::query!("DELETE FROM auth.tokens WHERE id = $1", ctx.token_id)
         .execute(&state.pool)
         .await
         .map_err(AuthError::from)?;
@@ -596,7 +596,7 @@ pub async fn delete_by_id(
 ) -> Result<StatusCode, AuthError> {
     // Fast path: caller is revoking their own current session.
     if session_id == ctx.session_id {
-        sqlx::query!("DELETE FROM auth.token WHERE id = $1", ctx.token_id)
+        sqlx::query!("DELETE FROM auth.tokens WHERE id = $1", ctx.token_id)
             .execute(&state.pool)
             .await
             .map_err(AuthError::from)?;
@@ -610,10 +610,10 @@ pub async fn delete_by_id(
         r#"
         WITH target AS (
             SELECT s.token_id
-            FROM auth.session s
+            FROM auth.sessions s
             WHERE s.id = $1 AND s.user_id = $2
         )
-        DELETE FROM auth.token WHERE id = (SELECT token_id FROM target)
+        DELETE FROM auth.tokens WHERE id = (SELECT token_id FROM target)
         "#,
         session_id,
         ctx.user.id,

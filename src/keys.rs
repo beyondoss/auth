@@ -61,7 +61,7 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
 
     // ON CONFLICT DO NOTHING returns no rows if another instance beat us to it.
     let inserted_id = sqlx::query_scalar!(
-        "INSERT INTO auth.signing_key (id, algorithm, private_key_enc, status)
+        "INSERT INTO auth.signing_keys (id, algorithm, private_key_enc, status)
          VALUES ($1, 'ed25519', $2, 'active')
          ON CONFLICT (status) WHERE status = 'active' DO NOTHING
          RETURNING id",
@@ -94,7 +94,7 @@ async fn fetch_active_key(
     enc: &dyn KeyEncryptor,
 ) -> Result<Option<(LoadedKey, bool)>> {
     let row = sqlx::query!(
-        "SELECT id, private_key_enc FROM auth.signing_key WHERE status = 'active' LIMIT 1",
+        "SELECT id, private_key_enc FROM auth.signing_keys WHERE status = 'active' LIMIT 1",
     )
     .fetch_optional(pool)
     .await
@@ -128,7 +128,7 @@ async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -
         .context("failed to encode signing key for re-encryption")?;
     let encrypted = enc.encrypt(pem.as_bytes(), key.id.as_bytes())?;
     sqlx::query!(
-        "UPDATE auth.signing_key SET private_key_enc = $1 WHERE id = $2",
+        "UPDATE auth.signing_keys SET private_key_enc = $1 WHERE id = $2",
         encrypted,
         key.id,
     )

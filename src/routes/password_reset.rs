@@ -40,8 +40,8 @@ pub async fn create(
     let normalized = email::normalize(&req.email);
 
     let user_id = sqlx::query_scalar!(
-        "SELECT u.id FROM auth.\"user\" u
-         INNER JOIN auth.email e ON e.id = u.primary_email_id
+        "SELECT u.id FROM auth.users u
+         INNER JOIN auth.emails e ON e.id = u.primary_email_id
          WHERE e.email = $1::citext AND u.deleted_at IS NULL",
         normalized,
     )
@@ -52,7 +52,7 @@ pub async fn create(
 
     // Only users with a password identity can reset their password.
     let has_password = sqlx::query_scalar!(
-        "SELECT 1 FROM auth.identity WHERE user_id = $1 AND provider = 'password'",
+        "SELECT 1 FROM auth.identities WHERE user_id = $1 AND provider = 'password'",
         user_id,
     )
     .fetch_optional(&state.pool)

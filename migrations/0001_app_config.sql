@@ -55,7 +55,7 @@ SELECT auth.enable_updated_at('auth.app_config');
 
 -- Signing keys (separate table for rotation support)
 
-CREATE TABLE auth.signing_key (
+CREATE TABLE auth.signing_keys (
     id              uuid        PRIMARY KEY DEFAULT uuidv7()
                                 CHECK (auth.uuid_version(id) = 7),
     algorithm       text        NOT NULL DEFAULT 'ed25519'
@@ -68,5 +68,5 @@ CREATE TABLE auth.signing_key (
 );
 
 -- Enforce at most one active key at a time
-CREATE UNIQUE INDEX signing_key_one_active ON auth.signing_key (status)
+CREATE UNIQUE INDEX signing_keys_one_active ON auth.signing_keys (status)
     WHERE status = 'active';

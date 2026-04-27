@@ -21,7 +21,7 @@ pub async fn create(
 ) -> Result<User, AuthError> {
     sqlx::query_as!(
         User,
-        r#"INSERT INTO auth."user" (id, primary_org_id, primary_email_id)
+        r#"INSERT INTO auth.users (id, primary_org_id, primary_email_id)
            VALUES ($1, $2, $3)
            RETURNING id, primary_org_id, primary_email_id, created_at"#,
         id,
@@ -38,7 +38,7 @@ pub async fn get(pool: &PgPool, user_id: Uuid) -> Result<Option<User>, AuthError
     sqlx::query_as!(
         User,
         r#"SELECT id, primary_org_id, primary_email_id, created_at
-           FROM auth."user"
+           FROM auth.users
            WHERE id = $1 AND deleted_at IS NULL"#,
         user_id,
     )

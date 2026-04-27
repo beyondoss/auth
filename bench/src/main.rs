@@ -66,6 +66,10 @@ enum Cmd {
         concurrency: Option<Vec<usize>>,
         #[arg(long, default_value = "bench/out/report.md")]
         output: PathBuf,
+        /// PostgreSQL shared_buffers (e.g. "32MB"). Constrains the buffer cache
+        /// to simulate cold-disk I/O at production scale.
+        #[arg(long)]
+        shared_buffers: Option<String>,
     },
     /// Run every registered scenario.
     RunAll {
@@ -79,6 +83,10 @@ enum Cmd {
         concurrency: Option<Vec<usize>>,
         #[arg(long, default_value = "bench/out/report.md")]
         output: PathBuf,
+        /// PostgreSQL shared_buffers (e.g. "32MB"). Constrains the buffer cache
+        /// to simulate cold-disk I/O at production scale.
+        #[arg(long)]
+        shared_buffers: Option<String>,
     },
     /// Diff two JSON reports — e.g. baseline vs a treatment branch.
     Compare {
@@ -120,6 +128,7 @@ async fn main() -> Result<()> {
             warmup_secs,
             concurrency,
             output,
+            shared_buffers,
         } => {
             let cfg = build_cfg(profile, duration_secs, warmup_secs, concurrency);
             let scenarios: Vec<_> = scenarios::all()
@@ -129,7 +138,7 @@ async fn main() -> Result<()> {
             if scenarios.is_empty() {
                 anyhow::bail!("no scenarios match '{scenario}'");
             }
-            run_set(&scenarios, &cfg, &output).await
+            run_set(&scenarios, &cfg, &output, shared_buffers.as_deref()).await
         }
         Cmd::RunAll {
             profile,
@@ -137,10 +146,11 @@ async fn main() -> Result<()> {
             warmup_secs,
             concurrency,
             output,
+            shared_buffers,
         } => {
             let cfg = build_cfg(profile, duration_secs, warmup_secs, concurrency);
             let scenarios = scenarios::all();
-            run_set(&scenarios, &cfg, &output).await
+            run_set(&scenarios, &cfg, &output, shared_buffers.as_deref()).await
         }
         Cmd::Compare {
             baseline,
@@ -171,10 +181,20 @@ async fn run_set(
     scenarios: &[std::sync::Arc<dyn bench::harness::Scenario>],
     cfg: &RunConfig,
     output: &std::path::Path,
+    shared_buffers: Option<&str>,
 ) -> Result<()> {
-    eprintln!("[bench] starting postgres testcontainer (postgres:18-alpine)");
+    let sb = shared_buffers.unwrap_or("128MB");
+    eprintln!("[bench] starting postgres testcontainer (postgres:18-alpine, shared_buffers={sb})");
     let container = Postgres::default()
         .with_tag("18-alpine")
+        .with_cmd([
+            "-c",
+            "fsync=off",
+            "-c",
+            &format!("shared_buffers={sb}"),
+            "-c",
+            &format!("effective_cache_size={sb}"),
+        ])
         .start()
         .await
         .context("failed to start postgres container")?;

@@ -34,16 +34,16 @@ pub async fn ensure_partition(
     // Identifier is validated — safe to interpolate as SQL literals.
     let sql = format!(
         r#"
-        CREATE TABLE IF NOT EXISTS auth.relation_tuple_{object_type}
-            PARTITION OF auth.relation_tuple
+        CREATE TABLE IF NOT EXISTS auth.authz_relations_{object_type}
+            PARTITION OF auth.authz_relations
             FOR VALUES IN ('{object_type}');
 
         WITH moved AS (
-            DELETE FROM auth.relation_tuple_default
+            DELETE FROM auth.authz_relations_default
             WHERE object_type = '{object_type}'
             RETURNING *
         )
-        INSERT INTO auth.relation_tuple_{object_type}
+        INSERT INTO auth.authz_relations_{object_type}
             SELECT * FROM moved
         ON CONFLICT DO NOTHING;
         "#

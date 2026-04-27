@@ -37,7 +37,7 @@ pub struct HierarchyDef {
 }
 
 /// A compiled authorization schema: maps `(resource_type, permission)` to an OR-chain
-/// of check calls that are evaluated against the relation_tuple table.
+/// of check calls that are evaluated against the authz_relation table.
 #[derive(Debug, Clone)]
 pub struct CompiledSchema {
     pub checks: HashMap<(String, String), Vec<AuthzCheckCall>>,
@@ -53,7 +53,7 @@ pub enum AuthzCheckCall {
         object_type: String,
     },
     /// Multi-hop: walk `relation_path[i]` on `object_type_path[i]` for each step.
-    /// Compiled to: `auth.authz_check(subject, ARRAY[...relation_path], ARRAY[...object_type_path], $object_id)`
+    /// Compiled to: `auth.authz_check_path(subject, ARRAY[...relation_path], ARRAY[...object_type_path], $object_id)`
     MultiHop {
         relation_path: Vec<String>,
         object_type_path: Vec<String>,
@@ -272,7 +272,7 @@ impl CompiledSchema {
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!(
-                        "auth.authz_check(subject.subject_id, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], $3)"
+                        "auth.authz_check_path(subject.subject_id, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], $3)"
                     )
                 }
             })
@@ -315,7 +315,7 @@ impl CompiledSchema {
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!(
-                        "auth.authz_check($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], t.object_id)"
+                        "auth.authz_check_path($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], t.object_id)"
                     )
                 }
             })
@@ -360,7 +360,7 @@ impl CompiledSchema {
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!(
-                        "auth.authz_check($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], $2)"
+                        "auth.authz_check_path($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], $2)"
                     )
                 }
             })

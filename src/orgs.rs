@@ -60,7 +60,7 @@ pub async fn create(
 ) -> Result<Org, AuthError> {
     sqlx::query_as!(
         Org,
-        r#"INSERT INTO auth.org (id, user_id, name, slug, image_url, metadata)
+        r#"INSERT INTO auth.orgs (id, user_id, name, slug, image_url, metadata)
          VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::jsonb))
          RETURNING id, user_id, name, slug, image_url,
                    metadata as "metadata: serde_json::Value",
@@ -83,7 +83,7 @@ pub async fn get(pool: &PgPool, org_id: Uuid) -> Result<Org, AuthError> {
         r#"SELECT id, user_id, name, slug, image_url,
                   metadata as "metadata: serde_json::Value",
                   created_at, updated_at, deleted_at
-           FROM auth.org
+           FROM auth.orgs
            WHERE id = $1 AND deleted_at IS NULL"#,
         org_id,
     )
@@ -102,14 +102,14 @@ pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<Org>, AuthError> {
         r#"SELECT o.id, o.user_id, o.name, o.slug, o.image_url,
                   o.metadata as "metadata: serde_json::Value",
                   o.created_at, o.updated_at, o.deleted_at
-           FROM auth.org o
+           FROM auth.orgs o
            WHERE o.deleted_at IS NULL
              AND EXISTS (
-                 SELECT 1 FROM auth.relation_tuple
+                 SELECT 1 FROM auth.authz_relations
                  WHERE object_type = 'org'
                    AND object_id   = o.id::text
                    AND subject_id  = $1
-                   AND subject_type IS NULL
+                   AND subject_set_type IS NULL
              )
            ORDER BY o.created_at ASC"#,
         user_id_str,
@@ -129,7 +129,7 @@ pub async fn update(
 ) -> Result<Org, AuthError> {
     sqlx::query_as!(
         Org,
-        r#"UPDATE auth.org
+        r#"UPDATE auth.orgs
            SET name      = COALESCE($2, name),
                slug      = COALESCE($3, slug),
                image_url = COALESCE($4, image_url),
@@ -148,7 +148,7 @@ pub async fn update(
     .await
     .map_err(|e| {
         if let sqlx::Error::Database(ref db) = e {
-            if db.constraint() == Some("org_slug_idx") {
+            if db.constraint() == Some("orgs_slug_idx") {
                 return AuthError::SlugConflict;
             }
         }
@@ -160,7 +160,7 @@ pub async fn update(
 pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
     let is_personal: bool = sqlx::query_scalar!(
         r#"SELECT EXISTS(
-               SELECT 1 FROM auth."user"
+               SELECT 1 FROM auth.users
                WHERE primary_org_id = $1 AND deleted_at IS NULL
            ) as "exists!""#,
         org_id,
@@ -174,7 +174,7 @@ pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
     }
 
     let rows = sqlx::query!(
-        "UPDATE auth.org SET deleted_at = clock_timestamp()
+        "UPDATE auth.orgs SET deleted_at = clock_timestamp()
          WHERE id = $1 AND deleted_at IS NULL",
         org_id,
     )
@@ -198,10 +198,10 @@ pub async fn list_members(pool: &PgPool, org_id: Uuid) -> Result<Vec<OrgMember>,
                subject_id::uuid as "user_id!: Uuid",
                relation          as "role!",
                created_at        as "joined_at!: DateTime<Utc>"
-           FROM auth.relation_tuple
+           FROM auth.authz_relations
            WHERE object_type = 'org'
              AND object_id   = $1
-             AND subject_type IS NULL
+             AND subject_set_type IS NULL
            ORDER BY created_at ASC"#,
         org_id_str,
     )
@@ -215,12 +215,12 @@ pub async fn is_owner(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> Result<bool
     let user_id_str = user_id.to_string();
     sqlx::query_scalar!(
         r#"SELECT EXISTS(
-               SELECT 1 FROM auth.relation_tuple
+               SELECT 1 FROM auth.authz_relations
                WHERE object_type = 'org'
                  AND object_id   = $1
                  AND relation    = 'owner'
                  AND subject_id  = $2
-                 AND subject_type IS NULL
+                 AND subject_set_type IS NULL
            ) as "exists!""#,
         org_id_str,
         user_id_str,
@@ -235,11 +235,11 @@ pub async fn is_member(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> Result<boo
     let user_id_str = user_id.to_string();
     sqlx::query_scalar!(
         r#"SELECT EXISTS(
-               SELECT 1 FROM auth.relation_tuple
+               SELECT 1 FROM auth.authz_relations
                WHERE object_type = 'org'
                  AND object_id   = $1
                  AND subject_id  = $2
-                 AND subject_type IS NULL
+                 AND subject_set_type IS NULL
            ) as "exists!""#,
         org_id_str,
         user_id_str,
@@ -261,11 +261,11 @@ pub async fn add_member(
 
     let already_member: bool = sqlx::query_scalar!(
         r#"SELECT EXISTS(
-               SELECT 1 FROM auth.relation_tuple
+               SELECT 1 FROM auth.authz_relations
                WHERE object_type = 'org'
                  AND object_id   = $1
                  AND subject_id  = $2
-                 AND subject_type IS NULL
+                 AND subject_set_type IS NULL
            ) as "exists!""#,
         org_id_str,
         user_id_str,
@@ -279,7 +279,7 @@ pub async fn add_member(
     }
 
     sqlx::query!(
-        "INSERT INTO auth.relation_tuple (object_type, object_id, relation, subject_id)
+        "INSERT INTO auth.authz_relations (object_type, object_id, relation, subject_id)
          VALUES ('org', $1, $2, $3)",
         org_id_str,
         role,
@@ -312,9 +312,9 @@ pub async fn update_member_role(
     // Lock all owner rows for this org before making changes. This serializes
     // concurrent last-owner checks — a second request blocks here until we commit.
     sqlx::query!(
-        "SELECT id FROM auth.relation_tuple
+        "SELECT id FROM auth.authz_relations
          WHERE object_type = 'org' AND object_id = $1
-           AND relation = 'owner' AND subject_type IS NULL
+           AND relation = 'owner' AND subject_set_type IS NULL
          FOR UPDATE",
         org_id_str,
     )
@@ -323,9 +323,9 @@ pub async fn update_member_role(
     .map_err(AuthError::from)?;
 
     let old_role: Option<String> = sqlx::query_scalar!(
-        "DELETE FROM auth.relation_tuple
+        "DELETE FROM auth.authz_relations
          WHERE object_type = 'org' AND object_id = $1
-           AND subject_id = $2 AND subject_type IS NULL
+           AND subject_id = $2 AND subject_set_type IS NULL
          RETURNING relation",
         org_id_str,
         user_id_str,
@@ -341,9 +341,9 @@ pub async fn update_member_role(
     // After our DELETE is visible within the transaction, check remaining owners.
     if old_role.as_deref() == Some("owner") && role != "owner" {
         let remaining: i64 = sqlx::query_scalar!(
-            r#"SELECT COUNT(*) as "count!" FROM auth.relation_tuple
+            r#"SELECT COUNT(*) as "count!" FROM auth.authz_relations
                WHERE object_type = 'org' AND object_id = $1
-                 AND relation = 'owner' AND subject_type IS NULL"#,
+                 AND relation = 'owner' AND subject_set_type IS NULL"#,
             org_id_str,
         )
         .fetch_one(tx.as_mut())
@@ -356,7 +356,7 @@ pub async fn update_member_role(
     }
 
     sqlx::query!(
-        "INSERT INTO auth.relation_tuple (object_type, object_id, relation, subject_id)
+        "INSERT INTO auth.authz_relations (object_type, object_id, relation, subject_id)
          VALUES ('org', $1, $2, $3)",
         org_id_str,
         role,
@@ -380,9 +380,9 @@ pub async fn remove_member(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> Result
 
     // Lock owner rows to serialize concurrent last-owner removals.
     sqlx::query!(
-        "SELECT id FROM auth.relation_tuple
+        "SELECT id FROM auth.authz_relations
          WHERE object_type = 'org' AND object_id = $1
-           AND relation = 'owner' AND subject_type IS NULL
+           AND relation = 'owner' AND subject_set_type IS NULL
          FOR UPDATE",
         org_id_str,
     )
@@ -391,9 +391,9 @@ pub async fn remove_member(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> Result
     .map_err(AuthError::from)?;
 
     let old_role: Option<String> = sqlx::query_scalar!(
-        "DELETE FROM auth.relation_tuple
+        "DELETE FROM auth.authz_relations
          WHERE object_type = 'org' AND object_id = $1
-           AND subject_id = $2 AND subject_type IS NULL
+           AND subject_id = $2 AND subject_set_type IS NULL
          RETURNING relation",
         org_id_str,
         user_id_str,
@@ -408,9 +408,9 @@ pub async fn remove_member(pool: &PgPool, org_id: Uuid, user_id: Uuid) -> Result
 
     if old_role.as_deref() == Some("owner") {
         let remaining: i64 = sqlx::query_scalar!(
-            r#"SELECT COUNT(*) as "count!" FROM auth.relation_tuple
+            r#"SELECT COUNT(*) as "count!" FROM auth.authz_relations
                WHERE object_type = 'org' AND object_id = $1
-                 AND relation = 'owner' AND subject_type IS NULL"#,
+                 AND relation = 'owner' AND subject_set_type IS NULL"#,
             org_id_str,
         )
         .fetch_one(tx.as_mut())

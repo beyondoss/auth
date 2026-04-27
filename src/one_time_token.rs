@@ -21,7 +21,7 @@ pub async fn create(
 ) -> Result<CreatedToken, AuthError> {
     let token = Token::new(prefix);
     let expires_at = sqlx::query_scalar!(
-        "INSERT INTO auth.one_time_token (id, user_id, kind, secret, expires_at, context)
+        "INSERT INTO auth.one_time_tokens (id, user_id, kind, secret, expires_at, context)
          VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5::int4), $6)
          RETURNING expires_at",
         token.id,
@@ -53,7 +53,7 @@ pub async fn consume(
     }
 
     let row = sqlx::query!(
-        "DELETE FROM auth.one_time_token
+        "DELETE FROM auth.one_time_tokens
          WHERE id = $1 AND secret = $2 AND kind = $3 AND expires_at > now()
          RETURNING user_id, context",
         parsed.id,
@@ -70,7 +70,7 @@ pub async fn consume(
 
     // Distinguish expired vs invalid (wrong secret, already consumed, never existed)
     let exists = sqlx::query_scalar!(
-        "SELECT expires_at FROM auth.one_time_token WHERE id = $1 AND secret = $2 AND kind = $3",
+        "SELECT expires_at FROM auth.one_time_tokens WHERE id = $1 AND secret = $2 AND kind = $3",
         parsed.id,
         &parsed.secret_hash as &[u8],
         expected_prefix.as_str(),

@@ -12,13 +12,13 @@ pub async fn write_relation(
     object_id: &str,
     relation: &str,
     subject_id: &str,
-    subject_type: Option<&str>,
-    subject_relation: Option<&str>,
+    subject_set_type: Option<&str>,
+    subject_set_relation: Option<&str>,
 ) -> Result<(), AuthError> {
     sqlx::query!(
         r#"
-        INSERT INTO auth.relation_tuple
-            (object_type, object_id, relation, subject_id, subject_type, subject_relation)
+        INSERT INTO auth.authz_relations
+            (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT DO NOTHING
         "#,
@@ -26,8 +26,8 @@ pub async fn write_relation(
         object_id,
         relation,
         subject_id,
-        subject_type,
-        subject_relation,
+        subject_set_type,
+        subject_set_relation,
     )
     .execute(pool)
     .await
@@ -41,25 +41,25 @@ pub async fn delete_relation(
     object_id: &str,
     relation: &str,
     subject_id: &str,
-    subject_type: Option<&str>,
-    subject_relation: Option<&str>,
+    subject_set_type: Option<&str>,
+    subject_set_relation: Option<&str>,
 ) -> Result<bool, AuthError> {
     let result = sqlx::query!(
         r#"
-        DELETE FROM auth.relation_tuple
-        WHERE object_type    = $1
-          AND object_id      = $2
-          AND relation       = $3
-          AND subject_id     = $4
-          AND subject_type         IS NOT DISTINCT FROM $5
-          AND subject_relation     IS NOT DISTINCT FROM $6
+        DELETE FROM auth.authz_relations
+        WHERE object_type            = $1
+          AND object_id              = $2
+          AND relation               = $3
+          AND subject_id             = $4
+          AND subject_set_type     IS NOT DISTINCT FROM $5
+          AND subject_set_relation IS NOT DISTINCT FROM $6
         "#,
         object_type,
         object_id,
         relation,
         subject_id,
-        subject_type,
-        subject_relation,
+        subject_set_type,
+        subject_set_relation,
     )
     .execute(pool)
     .await
@@ -72,8 +72,8 @@ pub struct BatchOp {
     pub object_id: String,
     pub relation: String,
     pub subject_id: String,
-    pub subject_type: Option<String>,
-    pub subject_relation: Option<String>,
+    pub subject_set_type: Option<String>,
+    pub subject_set_relation: Option<String>,
 }
 
 pub struct BatchResult {
@@ -93,8 +93,8 @@ pub async fn batch_relations(
     for op in writes {
         let r = sqlx::query!(
             r#"
-            INSERT INTO auth.relation_tuple
-                (object_type, object_id, relation, subject_id, subject_type, subject_relation)
+            INSERT INTO auth.authz_relations
+                (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
             VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT DO NOTHING
             "#,
@@ -102,8 +102,8 @@ pub async fn batch_relations(
             op.object_id,
             op.relation,
             op.subject_id,
-            op.subject_type,
-            op.subject_relation,
+            op.subject_set_type,
+            op.subject_set_relation,
         )
         .execute(tx.as_mut())
         .await
@@ -114,20 +114,20 @@ pub async fn batch_relations(
     for op in deletes {
         let r = sqlx::query!(
             r#"
-            DELETE FROM auth.relation_tuple
-            WHERE object_type        = $1
-              AND object_id          = $2
-              AND relation           = $3
-              AND subject_id         = $4
-              AND subject_type         IS NOT DISTINCT FROM $5
-              AND subject_relation     IS NOT DISTINCT FROM $6
+            DELETE FROM auth.authz_relations
+            WHERE object_type            = $1
+              AND object_id              = $2
+              AND relation               = $3
+              AND subject_id             = $4
+              AND subject_set_type     IS NOT DISTINCT FROM $5
+              AND subject_set_relation IS NOT DISTINCT FROM $6
             "#,
             op.object_type,
             op.object_id,
             op.relation,
             op.subject_id,
-            op.subject_type,
-            op.subject_relation,
+            op.subject_set_type,
+            op.subject_set_relation,
         )
         .execute(tx.as_mut())
         .await
@@ -160,24 +160,24 @@ pub async fn check_with_session(
         r#"
         WITH valid_token AS (
             SELECT token.id AS token_id
-            FROM auth.token
+            FROM auth.tokens
             WHERE token.id      = $1
               AND token.secret  = $2
               AND token.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (
-            UPDATE auth.token SET last_used_at = now()
+            UPDATE auth.tokens SET last_used_at = now()
             FROM valid_token
-            WHERE auth.token.id = valid_token.token_id
-              AND (auth.token.last_used_at IS NULL
-                   OR auth.token.last_used_at < now() - interval '1 minute')
+            WHERE auth.tokens.id = valid_token.token_id
+              AND (auth.tokens.last_used_at IS NULL
+                   OR auth.tokens.last_used_at < now() - interval '1 minute')
         ),
         subject AS (
             SELECT u.id::text AS subject_id
             FROM valid_token v
-            INNER JOIN auth.session s ON s.token_id  = v.token_id
-            INNER JOIN auth."user"  u ON u.id = s.user_id AND u.deleted_at IS NULL
+            INNER JOIN auth.sessions s ON s.token_id  = v.token_id
+            INNER JOIN auth.users  u ON u.id = s.user_id AND u.deleted_at IS NULL
         )
         SELECT (
             {or_chain}
@@ -205,23 +205,23 @@ pub async fn resolve_session(
     let sql = r#"
         WITH valid_token AS (
             SELECT token.id AS token_id
-            FROM auth.token
+            FROM auth.tokens
             WHERE token.id      = $1
               AND token.secret  = $2
               AND token.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (
-            UPDATE auth.token SET last_used_at = now()
+            UPDATE auth.tokens SET last_used_at = now()
             FROM valid_token
-            WHERE auth.token.id = valid_token.token_id
-              AND (auth.token.last_used_at IS NULL
-                   OR auth.token.last_used_at < now() - interval '1 minute')
+            WHERE auth.tokens.id = valid_token.token_id
+              AND (auth.tokens.last_used_at IS NULL
+                   OR auth.tokens.last_used_at < now() - interval '1 minute')
         )
         SELECT u.id::text
         FROM valid_token v
-        INNER JOIN auth.session s ON s.token_id  = v.token_id
-        INNER JOIN auth."user"  u ON u.id = s.user_id AND u.deleted_at IS NULL
+        INNER JOIN auth.sessions s ON s.token_id  = v.token_id
+        INNER JOIN auth.users  u ON u.id = s.user_id AND u.deleted_at IS NULL
     "#;
 
     sqlx::query_scalar::<_, String>(sql)
@@ -293,13 +293,13 @@ pub async fn expand(
         ExpandRow,
         r#"
         SELECT
-            r_object_type  AS "object_type!",
-            r_object_id    AS "object_id!",
-            r_relation     AS "relation!",
-            r_subject_id   AS "subject_id!",
-            r_tuple_id     AS "tuple_id!: Uuid",
-            r_created_at   AS "created_at!: DateTime<Utc>"
-        FROM auth.authz_expand($1::text[], $2, $3)
+            object_type AS "object_type!",
+            object_id   AS "object_id!",
+            relation    AS "relation!",
+            subject_id  AS "subject_id!",
+            tuple_id    AS "tuple_id!: Uuid",
+            created_at  AS "created_at!: DateTime<Utc>"
+        FROM auth.authz_lookup_subjects($1::text[], $2, $3)
         "#,
         relations as &[String],
         object_type,
@@ -311,9 +311,9 @@ pub async fn expand(
     Ok(rows)
 }
 
-// ── Enumerate (lookup-objects) ────────────────────────────────────────────────
+// ── Lookup Resources ──────────────────────────────────────────────────────────
 
-/// Enumerate objects directly accessible to `subject_id` via single-hop relations.
+/// Look up resource IDs accessible to `subject_id` via the given relations.
 /// Returns up to `limit` IDs with cursor applied at the DB level. The caller is
 /// responsible for pagination (pass `limit + 1` to detect has-more).
 pub async fn enumerate_ids(
@@ -326,10 +326,10 @@ pub async fn enumerate_ids(
 ) -> Result<Vec<String>, AuthError> {
     sqlx::query_scalar!(
         r#"
-        SELECT r_object_id AS "object_id!"
-        FROM auth.authz_enumerate($1, $2::text[], $3)
-        WHERE ($4::text IS NULL OR r_object_id > $4)
-        ORDER BY r_object_id
+        SELECT object_id AS "object_id!"
+        FROM auth.authz_lookup_resources($1, $2::text[], $3)
+        WHERE ($4::text IS NULL OR object_id > $4)
+        ORDER BY object_id
         LIMIT $5
         "#,
         subject_id,
@@ -343,7 +343,7 @@ pub async fn enumerate_ids(
     .map_err(AuthError::from)
 }
 
-/// Enumerate objects of `child_type` accessible to `subject_id` via a parent
+/// Look up resources of `child_type` accessible to `subject_id` via a parent
 /// hierarchy: find parents of `parent_type` the subject can access via
 /// `parent_roles`, then return child objects linked to those parents via
 /// `parent_link_relation`. Returns up to `limit` IDs with cursor applied.
@@ -360,13 +360,13 @@ pub async fn enumerate_via_parent(
     sqlx::query_scalar!(
         r#"
         SELECT DISTINCT rt_child.object_id AS "object_id!"
-        FROM auth.relation_tuple rt_child
+        FROM auth.authz_relations rt_child
         WHERE rt_child.object_type = $1
           AND rt_child.relation    = $2
           AND ($3::text IS NULL OR rt_child.object_id > $3)
           AND rt_child.subject_id IN (
-              SELECT r_object_id
-              FROM auth.authz_enumerate($4, $5::text[], $6)
+              SELECT object_id
+              FROM auth.authz_lookup_resources($4, $5::text[], $6)
           )
         ORDER BY rt_child.object_id
         LIMIT $7
@@ -382,4 +382,23 @@ pub async fn enumerate_via_parent(
     .fetch_all(pool)
     .await
     .map_err(AuthError::from)
+}
+
+// ── Partition management ──────────────────────────────────────────────────────
+
+/// Ensure a dedicated partition exists for each resource type in the schema.
+/// Called after schema PUT — DDL is auto-committed so this runs outside the
+/// config UPDATE's implicit transaction. IF NOT EXISTS makes it idempotent.
+pub async fn ensure_partitions(pool: &PgPool, resource_names: &[&str]) -> Result<(), AuthError> {
+    for name in resource_names {
+        let sql = format!(
+            "CREATE TABLE IF NOT EXISTS auth.authz_relations_{name} \
+             PARTITION OF auth.authz_relations FOR VALUES IN ('{name}')"
+        );
+        sqlx::query(&sql)
+            .execute(pool)
+            .await
+            .map_err(AuthError::from)?;
+    }
+    Ok(())
 }

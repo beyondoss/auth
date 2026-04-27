@@ -40,8 +40,8 @@ pub async fn create(
     let normalized = email::normalize(&req.email);
 
     let user_id = sqlx::query_scalar!(
-        "SELECT u.id FROM auth.\"user\" u
-         INNER JOIN auth.email e ON e.id = u.primary_email_id
+        "SELECT u.id FROM auth.users u
+         INNER JOIN auth.emails e ON e.id = u.primary_email_id
          WHERE e.email = $1::citext AND u.deleted_at IS NULL",
         normalized,
     )

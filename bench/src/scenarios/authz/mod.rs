@@ -7,8 +7,6 @@ pub mod bulk_write;
 pub mod corpus;
 pub mod depth_sweep;
 pub mod depth_sweep_cold;
-pub mod direct_check;
-pub mod invalidation_storm;
 pub mod multi_decision_serial;
 pub mod read_write_mix;
 pub mod scale_sweep;
@@ -22,7 +20,6 @@ pub const CHAIN_DEPTHS: &[(usize, usize)] = &[(1, 50_000), (3, 50_000), (5, 50_0
 pub fn all() -> Vec<Arc<dyn Scenario>> {
     vec![
         Arc::new(single_check::SingleCheck::new()),
-        Arc::new(direct_check::DirectCheck::new()),
         Arc::new(multi_decision_serial::MultiDecisionSerial::new()),
         Arc::new(batch_check::BatchCheck::new(4)),
         Arc::new(batch_check::BatchCheck::new(16)),
@@ -39,7 +36,6 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(bulk_write::BulkWrite::new(10)),
         Arc::new(bulk_write::BulkWrite::new(100)),
         Arc::new(bulk_write::BulkWrite::new(1000)),
-        Arc::new(invalidation_storm::InvalidationStorm::new()),
         Arc::new(read_write_mix::ReadWriteMix::new()),
         Arc::new(scale_sweep::ScaleSweep::new(10_000)),
         Arc::new(scale_sweep::ScaleSweep::new(100_000)),

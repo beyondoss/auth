@@ -21,6 +21,9 @@ run = "cargo run --release -p bench -- run-all --profile quick"
 [tasks."bench:full"]
 run = "cargo run --release -p bench -- run-all --profile full"
 
+[tasks."bench:cold"]
+run = "cargo run --release -p bench -- run-all --profile quick --shared-buffers 32MB --output bench/out/report_cold.md"
+
 [tasks."openapi:generate"]
 run = "cargo run -- generate-openapi"
 

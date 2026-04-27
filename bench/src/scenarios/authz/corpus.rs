@@ -42,23 +42,10 @@ pub struct ChainCorpus {
     pub seed: u64,
 }
 
-/// Truncate both tuples and cache. Use only when a scenario genuinely needs
-/// a clean slate (e.g. invalidation_storm wants a clean cache; scale_sweep
-/// resets its own prefixed object_type rows directly).
+/// Truncate relation tuples. Use only when a scenario genuinely needs a clean
+/// slate (scale_sweep resets its own prefixed object_type rows directly).
 pub async fn reset(pool: &PgPool) -> Result<()> {
     sqlx::query("TRUNCATE auth.relation_tuple")
-        .execute(pool)
-        .await?;
-    sqlx::query("TRUNCATE auth.authz_check_cache")
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-/// Truncate just the cache. Used by invalidation_storm to start each run
-/// from a cold cache without having to re-seed the tuple corpus.
-pub async fn reset_cache_only(pool: &PgPool) -> Result<()> {
-    sqlx::query("TRUNCATE auth.authz_check_cache")
         .execute(pool)
         .await?;
     Ok(())

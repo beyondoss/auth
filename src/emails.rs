@@ -20,7 +20,7 @@ pub async fn create(
 ) -> Result<Email, AuthError> {
     sqlx::query_as!(
         Email,
-        "INSERT INTO auth.email (id, user_id, email)
+        "INSERT INTO auth.emails (id, user_id, email)
          VALUES ($1, $2, $3::text)
          RETURNING id, user_id, email::text AS \"email!\", verified_at",
         id,
@@ -31,7 +31,7 @@ pub async fn create(
     .await
     .map_err(|e| {
         if let sqlx::Error::Database(ref db) = e
-            && db.constraint() == Some("email_email_idx")
+            && db.constraint() == Some("emails_email_idx")
         {
             return AuthError::EmailAlreadyExists;
         }

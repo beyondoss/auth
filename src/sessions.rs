@@ -49,19 +49,19 @@ pub async fn validate(
     let row = sqlx::query!(
         r#"
         WITH valid_token AS (
-            SELECT token.id AS token_id
-            FROM auth.token
-            WHERE token.id         = $1
-              AND token.secret     = $2
-              AND token.expires_at > now()
+            SELECT tokens.id AS token_id
+            FROM auth.tokens
+            WHERE tokens.id         = $1
+              AND tokens.secret     = $2
+              AND tokens.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (
-            UPDATE auth.token SET last_used_at = now()
+            UPDATE auth.tokens SET last_used_at = now()
             FROM valid_token
-            WHERE auth.token.id = valid_token.token_id
-              AND (auth.token.last_used_at IS NULL
-                   OR auth.token.last_used_at < now() - interval '1 minute')
+            WHERE auth.tokens.id = valid_token.token_id
+              AND (auth.tokens.last_used_at IS NULL
+                   OR auth.tokens.last_used_at < now() - interval '1 minute')
         )
         SELECT
             u.id                AS "user_id!: Uuid",
@@ -83,10 +83,10 @@ pub async fn validate(
             s.id                AS "session_id!: Uuid",
             v.token_id          AS "token_id!: Uuid"
         FROM valid_token v
-        INNER JOIN auth.session  s ON s.token_id  = v.token_id
-        INNER JOIN auth."user"   u ON u.id = s.user_id AND u.deleted_at IS NULL
-        INNER JOIN auth.org      t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
-        LEFT  JOIN auth.email    e ON e.id = u.primary_email_id
+        INNER JOIN auth.sessions  s ON s.token_id  = v.token_id
+        INNER JOIN auth.users   u ON u.id = s.user_id AND u.deleted_at IS NULL
+        INNER JOIN auth.orgs      t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
+        LEFT  JOIN auth.emails    e ON e.id = u.primary_email_id
         "#,
         token_id,
         secret_hash,
@@ -135,7 +135,7 @@ pub async fn create(
     ctx: &RequestContext<'_>,
 ) -> Result<(Uuid, DateTime<Utc>), AuthError> {
     let expires_at = sqlx::query_scalar!(
-        "INSERT INTO auth.token (id, secret, expires_at)
+        "INSERT INTO auth.tokens (id, secret, expires_at)
          VALUES ($1, $2, now() + make_interval(secs => $3::int4))
          RETURNING expires_at",
         token.id,
@@ -147,7 +147,7 @@ pub async fn create(
     .map_err(AuthError::from)?;
 
     let session_id = sqlx::query_scalar!(
-        "INSERT INTO auth.session (user_id, token_id, ip_address, user_agent)
+        "INSERT INTO auth.sessions (user_id, token_id, ip_address, user_agent)
          VALUES ($1, $2, $3::text::inet, $4)
          RETURNING id",
         user_id,
@@ -181,8 +181,8 @@ pub async fn get_current_session(
             tok.expires_at,
             tok.last_used_at,
             true                 AS "current!"
-        FROM auth.session s
-        INNER JOIN auth.token tok ON tok.id = s.token_id
+        FROM auth.sessions s
+        INNER JOIN auth.tokens tok ON tok.id = s.token_id
         WHERE s.user_id  = $1
           AND s.token_id = $2
           AND tok.expires_at > now()
@@ -213,8 +213,8 @@ pub async fn list(
             tok.expires_at,
             tok.last_used_at,
             (s.token_id = $2)    AS "current!"
-        FROM auth.session s
-        INNER JOIN auth.token tok ON tok.id = s.token_id
+        FROM auth.sessions s
+        INNER JOIN auth.tokens tok ON tok.id = s.token_id
         WHERE s.user_id = $1
           AND tok.expires_at > now()
         ORDER BY tok.last_used_at DESC NULLS LAST, s.created_at DESC
@@ -251,9 +251,9 @@ pub async fn load_user_context(
             e.id                AS "email_id!: Uuid",
             e.email::text       AS "email!",
             e.verified_at
-        FROM auth."user" u
-        INNER JOIN auth.org    t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
-        LEFT  JOIN auth.email  e ON e.id = u.primary_email_id
+        FROM auth.users u
+        INNER JOIN auth.orgs    t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
+        LEFT  JOIN auth.emails  e ON e.id = u.primary_email_id
         WHERE u.id = $1 AND u.deleted_at IS NULL
         "#,
         user_id,

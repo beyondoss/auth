@@ -104,7 +104,7 @@ pub async fn enroll(
     issuer: &str,
 ) -> Result<EnrollResponse, AuthError> {
     sqlx::query!(
-        "DELETE FROM auth.totp_factor WHERE user_id = $1 AND enrolled_at IS NULL",
+        "DELETE FROM auth.totp_factors WHERE user_id = $1 AND enrolled_at IS NULL",
         user_id,
     )
     .execute(pool)
@@ -115,7 +115,7 @@ pub async fn enroll(
     let factor_id = Uuid::now_v7();
 
     sqlx::query!(
-        "INSERT INTO auth.totp_factor (id, user_id, secret) VALUES ($1, $2, $3)",
+        "INSERT INTO auth.totp_factors (id, user_id, secret) VALUES ($1, $2, $3)",
         factor_id,
         user_id,
         &secret_bytes as &[u8],
@@ -126,7 +126,7 @@ pub async fn enroll(
         if let sqlx::Error::Database(ref db) = e
             && db
                 .constraint()
-                .is_some_and(|c| c.contains("totp_factor_user_id_idx"))
+                .is_some_and(|c| c.contains("totp_factors_user_id_idx"))
         {
             return AuthError::Conflict;
         }
@@ -138,7 +138,7 @@ pub async fn enroll(
         let hash = sha256(code.as_bytes());
         let code_id = Uuid::now_v7();
         sqlx::query!(
-            "INSERT INTO auth.totp_recovery_code (id, factor_id, code_hash) VALUES ($1, $2, $3)",
+            "INSERT INTO auth.totp_recovery_codes (id, factor_id, code_hash) VALUES ($1, $2, $3)",
             code_id,
             factor_id,
             &hash as &[u8],
@@ -164,7 +164,7 @@ pub async fn confirm(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), Aut
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
     let row = sqlx::query!(
-        "SELECT id, secret FROM auth.totp_factor
+        "SELECT id, secret FROM auth.totp_factors
          WHERE user_id = $1 AND enrolled_at IS NULL AND deleted_at IS NULL
          FOR UPDATE",
         user_id,
@@ -181,7 +181,7 @@ pub async fn confirm(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), Aut
     }
 
     sqlx::query!(
-        "UPDATE auth.totp_factor SET enrolled_at = now() WHERE id = $1",
+        "UPDATE auth.totp_factors SET enrolled_at = now() WHERE id = $1",
         row.id,
     )
     .execute(tx.as_mut())
@@ -194,7 +194,7 @@ pub async fn confirm(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), Aut
 
 pub async fn is_enrolled(pool: &PgPool, user_id: Uuid) -> Result<bool, AuthError> {
     let row = sqlx::query!(
-        "SELECT 1 AS one FROM auth.totp_factor
+        "SELECT 1 AS one FROM auth.totp_factors
          WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL",
         user_id,
     )
@@ -208,7 +208,7 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
     let row = sqlx::query!(
-        "SELECT id, secret, last_used_at FROM auth.totp_factor
+        "SELECT id, secret, last_used_at FROM auth.totp_factors
          WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL
          FOR UPDATE",
         user_id,
@@ -239,7 +239,7 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
     }
 
     sqlx::query!(
-        "UPDATE auth.totp_factor SET last_used_at = now() WHERE id = $1",
+        "UPDATE auth.totp_factors SET last_used_at = now() WHERE id = $1",
         row.id,
     )
     .execute(tx.as_mut())
@@ -252,7 +252,7 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
 
 pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), AuthError> {
     let factor = sqlx::query!(
-        "SELECT id FROM auth.totp_factor
+        "SELECT id FROM auth.totp_factors
          WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL",
         user_id,
     )
@@ -262,7 +262,7 @@ pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Resu
     .ok_or(AuthError::NotFound)?;
 
     let rows = sqlx::query!(
-        "SELECT id, code_hash FROM auth.totp_recovery_code
+        "SELECT id, code_hash FROM auth.totp_recovery_codes
          WHERE factor_id = $1 AND used_at IS NULL",
         factor.id,
     )
@@ -285,7 +285,7 @@ pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Resu
     let id = matched_id.ok_or(AuthError::TokenInvalid)?;
 
     sqlx::query!(
-        "UPDATE auth.totp_recovery_code SET used_at = now() WHERE id = $1",
+        "UPDATE auth.totp_recovery_codes SET used_at = now() WHERE id = $1",
         id,
     )
     .execute(pool)
@@ -297,7 +297,7 @@ pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Resu
 
 pub async fn disable(pool: &PgPool, user_id: Uuid) -> Result<(), AuthError> {
     let result = sqlx::query!(
-        "UPDATE auth.totp_factor SET deleted_at = now()
+        "UPDATE auth.totp_factors SET deleted_at = now()
          WHERE user_id = $1 AND deleted_at IS NULL",
         user_id,
     )
