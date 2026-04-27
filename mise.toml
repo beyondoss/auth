@@ -12,6 +12,9 @@ run = "dprint fmt"
 [tasks."sqlx:prepare"]
 run = "cargo run --package xtask"
 
+[tasks."bench"]
+run = "cargo run --release --package bench -- run-all"
+
 [tasks."openapi:generate"]
 run = "cargo run -- generate-openapi"
 

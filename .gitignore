@@ -7,3 +7,4 @@ dist/
 .claude/settings.local.json
 .sqlx
 node_modules/
+bench/out/
