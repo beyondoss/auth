@@ -28,11 +28,13 @@ impl Scenario for BulkWrite {
         "What is sustained tuple-write throughput at this batch size?"
     }
 
-    async fn setup(&self, _pool: &PgPool) -> Result<()> {
-        // No reset: bulk_write inserts unique-per-call ids and uses
-        // ON CONFLICT DO NOTHING, so it's safe to coexist with the shared
-        // corpus. Object_type "doc" (vs "document") avoids tripping flat-corpus
-        // count checks.
+    async fn setup(&self, pool: &PgPool) -> Result<()> {
+        // Clear only the "doc" rows written by bulk_write so each batch-size
+        // variant starts against a small table. Leaves the shared flat/chain/
+        // scale_sweep corpus untouched.
+        sqlx::query("DELETE FROM auth.relation_tuple WHERE object_type = 'doc'")
+            .execute(pool)
+            .await?;
         Ok(())
     }
 

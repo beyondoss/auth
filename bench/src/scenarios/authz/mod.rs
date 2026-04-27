@@ -37,13 +37,13 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(depth_sweep_cold::DepthSweepCold::new(3)),
         Arc::new(depth_sweep_cold::DepthSweepCold::new(5)),
         Arc::new(depth_sweep_cold::DepthSweepCold::new(10)),
-        Arc::new(scale_sweep::ScaleSweep::new(10_000)),
-        Arc::new(scale_sweep::ScaleSweep::new(100_000)),
-        Arc::new(scale_sweep::ScaleSweep::new(1_000_000)),
         Arc::new(bulk_write::BulkWrite::new(1)),
         Arc::new(bulk_write::BulkWrite::new(10)),
         Arc::new(bulk_write::BulkWrite::new(100)),
         Arc::new(bulk_write::BulkWrite::new(1000)),
         Arc::new(invalidation_storm::InvalidationStorm::new()),
+        Arc::new(scale_sweep::ScaleSweep::new(10_000)),
+        Arc::new(scale_sweep::ScaleSweep::new(100_000)),
+        Arc::new(scale_sweep::ScaleSweep::new(1_000_000)),
     ]
 }
