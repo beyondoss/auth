@@ -4,10 +4,10 @@
 //! sizes can coexist in the database without trampling each other.
 
 use anyhow::Result;
+use async_trait::async_trait;
 use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::SmallRng;
-use async_trait::async_trait;
 use sqlx::PgPool;
 
 use crate::harness::{Scenario, WorkerCtx, ZipfSampler};
@@ -141,15 +141,13 @@ impl Scenario for ScaleSweep {
         // Subject pool same heuristic as setup; uniform user pick.
         let n_users = ((self.n_tuples as f64).sqrt() as usize).clamp(1_000, 100_000);
         let u = ctx.rng.gen_range(0..n_users);
-        let row: (bool,) = sqlx::query_as(
-            "SELECT auth.authz_check($1, ARRAY[$2]::text[], $3, $4)",
-        )
-        .bind(format!("u_{u}"))
-        .bind(rel)
-        .bind(&self.object_type)
-        .bind(format!("d_{i}"))
-        .fetch_one(ctx.pool)
-        .await?;
+        let row: (bool,) = sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], $3, $4)")
+            .bind(format!("u_{u}"))
+            .bind(rel)
+            .bind(&self.object_type)
+            .bind(format!("d_{i}"))
+            .fetch_one(ctx.pool)
+            .await?;
         let _ = row.0;
         Ok(())
     }

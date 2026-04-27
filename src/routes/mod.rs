@@ -2,15 +2,17 @@ pub mod admin;
 pub mod authz;
 pub mod emails;
 pub mod healthz;
+pub mod invitations;
 pub mod jwks;
 pub mod magic_link;
 pub mod oauth;
+pub mod orgs;
+pub mod passkeys;
 pub mod password_reset;
 pub mod sessions;
 pub mod tokens;
 pub mod totp;
 pub mod users;
-pub mod webauthn;
 
 use axum::{
     Router, middleware as axum_middleware,
@@ -72,12 +74,26 @@ impl utoipa::Modify for BearerAuth {
         oauth::authorize,
         oauth::callback,
         oauth::apple_callback,
-        webauthn::begin_registration,
-        webauthn::finish_registration,
-        webauthn::list_credentials,
-        webauthn::update_credential,
-        webauthn::delete_credential,
-        webauthn::begin_authentication,
+        passkeys::begin_registration,
+        passkeys::finish_registration,
+        passkeys::list_credentials,
+        passkeys::update_credential,
+        passkeys::delete_credential,
+        passkeys::begin_authentication,
+        orgs::create_org,
+        orgs::list_orgs,
+        orgs::get_org,
+        orgs::update_org,
+        orgs::delete_org,
+        orgs::list_members,
+        orgs::update_member,
+        orgs::remove_member,
+        orgs::create_invitation,
+        orgs::list_invitations,
+        orgs::revoke_invitation,
+        invitations::view_invitation,
+        invitations::accept_invitation,
+        invitations::decline_invitation,
         admin::partitions::ensure_partition,
         authz::check_permission,
         authz::write_relation,
@@ -101,9 +117,9 @@ impl utoipa::Modify for BearerAuth {
         users::MeResponse,
         users::UserBody,
         users::EmailBody,
-        users::TenantBody,
+        users::OrgBody,
         users::SessionBody,
-        crate::users::UpdateUser,
+        users::UpdateMeRequest,
         sessions::LoginRequest,
         sessions::StepUpResponse,
         sessions::SessionsResponse,
@@ -121,11 +137,11 @@ impl utoipa::Modify for BearerAuth {
         password_reset::CreateResponse,
         totp::EnrollmentResponse,
         totp::ConfirmRequest,
-        webauthn::BeginResponse,
-        webauthn::RegisteredCredential,
-        webauthn::FinishRegistrationRequest,
-        webauthn::UpdateCredentialRequest,
-        crate::mfa::webauthn::CredentialRecord,
+        passkeys::BeginResponse,
+        passkeys::RegisteredCredential,
+        passkeys::FinishRegistrationRequest,
+        passkeys::UpdateCredentialRequest,
+        crate::mfa::passkeys::CredentialRecord,
         authz::CheckResponse,
         authz::RelationRequest,
         authz::RelationObject,
@@ -140,6 +156,17 @@ impl utoipa::Modify for BearerAuth {
         crate::authz::schema::ResourceDef,
         crate::authz::schema::RoleEdge,
         crate::authz::schema::HierarchyDef,
+        orgs::OrgResponse,
+        orgs::OrgsResponse,
+        orgs::MemberResponse,
+        orgs::MembersResponse,
+        orgs::InvitationResponse,
+        orgs::InvitationsResponse,
+        orgs::CreateOrgRequest,
+        orgs::UpdateOrgRequest,
+        orgs::UpdateMemberRequest,
+        orgs::CreateInvitationRequest,
+        invitations::InvitationViewResponse,
     )),
     tags(
         (name = "system", description = "Health and key material"),
@@ -152,6 +179,8 @@ impl utoipa::Modify for BearerAuth {
         (name = "totp", description = "TOTP enrollment and management"),
         (name = "oauth", description = "OAuth 2.0 provider login"),
         (name = "passkeys", description = "Passkey registration and authentication"),
+        (name = "orgs", description = "Org management, membership, and invitations"),
+        (name = "invitations", description = "Invitation accept and decline"),
     )
 )]
 pub struct ApiDoc;
@@ -184,7 +213,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         ));
 
     let public = Router::new()
-        .route("/v1/authz/decisions", get(authz::check_permission))
+        .route(
+            "/v1/authz/decisions",
+            get(authz::check_permission).post(authz::batch_check_permissions),
+        )
         .route("/healthz", get(healthz::handler))
         .route("/v1/jwks.json", get(jwks::handler))
         .route("/v1/users", post(users::signup))
@@ -201,7 +233,13 @@ pub fn router(state: AppState) -> Router<AppState> {
         )
         .route(
             "/v1/passkey-authentications",
-            post(webauthn::begin_authentication),
+            post(passkeys::begin_authentication),
+        )
+        // Public invitation endpoints (token in query string carries identity)
+        .route("/v1/invitations/{id}", get(invitations::view_invitation))
+        .route(
+            "/v1/invitations/{id}/declinations",
+            post(invitations::decline_invitation),
         );
 
     let authenticated = Router::new()
@@ -230,17 +268,43 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/v1/totp/confirmations", post(totp::confirm_enrollment))
         .route(
             "/v1/passkey-registrations",
-            post(webauthn::begin_registration),
+            post(passkeys::begin_registration),
         )
         .route(
             "/v1/passkeys",
-            get(webauthn::list_credentials).post(webauthn::finish_registration),
+            get(passkeys::list_credentials).post(passkeys::finish_registration),
         )
         .route(
             "/v1/passkeys/{id}",
-            patch(webauthn::update_credential).delete(webauthn::delete_credential),
+            patch(passkeys::update_credential).delete(passkeys::delete_credential),
         )
         .route("/v1/authz/lookups", get(authz::lookup_objects))
+        // Org management
+        .route("/v1/orgs", get(orgs::list_orgs).post(orgs::create_org))
+        .route(
+            "/v1/orgs/{id}",
+            get(orgs::get_org)
+                .patch(orgs::update_org)
+                .delete(orgs::delete_org),
+        )
+        .route("/v1/orgs/{id}/members", get(orgs::list_members))
+        .route(
+            "/v1/orgs/{id}/members/{member_id}",
+            patch(orgs::update_member).delete(orgs::remove_member),
+        )
+        .route(
+            "/v1/orgs/{id}/invitations",
+            get(orgs::list_invitations).post(orgs::create_invitation),
+        )
+        .route(
+            "/v1/orgs/{id}/invitations/{inv_id}",
+            delete(orgs::revoke_invitation),
+        )
+        // Authenticated invitation acceptance
+        .route(
+            "/v1/invitations/{id}/acceptances",
+            post(invitations::accept_invitation),
+        )
         .route_layer(axum_middleware::from_fn_with_state(state, require_auth));
 
     Router::new()

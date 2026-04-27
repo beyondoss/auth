@@ -163,7 +163,7 @@ impl AppleClient {
             email,
             email_verified,
             display_name: None,
-            avatar_url: None,
+            image_url: None,
         })
     }
 

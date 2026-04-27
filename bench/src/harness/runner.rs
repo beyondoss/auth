@@ -9,9 +9,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::sync::Mutex;
 
-use super::metrics::{
-    LatencyStats, Metric, PgStatSnapshot, new_histogram, record_duration,
-};
+use super::metrics::{LatencyStats, Metric, PgStatSnapshot, new_histogram, record_duration};
 use super::scenario::{Scenario, WorkerCtx};
 
 #[derive(Debug, Clone)]
@@ -91,7 +89,11 @@ pub async fn run_scenario(
 
         let elapsed = level.elapsed.as_secs_f64();
         let ops = level.histogram.len();
-        let ops_per_sec = if elapsed > 0.0 { ops as f64 / elapsed } else { 0.0 };
+        let ops_per_sec = if elapsed > 0.0 {
+            ops as f64 / elapsed
+        } else {
+            0.0
+        };
         let latency = LatencyStats::from_histogram(&level.histogram);
 
         report.levels.push(LevelReport {

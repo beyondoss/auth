@@ -181,7 +181,7 @@ pub async fn confirm(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), Aut
     }
 
     sqlx::query!(
-        "UPDATE auth.totp_factor SET enrolled_at = clock_timestamp() WHERE id = $1",
+        "UPDATE auth.totp_factor SET enrolled_at = now() WHERE id = $1",
         row.id,
     )
     .execute(tx.as_mut())
@@ -239,7 +239,7 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
     }
 
     sqlx::query!(
-        "UPDATE auth.totp_factor SET last_used_at = clock_timestamp() WHERE id = $1",
+        "UPDATE auth.totp_factor SET last_used_at = now() WHERE id = $1",
         row.id,
     )
     .execute(tx.as_mut())
@@ -285,7 +285,7 @@ pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Resu
     let id = matched_id.ok_or(AuthError::TokenInvalid)?;
 
     sqlx::query!(
-        "UPDATE auth.totp_recovery_code SET used_at = clock_timestamp() WHERE id = $1",
+        "UPDATE auth.totp_recovery_code SET used_at = now() WHERE id = $1",
         id,
     )
     .execute(pool)
@@ -297,7 +297,7 @@ pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Resu
 
 pub async fn disable(pool: &PgPool, user_id: Uuid) -> Result<(), AuthError> {
     let result = sqlx::query!(
-        "UPDATE auth.totp_factor SET deleted_at = clock_timestamp()
+        "UPDATE auth.totp_factor SET deleted_at = now()
          WHERE user_id = $1 AND deleted_at IS NULL",
         user_id,
     )

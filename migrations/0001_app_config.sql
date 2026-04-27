@@ -16,7 +16,7 @@ CREATE OR REPLACE FUNCTION auth.set_updated_at()
     LANGUAGE plpgsql
 AS $$
 BEGIN
-    NEW.updated_at = clock_timestamp();
+    NEW.updated_at = now();
     RETURN NEW;
 END;
 $$;
@@ -29,7 +29,7 @@ BEGIN
     EXECUTE format(
         'CREATE OR REPLACE TRIGGER updated_at_trigger
          BEFORE UPDATE ON %s
-         FOR EACH ROW EXECUTE PROCEDURE auth.set_updated_at()',
+         FOR EACH ROW EXECUTE FUNCTION auth.set_updated_at()',
         target
     );
 END;
@@ -47,8 +47,8 @@ CREATE TABLE auth.app_config (
     -- Sessions
     session_ttl_seconds         int         NOT NULL DEFAULT 2592000,
     -- Timestamps
-    created_at                  timestamptz NOT NULL DEFAULT clock_timestamp(),
-    updated_at                  timestamptz NOT NULL DEFAULT clock_timestamp()
+    created_at                  timestamptz NOT NULL DEFAULT now(),
+    updated_at                  timestamptz NOT NULL DEFAULT now()
 );
 
 SELECT auth.enable_updated_at('auth.app_config');
@@ -63,7 +63,7 @@ CREATE TABLE auth.signing_key (
     private_key_enc bytea       NOT NULL,
     status          text        NOT NULL DEFAULT 'active'
                                 CHECK (status IN ('active', 'rotating_out', 'retired')),
-    created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+    created_at      timestamptz NOT NULL DEFAULT now(),
     retired_at      timestamptz
 );
 

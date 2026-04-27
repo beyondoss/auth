@@ -39,9 +39,14 @@ Implement the `Scenario` trait. One file under
 ```rust
 #[async_trait]
 impl Scenario for MyScenario {
-    fn name(&self) -> &str { "subsystem::my_scenario" }
-    fn question(&self) -> &str { "what does this measure?" }
-    async fn setup(&self, pool: &PgPool) -> Result<()> { /* idempotent seed */ }
+    fn name(&self) -> &str {
+        "subsystem::my_scenario"
+    }
+    fn question(&self) -> &str {
+        "what does this measure?"
+    }
+    async fn setup(&self, pool: &PgPool) -> Result<()> { /* idempotent seed */
+    }
     async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
         /* one unit of work; called concurrently in a hot loop */
     }

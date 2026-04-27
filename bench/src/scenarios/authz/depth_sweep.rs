@@ -49,14 +49,13 @@ impl Scenario for DepthSweep {
     async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
         let i = self.sampler.sample(&mut ctx.rng);
         let depth = self.depth;
-        let row: (bool,) = sqlx::query_as(
-            "SELECT auth.authz_check($1, ARRAY[$2]::text[], 'head', $3)",
-        )
-        .bind(format!("u{depth}_{i}"))
-        .bind("link")
-        .bind(format!("h{depth}_{i}"))
-        .fetch_one(ctx.pool)
-        .await?;
+        let row: (bool,) =
+            sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], 'head', $3)")
+                .bind(format!("u{depth}_{i}"))
+                .bind("link")
+                .bind(format!("h{depth}_{i}"))
+                .fetch_one(ctx.pool)
+                .await?;
         let _ = row.0;
         Ok(())
     }

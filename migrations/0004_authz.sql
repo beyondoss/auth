@@ -33,8 +33,8 @@ CREATE TABLE auth.relation_tuple (
     subject_id       text        NOT NULL CHECK (subject_id <> ''),
     -- subject_type and subject_relation are only set for subject-set relationships
     -- (e.g. "members of team X"). NULL means the subject is a direct user.
-    subject_type     text        DEFAULT NULL,
-    subject_relation text        DEFAULT NULL,
+    subject_type     text,
+    subject_relation text,
     created_at       timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT relation_tuple_pkey PRIMARY KEY (id, object_type)
 ) PARTITION BY LIST (object_type);
@@ -87,7 +87,7 @@ CREATE TABLE auth.authz_check_cache (
     subject_id  text        NOT NULL,
     is_allowed  boolean     NOT NULL,
     computed_at timestamptz NOT NULL DEFAULT now(),
-    expires_at  timestamptz NOT NULL DEFAULT now() + interval '5 minutes',
+    expires_at  timestamptz NOT NULL DEFAULT now() + interval '30 minutes',
     PRIMARY KEY (cache_hash)
 ) PARTITION BY HASH (cache_hash);
 
@@ -102,7 +102,7 @@ CREATE UNLOGGED TABLE auth.authz_check_cache_7 PARTITION OF auth.authz_check_cac
 
 -- BRIN is tiny and sufficient here: cache rows are append-mostly and cleanup
 -- queries scan by expires_at range.
-CREATE INDEX authz_check_cache_expires_at_idx  ON auth.authz_check_cache USING BRIN (expires_at);
+CREATE INDEX authz_check_cache_expires_at_idx  ON auth.authz_check_cache (expires_at);
 CREATE INDEX authz_check_cache_object_idx      ON auth.authz_check_cache (object_type, object_id);
 CREATE INDEX authz_check_cache_subject_idx     ON auth.authz_check_cache USING HASH (subject_id);
 
@@ -258,7 +258,7 @@ BEGIN
             subject_id  = EXCLUDED.subject_id,
             is_allowed  = EXCLUDED.is_allowed,
             computed_at = now(),
-            expires_at  = now() + interval '5 minutes';
+            expires_at  = now() + interval '30 minutes';
     RETURN v_is_allowed;
 END;
 $$;
@@ -305,7 +305,7 @@ BEGIN
             subject_id  = EXCLUDED.subject_id,
             is_allowed  = EXCLUDED.is_allowed,
             computed_at = now(),
-            expires_at  = now() + interval '5 minutes';
+            expires_at  = now() + interval '30 minutes';
     RETURN v_is_allowed;
 END;
 $$;
@@ -476,7 +476,7 @@ AS $$
                relation,
                subject_id,
                0              AS depth,
-               ARRAY[object_id || '#' || relation] AS seen_rels
+               ARRAY[object_id || chr(31) || relation] AS seen_rels
           FROM auth.relation_tuple
          WHERE subject_id = p_subject_id
         UNION ALL
@@ -485,11 +485,11 @@ AS $$
                rt.relation,
                oa.subject_id,
                oa.depth + 1,
-               oa.seen_rels || (rt.object_id || '#' || rt.relation)
+               oa.seen_rels || (rt.object_id || chr(31) || rt.relation)
           FROM auth.relation_tuple rt
           JOIN object_access oa ON rt.subject_id = oa.object_id
          WHERE oa.depth < 10
-           AND NOT (rt.object_id || '#' || rt.relation = ANY(oa.seen_rels))
+           AND NOT (rt.object_id || chr(31) || rt.relation = ANY(oa.seen_rels))
     )
     SELECT object_type, object_id, relation, subject_id
       FROM object_access
@@ -515,7 +515,7 @@ AS $$
                relation,
                subject_id,
                0              AS depth,
-               ARRAY[object_id || '#' || relation] AS seen_rels
+               ARRAY[object_id || chr(31) || relation] AS seen_rels
           FROM auth.relation_tuple
          WHERE subject_id = p_subject_id
         UNION ALL
@@ -524,11 +524,11 @@ AS $$
                rt.relation,
                oa.subject_id,
                oa.depth + 1,
-               oa.seen_rels || (rt.object_id || '#' || rt.relation)
+               oa.seen_rels || (rt.object_id || chr(31) || rt.relation)
           FROM auth.relation_tuple rt
           JOIN object_access oa ON rt.subject_id = oa.object_id
          WHERE oa.depth < 10
-           AND NOT (rt.object_id || '#' || rt.relation = ANY(oa.seen_rels))
+           AND NOT (rt.object_id || chr(31) || rt.relation = ANY(oa.seen_rels))
     )
     SELECT object_type, object_id, relation, subject_id
       FROM object_access

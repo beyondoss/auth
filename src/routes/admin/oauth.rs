@@ -50,7 +50,7 @@ pub struct AppleRedacted {
 #[derive(Serialize)]
 pub struct MicrosoftRedacted {
     pub client_id: String,
-    pub tenant: String,
+    pub org: String,
 }
 
 #[derive(Serialize)]
@@ -76,7 +76,7 @@ fn redact(cfg: &OAuthProvidersConfig, email_link: bool) -> AdminOAuthResponse {
         }),
         microsoft: cfg.microsoft.as_ref().map(|m| MicrosoftRedacted {
             client_id: m.client_id.clone(),
-            tenant: m.tenant.clone(),
+            org: m.org.clone(),
         }),
         oidc: cfg.oidc.as_ref().map(|list| {
             list.iter()

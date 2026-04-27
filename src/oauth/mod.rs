@@ -10,14 +10,14 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use crate::{emails, error::AuthError, identities, tenants, users};
+use crate::{emails, error::AuthError, identities, orgs, users};
 
 pub struct OAuthProfile {
     pub external_id: String,
     pub email: Option<String>,
     pub email_verified: Option<bool>,
     pub display_name: Option<String>,
-    pub avatar_url: Option<String>,
+    pub image_url: Option<String>,
 }
 
 #[derive(Clone)]
@@ -161,7 +161,7 @@ impl OAuthProviders {
     }
 }
 
-/// Generate a tenant slug from a display name or email local part.
+/// Generate a org slug from a display name or email local part.
 fn make_slug(base: &str) -> String {
     use rand_core::{OsRng, RngCore};
 
@@ -231,7 +231,8 @@ pub async fn find_or_create_oauth_user(
         .await
         .map_err(AuthError::from)?
         {
-            match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, "").await
+            match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, b"")
+                .await
             {
                 Ok(_) => {}
                 Err(e) if is_identity_conflict(&e) => { /* another request won the race; row.id is still correct */
@@ -246,7 +247,7 @@ pub async fn find_or_create_oauth_user(
     // 3. Create a brand new user
     let user_id = Uuid::now_v7();
     let email_id = Uuid::now_v7();
-    let tenant_id = Uuid::now_v7();
+    let org_id = Uuid::now_v7();
 
     let name = profile
         .display_name
@@ -256,27 +257,29 @@ pub async fn find_or_create_oauth_user(
         .to_string();
     let slug = make_slug(&name);
 
-    let _tenant = tenants::create(&mut tx, tenant_id, user_id, &name, &slug).await?;
-    let _user = users::create(
+    let _org = orgs::create(
         &mut tx,
+        org_id,
         user_id,
-        tenant_id,
-        email_id,
-        profile.display_name.as_deref(),
+        &name,
+        &slug,
+        profile.image_url.as_deref(),
+        None,
     )
     .await?;
+    let _user = users::create(&mut tx, user_id, org_id, email_id).await?;
 
     let email_str = profile.email.as_deref().unwrap_or("");
     let _email = emails::create(&mut tx, email_id, user_id, email_str).await?;
 
     if let Err(e) =
-        identities::create(&mut tx, user_id, provider_slug, &profile.external_id, "").await
+        identities::create(&mut tx, user_id, provider_slug, &profile.external_id, b"").await
     {
         if !is_identity_conflict(&e) {
             return Err(e);
         }
         // Another concurrent request created this identity first. Roll back our
-        // orphaned user/tenant/email and return the winner's user_id.
+        // orphaned user/org/email and return the winner's user_id.
         drop(tx);
         return sqlx::query_scalar!(
             r#"SELECT user_id AS "user_id: Uuid" FROM auth.identity WHERE provider = $1 AND subject = $2"#,
@@ -291,19 +294,8 @@ pub async fn find_or_create_oauth_user(
 
     if profile.email_verified == Some(true) {
         sqlx::query!(
-            "UPDATE auth.email SET verified_at = clock_timestamp() WHERE id = $1",
+            "UPDATE auth.email SET verified_at = now() WHERE id = $1",
             email_id,
-        )
-        .execute(tx.as_mut())
-        .await
-        .map_err(AuthError::from)?;
-    }
-
-    if let Some(avatar) = profile.avatar_url.as_deref() {
-        sqlx::query!(
-            "UPDATE auth.\"user\" SET avatar_url = $1 WHERE id = $2",
-            avatar,
-            user_id,
         )
         .execute(tx.as_mut())
         .await

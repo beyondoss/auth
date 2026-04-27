@@ -7,12 +7,19 @@ use crate::harness::{Scenario, WorkerCtx, ZipfSampler};
 
 use super::corpus::FlatCorpus;
 
-pub struct SingleCheck {
+/// Calls `authz_check_direct` (pure SQL recursive CTE, no cache) with the same
+/// Zipf corpus as `single_check`. Every call is a cache miss by definition.
+///
+/// Comparing this to `single_check` isolates the plpgsql wrapper overhead:
+///   - If direct_check >> single_check: the wrapper + cache machinery dominate hot-path cost.
+///   - If direct_check ~= single_check: the CTE itself is the cost; the cache is earning its keep.
+///   - If direct_check < single_check: the cache is helping (hot entries served cheaper).
+pub struct DirectCheck {
     corpus: FlatCorpus,
     doc_sampler: ZipfSampler,
 }
 
-impl SingleCheck {
+impl DirectCheck {
     pub fn new() -> Self {
         let corpus = FlatCorpus::default();
         let doc_sampler = ZipfSampler::new(corpus.n_documents, 1.0);
@@ -24,23 +31,20 @@ impl SingleCheck {
 }
 
 #[async_trait]
-impl Scenario for SingleCheck {
+impl Scenario for DirectCheck {
     fn name(&self) -> &str {
-        "authz::single_check"
+        "authz::direct_check"
     }
 
     fn question(&self) -> &str {
-        "What is the QPS ceiling for `auth.authz_check` against a steady-state corpus, and where does p99 break?"
+        "What does `authz_check_direct` (pure CTE, no cache) cost vs the cached wrapper? Isolates plpgsql overhead."
     }
 
     async fn setup(&self, _pool: &PgPool) -> Result<()> {
-        // Corpus is seeded once globally by `seed_all` in main.
         Ok(())
     }
 
     async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
-        // Zipf-distributed doc selection mimics realistic skewed access:
-        // a hot head accounts for most traffic, the tail is cold.
         let user = ctx.rng.gen_range(0..self.corpus.n_users);
         let doc = self.doc_sampler.sample(&mut ctx.rng);
         let rel = match ctx.rng.gen_range(0..3) {
@@ -49,7 +53,7 @@ impl Scenario for SingleCheck {
             _ => "owner",
         };
         let row: (bool,) =
-            sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)")
+            sqlx::query_as("SELECT auth.authz_check_direct($1, ARRAY[$2]::text[], 'document', $3)")
                 .bind(format!("u_{user}"))
                 .bind(rel)
                 .bind(format!("d_{doc}"))

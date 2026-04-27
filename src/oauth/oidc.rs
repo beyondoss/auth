@@ -179,7 +179,7 @@ impl OidcClient {
             .get("name")
             .and_then(|v| v.as_str())
             .map(String::from);
-        let avatar_url = userinfo
+        let image_url = userinfo
             .get("picture")
             .and_then(|v| v.as_str())
             .map(String::from);
@@ -189,7 +189,7 @@ impl OidcClient {
             email,
             email_verified,
             display_name,
-            avatar_url,
+            image_url,
         })
     }
 

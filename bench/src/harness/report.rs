@@ -37,11 +37,7 @@ fn render_scenario(out: &mut String, r: &ScenarioReport) {
         "| concurrency | ops | ops/sec | errors | p50 µs | p95 µs | p99 µs | p99.9 µs | max µs |"
     )
     .unwrap();
-    writeln!(
-        out,
-        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
-    )
-    .unwrap();
+    writeln!(out, "|---:|---:|---:|---:|---:|---:|---:|---:|---:|").unwrap();
     for lv in &r.levels {
         writeln!(
             out,
@@ -60,7 +56,11 @@ fn render_scenario(out: &mut String, r: &ScenarioReport) {
     }
 
     writeln!(out).unwrap();
-    writeln!(out, "<details><summary>Server-side metrics (deltas)</summary>").unwrap();
+    writeln!(
+        out,
+        "<details><summary>Server-side metrics (deltas)</summary>"
+    )
+    .unwrap();
     writeln!(out).unwrap();
     for lv in &r.levels {
         writeln!(out, "**concurrency = {}**", lv.concurrency).unwrap();
@@ -126,7 +126,11 @@ pub fn render_compare(baseline: &[ScenarioReport], treatment: &[ScenarioReport])
     .unwrap();
     writeln!(out).unwrap();
 
-    let mut names: Vec<&str> = base_by_name.keys().chain(treat_by_name.keys()).copied().collect();
+    let mut names: Vec<&str> = base_by_name
+        .keys()
+        .chain(treat_by_name.keys())
+        .copied()
+        .collect();
     names.sort();
     names.dedup();
 
@@ -138,8 +142,11 @@ pub fn render_compare(baseline: &[ScenarioReport], treatment: &[ScenarioReport])
         match (base, treat) {
             (Some(b), Some(t)) => render_scenario_diff(&mut out, b, t),
             (Some(_), None) => {
-                writeln!(out, "_present in baseline only — scenario removed in treatment_")
-                    .unwrap();
+                writeln!(
+                    out,
+                    "_present in baseline only — scenario removed in treatment_"
+                )
+                .unwrap();
                 writeln!(out).unwrap();
             }
             (None, Some(_)) => {
@@ -182,13 +189,7 @@ fn render_scenario_diff(out: &mut String, base: &ScenarioReport, treat: &Scenari
                 writeln!(
                     out,
                     "| {} | {:.0} | {:.0} | {:+.1}% | {} | {} | {:+.1}% |",
-                    c,
-                    b.ops_per_sec,
-                    t.ops_per_sec,
-                    dops,
-                    b.latency.p99_us,
-                    t.latency.p99_us,
-                    dp99,
+                    c, b.ops_per_sec, t.ops_per_sec, dops, b.latency.p99_us, t.latency.p99_us, dp99,
                 )
                 .unwrap();
             }

@@ -1,6 +1,6 @@
 ## Service Model
 
-**This is a private, internal service.** Each deployment runs inside a single customer's private network, serving exactly one project's users. It is not a public SaaS, not a shared multi-tenant platform, and not exposed to the open internet without the operator's own infrastructure in front of it.
+**This is a private, internal service.** Each deployment runs inside a single customer's private network, serving exactly one project's users. It is not a public SaaS, not a shared multi-org platform, and not exposed to the open internet without the operator's own infrastructure in front of it.
 
 **Consequences — do not add to this service:**
 
@@ -9,7 +9,7 @@
 - Account lockout after N failed attempts — the network boundary and Argon2's cost parameter are the defenses. If an attacker is making requests, the operator's infrastructure should be stopping them, not us.
 - Any feature whose entire justification is "what if a bad actor hammers this endpoint" — wrong layer.
 
-When a feature is tempting because "this is what Auth0/Clerk does," stop and ask: do they need it because they're a _public multi-tenant service_ taking traffic from the whole internet? If yes, we probably don't need it.
+When a feature is tempting because "this is what Auth0/Clerk does," stop and ask: do they need it because they're a _public multi-org service_ taking traffic from the whole internet? If yes, we probably don't need it.
 
 ## Architecture
 

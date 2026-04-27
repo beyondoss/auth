@@ -129,7 +129,7 @@ impl GoogleClient {
             .get("name")
             .and_then(|v| v.as_str())
             .map(String::from);
-        let avatar_url = claims
+        let image_url = claims
             .get("picture")
             .and_then(|v| v.as_str())
             .map(String::from);
@@ -139,7 +139,7 @@ impl GoogleClient {
             email,
             email_verified,
             display_name,
-            avatar_url,
+            image_url,
         })
     }
 

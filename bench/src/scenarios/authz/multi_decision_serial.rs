@@ -52,14 +52,13 @@ impl Scenario for MultiDecisionSerial {
                 1 => "editor",
                 _ => "owner",
             };
-            let row: (bool,) = sqlx::query_as(
-                "SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)",
-            )
-            .bind(format!("u_{user}"))
-            .bind(rel)
-            .bind(format!("d_{doc}"))
-            .fetch_one(ctx.pool)
-            .await?;
+            let row: (bool,) =
+                sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)")
+                    .bind(format!("u_{user}"))
+                    .bind(rel)
+                    .bind(format!("d_{doc}"))
+                    .fetch_one(ctx.pool)
+                    .await?;
             let _ = row.0;
         }
         Ok(())

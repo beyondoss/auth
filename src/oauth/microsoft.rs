@@ -8,7 +8,7 @@ use crate::error::AuthError;
 pub struct MicrosoftConfig {
     pub client_id: String,
     pub client_secret: String,
-    pub tenant: String,
+    pub org: String,
 }
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl MicrosoftClient {
     pub async fn new(http: reqwest::Client, cfg: MicrosoftConfig) -> anyhow::Result<Self> {
         let discovery_url = format!(
             "https://login.microsoftonline.com/{}/v2.0/.well-known/openid-configuration",
-            cfg.tenant,
+            cfg.org,
         );
 
         let discovery: DiscoveryDoc = http
@@ -136,7 +136,7 @@ impl MicrosoftClient {
             .get("name")
             .and_then(|v| v.as_str())
             .map(String::from);
-        let avatar_url = claims
+        let image_url = claims
             .get("picture")
             .and_then(|v| v.as_str())
             .map(String::from);
@@ -146,7 +146,7 @@ impl MicrosoftClient {
             email,
             email_verified,
             display_name,
-            avatar_url,
+            image_url,
         })
     }
 

@@ -90,15 +90,18 @@ impl Scenario for InvalidationStorm {
 
         let user = ctx.rng.gen_range(0..self.corpus.n_users);
         let doc = ctx.rng.gen_range(0..self.corpus.n_documents);
-        let rel = if ctx.rng.gen_bool(0.5) { "viewer" } else { "editor" };
-        let row: (bool,) = sqlx::query_as(
-            "SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)",
-        )
-        .bind(format!("u_{user}"))
-        .bind(rel)
-        .bind(format!("d_{doc}"))
-        .fetch_one(ctx.pool)
-        .await?;
+        let rel = if ctx.rng.gen_bool(0.5) {
+            "viewer"
+        } else {
+            "editor"
+        };
+        let row: (bool,) =
+            sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)")
+                .bind(format!("u_{user}"))
+                .bind(rel)
+                .bind(format!("d_{doc}"))
+                .fetch_one(ctx.pool)
+                .await?;
         let _ = row.0;
         Ok(())
     }

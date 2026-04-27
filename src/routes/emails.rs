@@ -307,7 +307,7 @@ pub async fn confirm_verification(
         .ok_or_else(|| AuthError::internal("email_id missing from token context"))?;
 
     let verified_at = sqlx::query_scalar!(
-        "UPDATE auth.email SET verified_at = clock_timestamp()
+        "UPDATE auth.email SET verified_at = now()
          WHERE id = $1 AND user_id = $2
          RETURNING verified_at",
         email_id,

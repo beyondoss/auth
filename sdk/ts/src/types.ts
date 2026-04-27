@@ -533,7 +533,7 @@ export interface components {
     AuthResponse: {
       email: components["schemas"]["EmailBody"];
       session: components["schemas"]["SessionBody"];
-      tenant: components["schemas"]["TenantBody"];
+      org: components["schemas"]["OrgBody"];
       user: components["schemas"]["UserBody"];
     };
     AuthzSchema: {
@@ -662,40 +662,47 @@ export interface components {
     JwkSet: {
       keys: components["schemas"]["Jwk"][];
     };
-    LoginRequest: {
-      email: string;
-      /** @enum {string} */
-      grant_type: "password";
-      password: string;
-    } | {
-      /** @enum {string} */
-      grant_type: "magic_link";
-      token: string;
-    } | {
-      /** @enum {string} */
-      grant_type: "password_reset";
-      new_password: string;
-      token: string;
-    } | {
-      /** @enum {string} */
-      grant_type: "email_change";
-      token: string;
-    } | {
-      code: string;
-      /** @enum {string} */
-      grant_type: "totp_step_up";
-      step_up_token: string;
-    } | {
-      code: string;
-      /** @enum {string} */
-      grant_type: "totp_recovery";
-      step_up_token: string;
-    } | {
-      credential: Record<string, never>;
-      /** @enum {string} */
-      grant_type: "passkey";
-      state_token: string;
-    };
+    LoginRequest:
+      | {
+        email: string;
+        /** @enum {string} */
+        grant_type: "password";
+        password: string;
+      }
+      | {
+        /** @enum {string} */
+        grant_type: "magic_link";
+        token: string;
+      }
+      | {
+        /** @enum {string} */
+        grant_type: "password_reset";
+        new_password: string;
+        token: string;
+      }
+      | {
+        /** @enum {string} */
+        grant_type: "email_change";
+        token: string;
+      }
+      | {
+        code: string;
+        /** @enum {string} */
+        grant_type: "totp_step_up";
+        step_up_token: string;
+      }
+      | {
+        code: string;
+        /** @enum {string} */
+        grant_type: "totp_recovery";
+        step_up_token: string;
+      }
+      | {
+        credential: Record<string, never>;
+        /** @enum {string} */
+        grant_type: "passkey";
+        state_token: string;
+      };
     LookupResponse: {
       next_cursor?: string | null;
       object_ids: string[];
@@ -711,7 +718,7 @@ export interface components {
     };
     MeResponse: {
       email: components["schemas"]["EmailBody"];
-      tenant: components["schemas"]["TenantBody"];
+      org: components["schemas"]["OrgBody"];
       user: components["schemas"]["UserBody"];
     };
     OttTokenResponse: {
@@ -802,7 +809,7 @@ export interface components {
       /** @description Short-lived signed token to present when completing the step-up. */
       step_up_token: string;
     };
-    TenantBody: {
+    OrgBody: {
       /** Format: uuid */
       id: string;
       name: string;
@@ -825,11 +832,11 @@ export interface components {
       nickname: string;
     };
     UpdateUser: {
-      avatar_url?: string | null;
+      image_url?: string | null;
       display_name?: string | null;
     };
     UserBody: {
-      avatar_url?: string | null;
+      image_url?: string | null;
       /** Format: date-time */
       created_at: string;
       display_name?: string | null;

@@ -3,7 +3,7 @@ use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{emails::Email, error::AuthError, tenants::Tenant, tokens::Token, users::User};
+use crate::{emails::Email, error::AuthError, orgs::Org, tokens::Token, users::User};
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
@@ -23,7 +23,7 @@ pub struct Session {
 pub struct SessionContext {
     pub user: User,
     pub email: Email,
-    pub tenant: Tenant,
+    pub org: Org,
     pub session_id: Uuid,
     pub token_id: Uuid,
 }
@@ -35,10 +35,10 @@ pub struct RequestContext<'a> {
 
 /// Validate a bearer token and return the caller's context in one round-trip.
 ///
-/// Bundled CTE (translated from internal `GetMe`):
+/// Bundled CTE:
 /// - validates token id + secret hash + not expired
 /// - debounces `last_used_at` (skips update if touched within the last minute)
-/// - joins user, personal tenant, and primary email
+/// - joins user, primary org, and primary email
 ///
 /// Returns `None` for expired, missing, or wrong-secret tokens.
 pub async fn validate(
@@ -53,28 +53,30 @@ pub async fn validate(
             FROM auth.token
             WHERE token.id         = $1
               AND token.secret     = $2
-              AND token.expires_at > clock_timestamp()
+              AND token.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (
-            UPDATE auth.token SET last_used_at = clock_timestamp()
+            UPDATE auth.token SET last_used_at = now()
             FROM valid_token
             WHERE auth.token.id = valid_token.token_id
               AND (auth.token.last_used_at IS NULL
-                   OR auth.token.last_used_at < clock_timestamp() - interval '1 minute')
+                   OR auth.token.last_used_at < now() - interval '1 minute')
         )
         SELECT
             u.id                AS "user_id!: Uuid",
-            u.personal_tenant_id AS "personal_tenant_id!: Uuid",
+            u.primary_org_id    AS "primary_org_id!: Uuid",
             u.primary_email_id  AS "primary_email_id!: Uuid",
-            u.display_name,
-            u.avatar_url,
             u.created_at        AS "user_created_at!: DateTime<Utc>",
-            t.id                AS "tenant_id!: Uuid",
-            t.user_id           AS "tenant_user_id!: Uuid",
-            t.name              AS "tenant_name!",
-            t.slug              AS "tenant_slug!",
-            t.created_at        AS "tenant_created_at!: DateTime<Utc>",
+            t.id                AS "org_id!: Uuid",
+            t.user_id           AS "org_user_id!: Uuid",
+            t.name              AS "org_name!",
+            t.slug              AS "org_slug!",
+            t.image_url         AS "org_image_url",
+            t.metadata          AS "org_metadata: serde_json::Value",
+            t.created_at        AS "org_created_at!: DateTime<Utc>",
+            t.updated_at        AS "org_updated_at!: DateTime<Utc>",
+            t.deleted_at        AS "org_deleted_at",
             e.id                AS "email_id!: Uuid",
             e.email::text       AS "email!",
             e.verified_at,
@@ -83,7 +85,7 @@ pub async fn validate(
         FROM valid_token v
         INNER JOIN auth.session  s ON s.token_id  = v.token_id
         INNER JOIN auth."user"   u ON u.id = s.user_id AND u.deleted_at IS NULL
-        INNER JOIN auth.tenant   t ON t.id = u.personal_tenant_id AND t.deleted_at IS NULL
+        INNER JOIN auth.org      t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
         LEFT  JOIN auth.email    e ON e.id = u.primary_email_id
         "#,
         token_id,
@@ -98,18 +100,20 @@ pub async fn validate(
         token_id: r.token_id,
         user: User {
             id: r.user_id,
-            personal_tenant_id: r.personal_tenant_id,
+            primary_org_id: r.primary_org_id,
             primary_email_id: r.primary_email_id,
-            display_name: r.display_name,
-            avatar_url: r.avatar_url,
             created_at: r.user_created_at,
         },
-        tenant: Tenant {
-            id: r.tenant_id,
-            user_id: r.tenant_user_id,
-            name: r.tenant_name,
-            slug: r.tenant_slug,
-            created_at: r.tenant_created_at,
+        org: Org {
+            id: r.org_id,
+            user_id: r.org_user_id,
+            name: r.org_name,
+            slug: r.org_slug,
+            image_url: r.org_image_url,
+            metadata: r.org_metadata,
+            created_at: r.org_created_at,
+            updated_at: r.org_updated_at,
+            deleted_at: r.org_deleted_at,
         },
         email: Email {
             id: r.email_id,
@@ -132,7 +136,7 @@ pub async fn create(
 ) -> Result<(Uuid, DateTime<Utc>), AuthError> {
     let expires_at = sqlx::query_scalar!(
         "INSERT INTO auth.token (id, secret, expires_at)
-         VALUES ($1, $2, clock_timestamp() + make_interval(secs => $3::int4))
+         VALUES ($1, $2, now() + make_interval(secs => $3::int4))
          RETURNING expires_at",
         token.id,
         &token.secret_hash() as &[u8],
@@ -181,7 +185,7 @@ pub async fn get_current_session(
         INNER JOIN auth.token tok ON tok.id = s.token_id
         WHERE s.user_id  = $1
           AND s.token_id = $2
-          AND tok.expires_at > clock_timestamp()
+          AND tok.expires_at > now()
         "#,
         user_id,
         token_id,
@@ -212,7 +216,7 @@ pub async fn list(
         FROM auth.session s
         INNER JOIN auth.token tok ON tok.id = s.token_id
         WHERE s.user_id = $1
-          AND tok.expires_at > clock_timestamp()
+          AND tok.expires_at > now()
         ORDER BY tok.last_used_at DESC NULLS LAST, s.created_at DESC
         "#,
         user_id,
@@ -223,30 +227,32 @@ pub async fn list(
     .map_err(AuthError::from)
 }
 
-/// Load user + personal tenant + primary email by user_id (for login response).
+/// Load user + primary org + primary email by user_id (for login response).
 pub async fn load_user_context(
     pool: &PgPool,
     user_id: Uuid,
-) -> Result<(User, Tenant, Email), AuthError> {
+) -> Result<(User, Org, Email), AuthError> {
     let r = sqlx::query!(
         r#"
         SELECT
             u.id                AS "user_id!: Uuid",
-            u.personal_tenant_id AS "personal_tenant_id!: Uuid",
+            u.primary_org_id    AS "primary_org_id!: Uuid",
             u.primary_email_id  AS "primary_email_id!: Uuid",
-            u.display_name,
-            u.avatar_url,
             u.created_at        AS "user_created_at!: DateTime<Utc>",
-            t.id                AS "tenant_id!: Uuid",
-            t.user_id           AS "tenant_user_id!: Uuid",
-            t.name              AS "tenant_name!",
-            t.slug              AS "tenant_slug!",
-            t.created_at        AS "tenant_created_at!: DateTime<Utc>",
+            t.id                AS "org_id!: Uuid",
+            t.user_id           AS "org_user_id!: Uuid",
+            t.name              AS "org_name!",
+            t.slug              AS "org_slug!",
+            t.image_url         AS "org_image_url",
+            t.metadata          AS "org_metadata: serde_json::Value",
+            t.created_at        AS "org_created_at!: DateTime<Utc>",
+            t.updated_at        AS "org_updated_at!: DateTime<Utc>",
+            t.deleted_at        AS "org_deleted_at",
             e.id                AS "email_id!: Uuid",
             e.email::text       AS "email!",
             e.verified_at
         FROM auth."user" u
-        INNER JOIN auth.tenant t ON t.id = u.personal_tenant_id AND t.deleted_at IS NULL
+        INNER JOIN auth.org    t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
         LEFT  JOIN auth.email  e ON e.id = u.primary_email_id
         WHERE u.id = $1 AND u.deleted_at IS NULL
         "#,
@@ -260,18 +266,20 @@ pub async fn load_user_context(
     Ok((
         User {
             id: r.user_id,
-            personal_tenant_id: r.personal_tenant_id,
+            primary_org_id: r.primary_org_id,
             primary_email_id: r.primary_email_id,
-            display_name: r.display_name,
-            avatar_url: r.avatar_url,
             created_at: r.user_created_at,
         },
-        Tenant {
-            id: r.tenant_id,
-            user_id: r.tenant_user_id,
-            name: r.tenant_name,
-            slug: r.tenant_slug,
-            created_at: r.tenant_created_at,
+        Org {
+            id: r.org_id,
+            user_id: r.org_user_id,
+            name: r.org_name,
+            slug: r.org_slug,
+            image_url: r.org_image_url,
+            metadata: r.org_metadata,
+            created_at: r.org_created_at,
+            updated_at: r.org_updated_at,
+            deleted_at: r.org_deleted_at,
         },
         Email {
             id: r.email_id,

@@ -12,6 +12,7 @@ pub enum TokenPrefix {
     PasswordReset,
     EmailVerification,
     EmailChange,
+    Invitation,
 }
 
 impl TokenPrefix {
@@ -22,6 +23,7 @@ impl TokenPrefix {
             TokenPrefix::PasswordReset => "pwr",
             TokenPrefix::EmailVerification => "ev",
             TokenPrefix::EmailChange => "ec",
+            TokenPrefix::Invitation => "inv",
         }
     }
 }

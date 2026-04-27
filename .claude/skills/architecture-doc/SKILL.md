@@ -79,7 +79,7 @@ Define terms by their operational meaning — what they control, gate, or affect
 ```markdown
 | Term      | What It Controls                     | NOT                            |
 | --------- | ------------------------------------ | ------------------------------ |
-| Namespace | Which backend pool receives traffic  | Not a security/tenant boundary |
+| Namespace | Which backend pool receives traffic  | Not a security/org boundary    |
 | Node      | Which machine a VM is scheduled onto | Not the proxy or control plane |
 | Address   | The socket (IP:port) for connections | Not a DNS name or virtual IP   |
 ```
@@ -135,7 +135,7 @@ Design decisions exist to explain _observed behavior_. Frame them as "the system
 
 The system routes by namespace because:
 
-1. **Traffic is tenant-shaped** — a single tenant's requests should hit the same
+1. **Traffic is org-shaped** — a single org's requests should hit the same
    backend pool for connection reuse and cache locality
 2. **Source IPs are unstable** — clients behind NAT/proxies share IPs, so
    IP-based hashing creates hotspots (we measured 40:1 skew in production)

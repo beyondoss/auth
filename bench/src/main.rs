@@ -10,8 +10,8 @@ use testcontainers_modules::postgres::Postgres;
 
 use bench::harness::{RunConfig, ScenarioReport, render_compare, render_report, run_scenario};
 use bench::scenarios;
-use bench::scenarios::authz::corpus::{FlatCorpus, seed_all};
 use bench::scenarios::authz::CHAIN_DEPTHS;
+use bench::scenarios::authz::corpus::{FlatCorpus, seed_all};
 
 #[derive(Parser)]
 #[command(name = "bench", about = "generic benchmark harness")]

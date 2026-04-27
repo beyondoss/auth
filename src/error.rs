@@ -78,6 +78,30 @@ pub enum AuthError {
     #[error("redirect_url is not in the configured allowlist")]
     OAuthRedirectNotAllowed,
 
+    #[error("org not found")]
+    OrgNotFound,
+
+    #[error("user is not a member of this org")]
+    NotMember,
+
+    #[error("user is already a member of this org")]
+    AlreadyMember,
+
+    #[error("cannot remove or demote the last owner")]
+    LastOwner,
+
+    #[error("personal orgs cannot be deleted")]
+    PersonalOrg,
+
+    #[error("slug is already taken")]
+    SlugConflict,
+
+    #[error("forbidden")]
+    Forbidden,
+
+    #[error("invitation not found or expired")]
+    InvitationNotFound,
+
     #[error("authz is not enabled — PUT /v1/authz/schema to enable it")]
     AuthzNotEnabled,
 
@@ -151,6 +175,18 @@ impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, code, message) = match &self {
             AuthError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
+            AuthError::OrgNotFound => (StatusCode::NOT_FOUND, "org_not_found", self.to_string()),
+            AuthError::NotMember => (StatusCode::FORBIDDEN, "not_member", self.to_string()),
+            AuthError::AlreadyMember => (StatusCode::CONFLICT, "already_member", self.to_string()),
+            AuthError::LastOwner => (StatusCode::CONFLICT, "last_owner", self.to_string()),
+            AuthError::PersonalOrg => (StatusCode::CONFLICT, "personal_org", self.to_string()),
+            AuthError::SlugConflict => (StatusCode::CONFLICT, "slug_conflict", self.to_string()),
+            AuthError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
+            AuthError::InvitationNotFound => (
+                StatusCode::NOT_FOUND,
+                "invitation_not_found",
+                self.to_string(),
+            ),
             AuthError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
             AuthError::InvalidCredentials => (
                 StatusCode::UNAUTHORIZED,

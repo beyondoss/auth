@@ -189,7 +189,7 @@ async fn login_password(
             .into_response());
     }
 
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (session_id, expires_at) =
@@ -201,7 +201,7 @@ async fn login_password(
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,
@@ -219,7 +219,7 @@ async fn login_one_time_token(
     let (user_id, _ctx) =
         one_time_token::consume(&state.pool, TokenPrefix::MagicLink, raw_token).await?;
 
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (session_id, expires_at) =
@@ -231,7 +231,7 @@ async fn login_one_time_token(
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,
@@ -256,7 +256,7 @@ async fn login_password_reset(
 
     sqlx::query!(
         "UPDATE auth.identity SET secret = $1 WHERE user_id = $2 AND provider = 'password'",
-        new_hash,
+        new_hash.as_bytes() as &[u8],
         user_id,
     )
     .execute(tx.as_mut())
@@ -278,14 +278,14 @@ async fn login_password_reset(
         sessions::create(&mut tx, &session_token, user_id, ttl, req_ctx).await?;
     tx.commit().await.map_err(AuthError::from)?;
 
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
 
     Ok((
         StatusCode::CREATED,
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,
@@ -315,7 +315,7 @@ async fn login_email_change(
 
     sqlx::query!(
         "INSERT INTO auth.email (id, user_id, email, verified_at)
-         VALUES ($1, $2, $3::citext, clock_timestamp())",
+         VALUES ($1, $2, $3::citext, now())",
         email_id,
         user_id,
         new_email,
@@ -358,14 +358,14 @@ async fn login_email_change(
     tx.commit().await.map_err(AuthError::from)?;
 
     // Load user context after commit so pool sees the new primary email.
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
 
     Ok((
         StatusCode::CREATED,
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,
@@ -388,7 +388,7 @@ async fn login_totp_step_up(
 
     mfa::totp::verify_step_up(&state.pool, claims.user_id, code).await?;
 
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, claims.user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, claims.user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (session_id, expires_at) =
@@ -400,7 +400,7 @@ async fn login_totp_step_up(
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,
@@ -423,7 +423,7 @@ async fn login_totp_recovery(
 
     mfa::totp::use_recovery_code(&state.pool, claims.user_id, code).await?;
 
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, claims.user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, claims.user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (session_id, expires_at) =
@@ -435,7 +435,7 @@ async fn login_totp_recovery(
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,
@@ -451,7 +451,7 @@ async fn login_passkey(
     state_token: &str,
     credential: &webauthn_rs::prelude::PublicKeyCredential,
 ) -> Result<Response, AuthError> {
-    let user_id = mfa::webauthn::verify_authentication(
+    let user_id = mfa::passkeys::verify_authentication(
         &state.pool,
         &state.webauthn,
         &state.signing_key,
@@ -472,7 +472,7 @@ async fn login_passkey(
             .into_response());
     }
 
-    let (user, tenant, email) = sessions::load_user_context(&state.pool, user_id).await?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (session_id, expires_at) =
@@ -484,7 +484,7 @@ async fn login_passkey(
         Json(make_auth_response(
             user,
             email,
-            tenant,
+            org,
             session_id,
             &session_token,
             expires_at,

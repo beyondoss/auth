@@ -19,7 +19,7 @@ pub async fn create(
     user_id: Uuid,
     provider: &str,
     subject: &str,
-    secret: &str,
+    secret: &[u8],
 ) -> Result<Identity, AuthError> {
     sqlx::query_as!(
         Identity,
@@ -41,7 +41,7 @@ pub async fn find_password_secret(
     pool: &PgPool,
     subject: &str,
 ) -> Result<Option<(Uuid, String)>, AuthError> {
-    sqlx::query!(
+    let row = sqlx::query!(
         "SELECT user_id, secret
          FROM auth.identity
          WHERE provider = 'password' AND subject = $1
@@ -50,6 +50,17 @@ pub async fn find_password_secret(
     )
     .fetch_optional(pool)
     .await
-    .map_err(AuthError::from)
-    .map(|row| row.and_then(|r| r.secret.map(|s| (r.user_id, s))))
+    .map_err(AuthError::from)?;
+
+    match row {
+        None => Ok(None),
+        Some(r) => match r.secret {
+            None => Ok(None),
+            Some(s) => {
+                let hash = String::from_utf8(s)
+                    .map_err(|_| AuthError::internal("corrupted password hash"))?;
+                Ok(Some((r.user_id, hash)))
+            }
+        },
+    }
 }

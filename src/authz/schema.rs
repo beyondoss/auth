@@ -280,6 +280,49 @@ impl CompiledSchema {
         Some(parts.join("\n    OR "))
     }
 
+    /// Build an OR-chain for a UNNEST batch check. `subject_id` is `$1` (scalar bind);
+    /// `object_id` comes from `t.object_id` in `UNNEST($2::text[]) AS t(object_id)`.
+    pub fn build_batch_or_chain(&self, resource_type: &str, permission: &str) -> Option<String> {
+        let calls = self.get_checks(resource_type, permission)?;
+        let parts: Vec<String> = calls
+            .iter()
+            .map(|c| match c {
+                AuthzCheckCall::SingleHop {
+                    relations,
+                    object_type,
+                } => {
+                    let arr = relations
+                        .iter()
+                        .map(|r| format!("'{r}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!(
+                        "auth.authz_check($1, ARRAY[{arr}]::text[], '{object_type}', t.object_id)"
+                    )
+                }
+                AuthzCheckCall::MultiHop {
+                    relation_path,
+                    object_type_path,
+                } => {
+                    let rels = relation_path
+                        .iter()
+                        .map(|r| format!("'{r}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let types = object_type_path
+                        .iter()
+                        .map(|tp| format!("'{tp}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!(
+                        "auth.authz_check($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], t.object_id)"
+                    )
+                }
+            })
+            .collect();
+        Some(parts.join("\n    OR "))
+    }
+
     /// Build an OR-chain for a standalone check (no session CTE). `subject_id` is `$1`,
     /// `object_id` is `$2`.
     pub fn build_standalone_or_chain(

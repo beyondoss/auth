@@ -1,5 +1,5 @@
 [workspace]
-members = ["xtask", "bench"]
+members = ["bench", "xtask"]
 
 [package]
 name = "beyond-auth"

@@ -163,15 +163,15 @@ pub async fn check_with_session(
             FROM auth.token
             WHERE token.id      = $1
               AND token.secret  = $2
-              AND token.expires_at > clock_timestamp()
+              AND token.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (
-            UPDATE auth.token SET last_used_at = clock_timestamp()
+            UPDATE auth.token SET last_used_at = now()
             FROM valid_token
             WHERE auth.token.id = valid_token.token_id
               AND (auth.token.last_used_at IS NULL
-                   OR auth.token.last_used_at < clock_timestamp() - interval '1 minute')
+                   OR auth.token.last_used_at < now() - interval '1 minute')
         ),
         subject AS (
             SELECT u.id::text AS subject_id
@@ -191,6 +191,63 @@ pub async fn check_with_session(
         .bind(secret_hash)
         .bind(object_id)
         .fetch_optional(pool)
+        .await
+        .map_err(AuthError::from)
+}
+
+/// Validate a bearer token and return the subject user_id as a string for authz checks.
+/// Returns `None` if the token is invalid or expired.
+pub async fn resolve_session(
+    pool: &PgPool,
+    token_id: Uuid,
+    secret_hash: &[u8],
+) -> Result<Option<String>, AuthError> {
+    let sql = r#"
+        WITH valid_token AS (
+            SELECT token.id AS token_id
+            FROM auth.token
+            WHERE token.id      = $1
+              AND token.secret  = $2
+              AND token.expires_at > now()
+            LIMIT 1
+        ),
+        update_attempt AS (
+            UPDATE auth.token SET last_used_at = now()
+            FROM valid_token
+            WHERE auth.token.id = valid_token.token_id
+              AND (auth.token.last_used_at IS NULL
+                   OR auth.token.last_used_at < now() - interval '1 minute')
+        )
+        SELECT u.id::text
+        FROM valid_token v
+        INNER JOIN auth.session s ON s.token_id  = v.token_id
+        INNER JOIN auth."user"  u ON u.id = s.user_id AND u.deleted_at IS NULL
+    "#;
+
+    sqlx::query_scalar::<_, String>(sql)
+        .bind(token_id)
+        .bind(secret_hash)
+        .fetch_optional(pool)
+        .await
+        .map_err(AuthError::from)
+}
+
+/// Batch check multiple object IDs against a single subject in one round-trip.
+/// `or_chain` must be built with `CompiledSchema::build_batch_or_chain` (uses `$1` for
+/// subject_id and `t.object_id` from the UNNEST). Returns one bool per input object_id,
+/// in the same order.
+pub async fn batch_check_standalone(
+    pool: &PgPool,
+    subject_id: &str,
+    object_ids: &[String],
+    or_chain: &str,
+) -> Result<Vec<bool>, AuthError> {
+    let sql = format!("SELECT ({or_chain})\nFROM UNNEST($2::text[]) AS t(object_id)");
+
+    sqlx::query_scalar::<_, bool>(&sql)
+        .bind(subject_id)
+        .bind(object_ids)
+        .fetch_all(pool)
         .await
         .map_err(AuthError::from)
 }

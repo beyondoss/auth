@@ -23,7 +23,10 @@ impl ReadWriteMix {
     pub fn new() -> Self {
         let corpus = FlatCorpus::default();
         let doc_sampler = ZipfSampler::new(corpus.n_documents, 1.0);
-        Self { corpus, doc_sampler }
+        Self {
+            corpus,
+            doc_sampler,
+        }
     }
 }
 
@@ -65,14 +68,13 @@ impl Scenario for ReadWriteMix {
                 1 => "editor",
                 _ => "owner",
             };
-            let _: (bool,) = sqlx::query_as(
-                "SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)",
-            )
-            .bind(format!("u_{u}"))
-            .bind(rel)
-            .bind(format!("d_{d}"))
-            .fetch_one(ctx.pool)
-            .await?;
+            let _: (bool,) =
+                sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], 'document', $3)")
+                    .bind(format!("u_{u}"))
+                    .bind(rel)
+                    .bind(format!("d_{d}"))
+                    .fetch_one(ctx.pool)
+                    .await?;
         }
         Ok(())
     }

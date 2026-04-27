@@ -224,7 +224,7 @@ pub async fn store_credential(
     let id = Uuid::now_v7();
 
     let row = sqlx::query!(
-        r#"INSERT INTO auth.webauthn_credential (id, user_id, credential_id, credential_data, nickname)
+        r#"INSERT INTO auth.passkey_credential (id, user_id, credential_id, credential_data, nickname)
            VALUES ($1, $2, $3, $4, $5)
            RETURNING id, created_at"#,
         id,
@@ -246,7 +246,7 @@ pub async fn credentials_for_user(
 ) -> Result<Vec<CredentialRecord>, AuthError> {
     let rows = sqlx::query!(
         r#"SELECT id, nickname, created_at, last_used_at
-           FROM auth.webauthn_credential
+           FROM auth.passkey_credential
            WHERE user_id = $1 AND deleted_at IS NULL
            ORDER BY created_at ASC"#,
         user_id,
@@ -272,7 +272,7 @@ pub async fn find_credential(
 ) -> Result<Option<(Uuid, Uuid, Passkey)>, AuthError> {
     let row = sqlx::query!(
         r#"SELECT id, user_id, credential_data AS "credential_data: serde_json::Value"
-           FROM auth.webauthn_credential
+           FROM auth.passkey_credential
            WHERE credential_id = $1 AND deleted_at IS NULL"#,
         credential_id,
     )
@@ -295,8 +295,8 @@ pub async fn update_credential(
         .map_err(|e| AuthError::internal_with("serialize passkey", e))?;
 
     sqlx::query!(
-        r#"UPDATE auth.webauthn_credential
-           SET credential_data = $1, last_used_at = clock_timestamp()
+        r#"UPDATE auth.passkey_credential
+           SET credential_data = $1, last_used_at = now()
            WHERE id = $2"#,
         data,
         row_id,
@@ -315,7 +315,7 @@ pub async fn update_nickname(
     nickname: &str,
 ) -> Result<(), AuthError> {
     let result = sqlx::query!(
-        r#"UPDATE auth.webauthn_credential
+        r#"UPDATE auth.passkey_credential
            SET nickname = $1
            WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL"#,
         nickname,
@@ -365,7 +365,7 @@ pub async fn delete_credential(
     user_id: Uuid,
 ) -> Result<(), AuthError> {
     let result = sqlx::query!(
-        r#"DELETE FROM auth.webauthn_credential
+        r#"DELETE FROM auth.passkey_credential
            WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL"#,
         id,
         user_id,

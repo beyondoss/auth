@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::{error::AuthError, http::AppState, mfa::webauthn as wn, sessions::SessionContext};
+use crate::{error::AuthError, http::AppState, mfa::passkeys as wn, sessions::SessionContext};
 
 // ── Shared response types ─────────────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ pub struct UpdateCredentialRequest {
     post,
     path = "/v1/passkey-registrations",
     operation_id = "begin_passkey_registration",
-    tag = "webauthn",
+    tag = "passkeys",
     security(("BearerAuth" = [])),
     responses(
         (status = 200, body = BeginResponse),
@@ -60,12 +60,10 @@ pub async fn begin_registration(
     State(state): State<AppState>,
     Extension(ctx): Extension<SessionContext>,
 ) -> Result<Json<serde_json::Value>, AuthError> {
-    let display_name = ctx.user.display_name.as_deref().unwrap_or(&ctx.email.email);
-
     let (ccr, reg_state) = state
         .webauthn
-        .start_passkey_registration(ctx.user.id, &ctx.email.email, display_name, None)
-        .map_err(|e| AuthError::internal_with("webauthn start registration", e))?;
+        .start_passkey_registration(ctx.user.id, &ctx.email.email, &ctx.org.name, None)
+        .map_err(|e| AuthError::internal_with("passkeys start registration", e))?;
 
     let state_token = wn::pack_reg_state(&reg_state, ctx.user.id, &state.signing_key);
 
@@ -79,7 +77,7 @@ pub async fn begin_registration(
     post,
     path = "/v1/passkeys",
     operation_id = "create_passkey",
-    tag = "webauthn",
+    tag = "passkeys",
     security(("BearerAuth" = [])),
     request_body = FinishRegistrationRequest,
     responses(
@@ -97,7 +95,7 @@ pub async fn finish_registration(
     let passkey = state
         .webauthn
         .finish_passkey_registration(&req.credential, &reg_state)
-        .map_err(|e| AuthError::internal_with("webauthn finish registration", e))?;
+        .map_err(|e| AuthError::internal_with("passkeys finish registration", e))?;
 
     let (id, created_at) =
         wn::store_credential(&state.pool, ctx.user.id, &passkey, req.nickname.as_deref()).await?;
@@ -116,7 +114,7 @@ pub async fn finish_registration(
     get,
     path = "/v1/passkeys",
     operation_id = "list_passkeys",
-    tag = "webauthn",
+    tag = "passkey",
     security(("BearerAuth" = [])),
     responses(
         (status = 200, body = Vec<wn::CredentialRecord>),
@@ -135,7 +133,7 @@ pub async fn list_credentials(
     patch,
     path = "/v1/passkeys/{id}",
     operation_id = "update_passkey",
-    tag = "webauthn",
+    tag = "passkeys",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Credential ID")),
     request_body = UpdateCredentialRequest,
@@ -158,7 +156,7 @@ pub async fn update_credential(
     delete,
     path = "/v1/passkeys/{id}",
     operation_id = "delete_passkey",
-    tag = "webauthn",
+    tag = "passkeys",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Credential ID")),
     responses(
@@ -179,7 +177,7 @@ pub async fn delete_credential(
     post,
     path = "/v1/passkey-authentications",
     operation_id = "begin_passkey_authentication",
-    tag = "webauthn",
+    tag = "passkeys",
     responses(
         (status = 200, body = BeginResponse),
     )
@@ -190,7 +188,7 @@ pub async fn begin_authentication(
     let (rcr, auth_state) = state
         .webauthn
         .start_discoverable_authentication()
-        .map_err(|e| AuthError::internal_with("webauthn start auth", e))?;
+        .map_err(|e| AuthError::internal_with("passkeys start auth", e))?;
 
     let state_token = wn::pack_auth_state(&auth_state, &state.signing_key);
 

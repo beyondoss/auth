@@ -12,9 +12,7 @@
   "paths": {
     "/healthz": {
       "get": {
-        "tags": [
-          "system"
-        ],
+        "tags": ["system"],
         "operationId": "healthz",
         "responses": {
           "200": {
@@ -42,9 +40,7 @@
     },
     "/v1/admin/relation-partitions/{object_type}": {
       "put": {
-        "tags": [
-          "admin"
-        ],
+        "tags": ["admin"],
         "summary": "Ensure a dedicated LIST partition exists for `object_type`.",
         "description": "Idempotent — safe to call multiple times. Existing rows in the default\npartition are moved to the new partition atomically.",
         "operationId": "ensure_partition",
@@ -78,9 +74,7 @@
     },
     "/v1/authz/decisions": {
       "get": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Check whether the current session user (or an explicit user) has a permission\non a resource. Uses a bundled session-validation + authz CTE for one DB round-trip\nwhen checking the current session user.",
         "operationId": "check_permission",
         "parameters": [
@@ -90,10 +84,7 @@
             "description": "Explicit subject to check as. Defaults to the current session user.",
             "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": ["string", "null"]
             }
           },
           {
@@ -167,9 +158,7 @@
     },
     "/v1/authz/expansions": {
       "get": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Expand a relation: return all subjects who hold the given relation on the object.\nResolves subject sets recursively.",
         "operationId": "expand_relation",
         "parameters": [
@@ -224,10 +213,8 @@
     },
     "/v1/authz/lookups": {
       "get": {
-        "tags": [
-          "authz"
-        ],
-        "summary": "List all objects of the given type that the current user (or an explicit user)\ncan access via the resolved roles for a permission.",
+        "tags": ["authz"],
+        "summary": "List all objects of the given type that the current user (or an explicit user)\ncan access via the resolved roles for a permission. Includes both direct role\nassignments and access granted via parent hierarchy.",
         "operationId": "lookup_objects",
         "parameters": [
           {
@@ -235,10 +222,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": ["string", "null"]
             }
           },
           {
@@ -271,10 +255,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": ["string", "null"]
             }
           }
         ],
@@ -298,6 +279,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unknown resource/permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -309,9 +300,7 @@
     },
     "/v1/authz/relations": {
       "post": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Write a single relation tuple. Idempotent — duplicate writes are silently ignored.",
         "operationId": "write_relation",
         "requestBody": {
@@ -341,9 +330,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Delete a single relation tuple.",
         "operationId": "delete_relation",
         "requestBody": {
@@ -360,6 +347,16 @@
           "204": {
             "description": "Relation deleted"
           },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Relation not found",
             "content": {
@@ -373,9 +370,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Batch write and/or delete relation tuples in a single transaction.",
         "operationId": "batch_relations",
         "requestBody": {
@@ -414,9 +409,7 @@
     },
     "/v1/authz/schema": {
       "get": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Get the current authz schema. Returns null if authz is not enabled.",
         "operationId": "get_schema",
         "responses": {
@@ -440,9 +433,7 @@
         }
       },
       "put": {
-        "tags": [
-          "authz"
-        ],
+        "tags": ["authz"],
         "summary": "Replace the authz schema. Validates and compiles before persisting.\nSetting schema to a valid document enables authz; this is the only way to enable it.",
         "operationId": "put_schema",
         "requestBody": {
@@ -481,10 +472,8 @@
     },
     "/v1/authz/traces": {
       "get": {
-        "tags": [
-          "authz"
-        ],
-        "summary": "Explain why a permission check returned its result. Runs expand on all relevant\nrelations and reports which subjects appear, letting you trace a grant or denial.",
+        "tags": ["authz"],
+        "summary": "Explain why a permission check returned its result. Runs expand on all direct\nrole relations and reports which subjects appear, letting you trace a grant or\ndenial. Note: access granted purely via parent hierarchy is not reflected here.",
         "operationId": "why_check",
         "parameters": [
           {
@@ -540,15 +529,23 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unknown resource/permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
     },
     "/v1/emails": {
       "get": {
-        "tags": [
-          "emails"
-        ],
+        "tags": ["emails"],
         "operationId": "list_emails",
         "responses": {
           "200": {
@@ -582,9 +579,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "emails"
-        ],
+        "tags": ["emails"],
         "operationId": "add",
         "requestBody": {
           "content": {
@@ -637,9 +632,7 @@
     },
     "/v1/emails/verifications": {
       "post": {
-        "tags": [
-          "emails"
-        ],
+        "tags": ["emails"],
         "operationId": "confirm_verification",
         "requestBody": {
           "content": {
@@ -687,9 +680,7 @@
     },
     "/v1/emails/{id}": {
       "put": {
-        "tags": [
-          "emails"
-        ],
+        "tags": ["emails"],
         "operationId": "make_primary",
         "parameters": [
           {
@@ -735,9 +726,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "emails"
-        ],
+        "tags": ["emails"],
         "operationId": "remove",
         "parameters": [
           {
@@ -795,9 +784,7 @@
     },
     "/v1/emails/{id}/verifications": {
       "post": {
-        "tags": [
-          "emails"
-        ],
+        "tags": ["emails"],
         "operationId": "create_verification",
         "parameters": [
           {
@@ -850,11 +837,157 @@
         ]
       }
     },
+    "/v1/invitations/{id}": {
+      "get": {
+        "tags": ["invitations"],
+        "operationId": "view_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Invitation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Plaintext invitation token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationViewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/{id}/acceptances": {
+      "post": {
+        "tags": ["invitations"],
+        "operationId": "accept_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Invitation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Plaintext invitation token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "Invitation not found or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/invitations/{id}/declinations": {
+      "post": {
+        "tags": ["invitations"],
+        "operationId": "decline_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Invitation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Plaintext invitation token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "Invitation not found or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/jwks.json": {
       "get": {
-        "tags": [
-          "system"
-        ],
+        "tags": ["system"],
         "operationId": "jwks",
         "responses": {
           "200": {
@@ -880,9 +1013,7 @@
     },
     "/v1/magic-links": {
       "post": {
-        "tags": [
-          "magic-links"
-        ],
+        "tags": ["magic-links"],
         "operationId": "create_magic_link",
         "requestBody": {
           "content": {
@@ -920,9 +1051,7 @@
     },
     "/v1/oauth/apple/callback": {
       "post": {
-        "tags": [
-          "oauth"
-        ],
+        "tags": ["oauth"],
         "operationId": "apple_callback",
         "requestBody": {
           "content": {
@@ -953,9 +1082,7 @@
     },
     "/v1/oauth/{provider}": {
       "get": {
-        "tags": [
-          "oauth"
-        ],
+        "tags": ["oauth"],
         "operationId": "authorize",
         "parameters": [
           {
@@ -996,9 +1123,7 @@
     },
     "/v1/oauth/{provider}/callback": {
       "get": {
-        "tags": [
-          "oauth"
-        ],
+        "tags": ["oauth"],
         "operationId": "callback",
         "parameters": [
           {
@@ -1046,11 +1171,622 @@
         }
       }
     },
+    "/v1/orgs": {
+      "get": {
+        "tags": ["orgs"],
+        "operationId": "list_orgs",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": ["orgs"],
+        "operationId": "create_org",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrgRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Slug already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{id}": {
+      "get": {
+        "tags": ["orgs"],
+        "operationId": "get_org",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["orgs"],
+        "operationId": "delete_org",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot delete personal org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["orgs"],
+        "operationId": "update_org",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrgRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Slug already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{id}/invitations": {
+      "get": {
+        "tags": ["orgs"],
+        "operationId": "list_invitations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": ["orgs"],
+        "operationId": "create_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Pending invite for this email already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{id}/invitations/{inv_id}": {
+      "delete": {
+        "tags": ["orgs"],
+        "operationId": "revoke_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "inv_id",
+            "in": "path",
+            "description": "Invitation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{id}/members": {
+      "get": {
+        "tags": ["orgs"],
+        "operationId": "list_members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembersResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/orgs/{id}/members/{member_id}": {
+      "delete": {
+        "tags": ["orgs"],
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "description": "User ID of the member",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Would remove last owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["orgs"],
+        "operationId": "update_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "description": "User ID of the member",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Would remove last owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/passkey-authentications": {
       "post": {
-        "tags": [
-          "webauthn"
-        ],
+        "tags": ["passkeys"],
         "operationId": "begin_passkey_authentication",
         "responses": {
           "200": {
@@ -1068,9 +1804,7 @@
     },
     "/v1/passkey-registrations": {
       "post": {
-        "tags": [
-          "webauthn"
-        ],
+        "tags": ["passkeys"],
         "operationId": "begin_passkey_registration",
         "responses": {
           "200": {
@@ -1103,9 +1837,7 @@
     },
     "/v1/passkeys": {
       "get": {
-        "tags": [
-          "webauthn"
-        ],
+        "tags": ["passkey"],
         "operationId": "list_passkeys",
         "responses": {
           "200": {
@@ -1139,9 +1871,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "webauthn"
-        ],
+        "tags": ["passkeys"],
         "operationId": "create_passkey",
         "requestBody": {
           "content": {
@@ -1184,9 +1914,7 @@
     },
     "/v1/passkeys/{id}": {
       "delete": {
-        "tags": [
-          "webauthn"
-        ],
+        "tags": ["passkeys"],
         "operationId": "delete_passkey",
         "parameters": [
           {
@@ -1222,9 +1950,7 @@
         ]
       },
       "patch": {
-        "tags": [
-          "webauthn"
-        ],
+        "tags": ["passkeys"],
         "operationId": "update_passkey",
         "parameters": [
           {
@@ -1272,9 +1998,7 @@
     },
     "/v1/password-resets": {
       "post": {
-        "tags": [
-          "password-resets"
-        ],
+        "tags": ["password-resets"],
         "operationId": "create_password_reset",
         "requestBody": {
           "content": {
@@ -1312,9 +2036,7 @@
     },
     "/v1/sessions": {
       "get": {
-        "tags": [
-          "sessions"
-        ],
+        "tags": ["sessions"],
         "operationId": "list_sessions",
         "responses": {
           "200": {
@@ -1345,9 +2067,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "sessions"
-        ],
+        "tags": ["sessions"],
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -1405,9 +2125,7 @@
     },
     "/v1/sessions/current": {
       "get": {
-        "tags": [
-          "sessions"
-        ],
+        "tags": ["sessions"],
         "operationId": "get_current",
         "responses": {
           "200": {
@@ -1448,9 +2166,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "sessions"
-        ],
+        "tags": ["sessions"],
         "operationId": "delete_current",
         "responses": {
           "204": {
@@ -1476,9 +2192,7 @@
     },
     "/v1/sessions/{id}": {
       "delete": {
-        "tags": [
-          "sessions"
-        ],
+        "tags": ["sessions"],
         "operationId": "delete_by_id",
         "parameters": [
           {
@@ -1526,9 +2240,7 @@
     },
     "/v1/tokens": {
       "post": {
-        "tags": [
-          "tokens"
-        ],
+        "tags": ["tokens"],
         "summary": "POST /v1/tokens — issue a short-lived JWT access token.\nRequires `jwt_enabled = true` in app_config; returns 400 otherwise.",
         "operationId": "issue",
         "responses": {
@@ -1572,9 +2284,7 @@
     },
     "/v1/totp": {
       "post": {
-        "tags": [
-          "totp"
-        ],
+        "tags": ["totp"],
         "operationId": "begin_enrollment",
         "responses": {
           "200": {
@@ -1605,9 +2315,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "totp"
-        ],
+        "tags": ["totp"],
         "operationId": "disable",
         "responses": {
           "204": {
@@ -1633,9 +2341,7 @@
     },
     "/v1/totp/confirmations": {
       "post": {
-        "tags": [
-          "totp"
-        ],
+        "tags": ["totp"],
         "operationId": "confirm_enrollment",
         "requestBody": {
           "content": {
@@ -1671,9 +2377,7 @@
     },
     "/v1/users": {
       "post": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "operationId": "signup",
         "requestBody": {
           "content": {
@@ -1721,9 +2425,7 @@
     },
     "/v1/users/me": {
       "get": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "operationId": "get_me",
         "responses": {
           "200": {
@@ -1754,9 +2456,7 @@
         ]
       },
       "patch": {
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "operationId": "update_me",
         "requestBody": {
           "content": {
@@ -1812,9 +2512,7 @@
     "schemas": {
       "AddRequest": {
         "type": "object",
-        "required": [
-          "email"
-        ],
+        "required": ["email"],
         "properties": {
           "email": {
             "type": "string"
@@ -1823,10 +2521,7 @@
       },
       "AppleCallbackForm": {
         "type": "object",
-        "required": [
-          "code",
-          "state"
-        ],
+        "required": ["code", "state"],
         "properties": {
           "code": {
             "type": "string"
@@ -1835,30 +2530,22 @@
             "type": "string"
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "AuthResponse": {
         "type": "object",
-        "required": [
-          "user",
-          "email",
-          "tenant",
-          "session"
-        ],
+        "required": ["user", "email", "org", "session"],
         "properties": {
           "email": {
             "$ref": "#/components/schemas/EmailBody"
           },
+          "org": {
+            "$ref": "#/components/schemas/OrgBody"
+          },
           "session": {
             "$ref": "#/components/schemas/SessionBody"
-          },
-          "tenant": {
-            "$ref": "#/components/schemas/TenantBody"
           },
           "user": {
             "$ref": "#/components/schemas/UserBody"
@@ -1867,10 +2554,7 @@
       },
       "AuthzSchema": {
         "type": "object",
-        "required": [
-          "version",
-          "resources"
-        ],
+        "required": ["version", "resources"],
         "properties": {
           "resources": {
             "type": "array",
@@ -1910,10 +2594,7 @@
       },
       "BatchResponse": {
         "type": "object",
-        "required": [
-          "written",
-          "deleted"
-        ],
+        "required": ["written", "deleted"],
         "properties": {
           "deleted": {
             "type": "integer",
@@ -1929,10 +2610,7 @@
       },
       "BeginResponse": {
         "type": "object",
-        "required": [
-          "options",
-          "state_token"
-        ],
+        "required": ["options", "state_token"],
         "properties": {
           "options": {
             "type": "object",
@@ -1946,9 +2624,7 @@
       },
       "CheckResponse": {
         "type": "object",
-        "required": [
-          "allowed"
-        ],
+        "required": ["allowed"],
         "properties": {
           "allowed": {
             "type": "boolean"
@@ -1957,9 +2633,7 @@
       },
       "ConfirmRequest": {
         "type": "object",
-        "required": [
-          "code"
-        ],
+        "required": ["code"],
         "properties": {
           "code": {
             "type": "string"
@@ -1968,9 +2642,7 @@
       },
       "ConfirmVerificationRequest": {
         "type": "object",
-        "required": [
-          "token"
-        ],
+        "required": ["token"],
         "properties": {
           "token": {
             "type": "string"
@@ -1979,9 +2651,7 @@
       },
       "ConfirmVerificationResponse": {
         "type": "object",
-        "required": [
-          "verified_at"
-        ],
+        "required": ["verified_at"],
         "properties": {
           "verified_at": {
             "type": "string",
@@ -1989,12 +2659,34 @@
           }
         }
       },
+      "CreateInvitationRequest": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "email": {
+            "type": ["string", "null"]
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateOrgRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": ["string", "null"]
+          }
+        }
+      },
       "CredentialRecord": {
         "type": "object",
-        "required": [
-          "id",
-          "created_at"
-        ],
+        "required": ["id", "created_at"],
         "properties": {
           "created_at": {
             "type": "string",
@@ -2005,28 +2697,17 @@
             "format": "uuid"
           },
           "last_used_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "nickname": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "CurrentSessionResponse": {
         "type": "object",
-        "required": [
-          "id",
-          "token_id",
-          "created_at",
-          "expires_at"
-        ],
+        "required": ["id", "token_id", "created_at", "expires_at"],
         "properties": {
           "created_at": {
             "type": "string",
@@ -2041,16 +2722,10 @@
             "format": "uuid"
           },
           "ip_address": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "last_used_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "token_id": {
@@ -2058,19 +2733,13 @@
             "format": "uuid"
           },
           "user_agent": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "EmailBody": {
         "type": "object",
-        "required": [
-          "id",
-          "email"
-        ],
+        "required": ["id", "email"],
         "properties": {
           "email": {
             "type": "string"
@@ -2080,21 +2749,14 @@
             "format": "uuid"
           },
           "verified_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           }
         }
       },
       "EmailRecord": {
         "type": "object",
-        "required": [
-          "id",
-          "email",
-          "is_primary"
-        ],
+        "required": ["id", "email", "is_primary"],
         "properties": {
           "email": {
             "type": "string"
@@ -2107,10 +2769,7 @@
             "type": "boolean"
           },
           "verified_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           }
         }
@@ -2149,10 +2808,7 @@
       "ErrorBody": {
         "type": "object",
         "description": "Wire-format error body returned on all non-2xx responses.",
-        "required": [
-          "code",
-          "message"
-        ],
+        "required": ["code", "message"],
         "properties": {
           "code": {
             "type": "string",
@@ -2167,9 +2823,7 @@
       "ErrorResponse": {
         "type": "object",
         "description": "Top-level error envelope for all API error responses.",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "$ref": "#/components/schemas/ErrorBody"
@@ -2178,9 +2832,7 @@
       },
       "ExpandResponse": {
         "type": "object",
-        "required": [
-          "subjects"
-        ],
+        "required": ["subjects"],
         "properties": {
           "subjects": {
             "type": "array",
@@ -2192,10 +2844,7 @@
       },
       "ExpandSubject": {
         "type": "object",
-        "required": [
-          "id",
-          "relation"
-        ],
+        "required": ["id", "relation"],
         "properties": {
           "id": {
             "type": "string"
@@ -2207,20 +2856,14 @@
       },
       "FinishRegistrationRequest": {
         "type": "object",
-        "required": [
-          "state_token",
-          "credential"
-        ],
+        "required": ["state_token", "credential"],
         "properties": {
           "credential": {
             "type": "object",
             "description": "WebAuthn `PublicKeyCredential` response from the browser."
           },
           "nickname": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "state_token": {
             "type": "string"
@@ -2229,10 +2872,7 @@
       },
       "HealthzResponse": {
         "type": "object",
-        "required": [
-          "status",
-          "version"
-        ],
+        "required": ["status", "version"],
         "properties": {
           "status": {
             "type": "string"
@@ -2244,10 +2884,7 @@
       },
       "HierarchyDef": {
         "type": "object",
-        "required": [
-          "parent_relation",
-          "parent_resource"
-        ],
+        "required": ["parent_relation", "parent_resource"],
         "properties": {
           "parent_relation": {
             "type": "string",
@@ -2259,16 +2896,77 @@
           }
         }
       },
+      "InvitationResponse": {
+        "type": "object",
+        "required": ["id", "org_id", "role", "created_at", "expires_at"],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": ["string", "null"]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string"
+          },
+          "token": {
+            "type": ["string", "null"],
+            "description": "Plaintext token — only present on creation, never returned again."
+          }
+        }
+      },
+      "InvitationViewResponse": {
+        "type": "object",
+        "required": ["id", "org_id", "org_name", "role", "expires_at"],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "org_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "InvitationsResponse": {
+        "type": "object",
+        "required": ["invitations"],
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationResponse"
+            }
+          }
+        }
+      },
       "Jwk": {
         "type": "object",
-        "required": [
-          "kty",
-          "crv",
-          "kid",
-          "use",
-          "alg",
-          "x"
-        ],
+        "required": ["kty", "crv", "kid", "use", "alg", "x"],
         "properties": {
           "alg": {
             "type": "string"
@@ -2292,9 +2990,7 @@
       },
       "JwkSet": {
         "type": "object",
-        "required": [
-          "keys"
-        ],
+        "required": ["keys"],
         "properties": {
           "keys": {
             "type": "array",
@@ -2308,20 +3004,14 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "email",
-              "password",
-              "grant_type"
-            ],
+            "required": ["email", "password", "grant_type"],
             "properties": {
               "email": {
                 "type": "string"
               },
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "password"
-                ]
+                "enum": ["password"]
               },
               "password": {
                 "type": "string"
@@ -2330,16 +3020,11 @@
           },
           {
             "type": "object",
-            "required": [
-              "token",
-              "grant_type"
-            ],
+            "required": ["token", "grant_type"],
             "properties": {
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "magic_link"
-                ]
+                "enum": ["magic_link"]
               },
               "token": {
                 "type": "string"
@@ -2348,17 +3033,11 @@
           },
           {
             "type": "object",
-            "required": [
-              "token",
-              "new_password",
-              "grant_type"
-            ],
+            "required": ["token", "new_password", "grant_type"],
             "properties": {
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "password_reset"
-                ]
+                "enum": ["password_reset"]
               },
               "new_password": {
                 "type": "string"
@@ -2370,16 +3049,11 @@
           },
           {
             "type": "object",
-            "required": [
-              "token",
-              "grant_type"
-            ],
+            "required": ["token", "grant_type"],
             "properties": {
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "email_change"
-                ]
+                "enum": ["email_change"]
               },
               "token": {
                 "type": "string"
@@ -2388,20 +3062,14 @@
           },
           {
             "type": "object",
-            "required": [
-              "step_up_token",
-              "code",
-              "grant_type"
-            ],
+            "required": ["step_up_token", "code", "grant_type"],
             "properties": {
               "code": {
                 "type": "string"
               },
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "totp_step_up"
-                ]
+                "enum": ["totp_step_up"]
               },
               "step_up_token": {
                 "type": "string"
@@ -2410,20 +3078,14 @@
           },
           {
             "type": "object",
-            "required": [
-              "step_up_token",
-              "code",
-              "grant_type"
-            ],
+            "required": ["step_up_token", "code", "grant_type"],
             "properties": {
               "code": {
                 "type": "string"
               },
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "totp_recovery"
-                ]
+                "enum": ["totp_recovery"]
               },
               "step_up_token": {
                 "type": "string"
@@ -2432,20 +3094,14 @@
           },
           {
             "type": "object",
-            "required": [
-              "state_token",
-              "credential",
-              "grant_type"
-            ],
+            "required": ["state_token", "credential", "grant_type"],
             "properties": {
               "credential": {
                 "type": "object"
               },
               "grant_type": {
                 "type": "string",
-                "enum": [
-                  "passkey"
-                ]
+                "enum": ["passkey"]
               },
               "state_token": {
                 "type": "string"
@@ -2456,15 +3112,10 @@
       },
       "LookupResponse": {
         "type": "object",
-        "required": [
-          "object_ids"
-        ],
+        "required": ["object_ids"],
         "properties": {
           "next_cursor": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "object_ids": {
             "type": "array",
@@ -2476,9 +3127,7 @@
       },
       "MagicLinkRequest": {
         "type": "object",
-        "required": [
-          "email"
-        ],
+        "required": ["email"],
         "properties": {
           "email": {
             "type": "string"
@@ -2487,10 +3136,7 @@
       },
       "MagicLinkResponse": {
         "type": "object",
-        "required": [
-          "token",
-          "expires_at"
-        ],
+        "required": ["token", "expires_at"],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -2504,29 +3150,100 @@
       },
       "MeResponse": {
         "type": "object",
-        "required": [
-          "user",
-          "email",
-          "tenant"
-        ],
+        "required": ["user", "email", "org"],
         "properties": {
           "email": {
             "$ref": "#/components/schemas/EmailBody"
           },
-          "tenant": {
-            "$ref": "#/components/schemas/TenantBody"
+          "org": {
+            "$ref": "#/components/schemas/OrgBody"
           },
           "user": {
             "$ref": "#/components/schemas/UserBody"
           }
         }
       },
+      "MemberResponse": {
+        "type": "object",
+        "required": ["user_id", "role", "joined_at"],
+        "properties": {
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "MembersResponse": {
+        "type": "object",
+        "required": ["members"],
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberResponse"
+            }
+          }
+        }
+      },
+      "OrgBody": {
+        "type": "object",
+        "required": ["id", "name", "slug"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "OrgResponse": {
+        "type": "object",
+        "required": ["id", "name", "slug", "metadata", "created_at"],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "OrgsResponse": {
+        "type": "object",
+        "required": ["orgs"],
+        "properties": {
+          "orgs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrgResponse"
+            }
+          }
+        }
+      },
       "OttTokenResponse": {
         "type": "object",
-        "required": [
-          "token",
-          "expires_at"
-        ],
+        "required": ["token", "expires_at"],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -2540,9 +3257,7 @@
       },
       "PasswordResetRequest": {
         "type": "object",
-        "required": [
-          "email"
-        ],
+        "required": ["email"],
         "properties": {
           "email": {
             "type": "string"
@@ -2551,10 +3266,7 @@
       },
       "PasswordResetResponse": {
         "type": "object",
-        "required": [
-          "token",
-          "expires_at"
-        ],
+        "required": ["token", "expires_at"],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -2568,10 +3280,7 @@
       },
       "RegisteredCredential": {
         "type": "object",
-        "required": [
-          "id",
-          "created_at"
-        ],
+        "required": ["id", "created_at"],
         "properties": {
           "created_at": {
             "type": "string",
@@ -2582,19 +3291,13 @@
             "format": "uuid"
           },
           "nickname": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "RelationObject": {
         "type": "object",
-        "required": [
-          "type",
-          "id"
-        ],
+        "required": ["type", "id"],
         "properties": {
           "id": {
             "type": "string"
@@ -2606,11 +3309,7 @@
       },
       "RelationRequest": {
         "type": "object",
-        "required": [
-          "object",
-          "relation",
-          "subject"
-        ],
+        "required": ["object", "relation", "subject"],
         "properties": {
           "object": {
             "$ref": "#/components/schemas/RelationObject"
@@ -2625,34 +3324,22 @@
       },
       "RelationSubject": {
         "type": "object",
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "properties": {
           "id": {
             "type": "string"
           },
           "relation": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "type": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "ResourceDef": {
         "type": "object",
-        "required": [
-          "name",
-          "roles",
-          "permissions"
-        ],
+        "required": ["name", "roles", "permissions"],
         "properties": {
           "hierarchy": {
             "oneOf": [
@@ -2695,10 +3382,7 @@
       },
       "RoleEdge": {
         "type": "object",
-        "required": [
-          "superior",
-          "inferior"
-        ],
+        "required": ["superior", "inferior"],
         "properties": {
           "inferior": {
             "type": "string"
@@ -2710,11 +3394,7 @@
       },
       "SessionBody": {
         "type": "object",
-        "required": [
-          "id",
-          "token",
-          "expires_at"
-        ],
+        "required": ["id", "token", "expires_at"],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -2732,13 +3412,7 @@
       },
       "SessionListItem": {
         "type": "object",
-        "required": [
-          "id",
-          "token_id",
-          "created_at",
-          "expires_at",
-          "current"
-        ],
+        "required": ["id", "token_id", "created_at", "expires_at", "current"],
         "properties": {
           "created_at": {
             "type": "string",
@@ -2757,16 +3431,10 @@
             "format": "uuid"
           },
           "ip_address": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "last_used_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "token_id": {
@@ -2774,18 +3442,13 @@
             "format": "uuid"
           },
           "user_agent": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "SessionsResponse": {
         "type": "object",
-        "required": [
-          "sessions"
-        ],
+        "required": ["sessions"],
         "properties": {
           "sessions": {
             "type": "array",
@@ -2797,16 +3460,10 @@
       },
       "SignupRequest": {
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["email", "password"],
         "properties": {
           "display_name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "email": {
             "type": "string"
@@ -2819,10 +3476,7 @@
       "StepUpResponse": {
         "type": "object",
         "description": "Returned when the user has TOTP enrolled — caller must complete the step-up flow.",
-        "required": [
-          "step_up_required",
-          "step_up_token"
-        ],
+        "required": ["step_up_required", "step_up_token"],
         "properties": {
           "step_up_required": {
             "type": "string",
@@ -2834,33 +3488,9 @@
           }
         }
       },
-      "TenantBody": {
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "slug"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          }
-        }
-      },
       "TokenResponse": {
         "type": "object",
-        "required": [
-          "access_token",
-          "token_type",
-          "expires_in"
-        ],
+        "required": ["access_token", "token_type", "expires_in"],
         "properties": {
           "access_token": {
             "type": "string"
@@ -2877,10 +3507,7 @@
       },
       "TraceResponse": {
         "type": "object",
-        "required": [
-          "allowed",
-          "subjects"
-        ],
+        "required": ["allowed", "subjects"],
         "properties": {
           "allowed": {
             "type": "boolean"
@@ -2895,54 +3522,58 @@
       },
       "UpdateCredentialRequest": {
         "type": "object",
-        "required": [
-          "nickname"
-        ],
+        "required": ["nickname"],
         "properties": {
           "nickname": {
             "type": "string"
           }
         }
       },
+      "UpdateMemberRequest": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateOrgRequest": {
+        "type": "object",
+        "properties": {
+          "metadata": {},
+          "name": {
+            "type": ["string", "null"]
+          },
+          "slug": {
+            "type": ["string", "null"]
+          }
+        }
+      },
       "UpdateUser": {
         "type": "object",
         "properties": {
-          "avatar_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "image_url": {
+            "type": ["string", "null"]
           },
           "display_name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "UserBody": {
         "type": "object",
-        "required": [
-          "id",
-          "created_at"
-        ],
+        "required": ["id", "created_at"],
         "properties": {
-          "avatar_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "image_url": {
+            "type": ["string", "null"]
           },
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
           "display_name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id": {
             "type": "string",
@@ -2999,6 +3630,14 @@
     {
       "name": "passkeys",
       "description": "Passkey registration and authentication"
+    },
+    {
+      "name": "orgs",
+      "description": "Org management, membership, and invitations"
+    },
+    {
+      "name": "invitations",
+      "description": "Invitation accept and decline"
     }
   ]
 }

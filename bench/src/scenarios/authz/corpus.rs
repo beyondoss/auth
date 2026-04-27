@@ -85,7 +85,14 @@ pub async fn seed_flat(pool: &PgPool, c: &FlatCorpus) -> Result<()> {
         for _ in 0..n_direct {
             let u = rng.gen_range(0..c.n_users);
             let rel = if rng.gen_bool(0.5) { "owner" } else { "editor" };
-            rows.push("document", &format!("d_{d}"), rel, &format!("u_{u}"), None, None);
+            rows.push(
+                "document",
+                &format!("d_{d}"),
+                rel,
+                &format!("u_{u}"),
+                None,
+                None,
+            );
         }
     }
 
@@ -93,7 +100,14 @@ pub async fn seed_flat(pool: &PgPool, c: &FlatCorpus) -> Result<()> {
     for t in 0..c.n_teams {
         for _ in 0..c.team_fanout {
             let u = rng.gen_range(0..c.n_users);
-            rows.push("team", &format!("t_{t}"), "member", &format!("u_{u}"), None, None);
+            rows.push(
+                "team",
+                &format!("t_{t}"),
+                "member",
+                &format!("u_{u}"),
+                None,
+                None,
+            );
         }
     }
 
@@ -244,7 +258,8 @@ impl TupleBuf {
         self.relation.push(relation.to_string());
         self.subject_id.push(subject_id.to_string());
         self.subject_type.push(subject_type.map(str::to_string));
-        self.subject_relation.push(subject_relation.map(str::to_string));
+        self.subject_relation
+            .push(subject_relation.map(str::to_string));
     }
 
     async fn flush(self, pool: &PgPool) -> Result<()> {

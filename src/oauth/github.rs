@@ -142,7 +142,7 @@ impl GithubClient {
             email: primary_email.map(|e| e.email),
             email_verified: Some(true),
             display_name: user.name,
-            avatar_url: user.avatar_url,
+            image_url: user.avatar_url,
         })
     }
 
