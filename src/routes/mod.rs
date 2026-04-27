@@ -94,6 +94,7 @@ impl utoipa::Modify for BearerAuth {
         invitations::view_invitation,
         invitations::accept_invitation,
         invitations::decline_invitation,
+        admin::impersonations::create,
         admin::partitions::ensure_partition,
         authz::check_permission,
         authz::write_relation,
@@ -167,6 +168,7 @@ impl utoipa::Modify for BearerAuth {
         orgs::UpdateMemberRequest,
         orgs::CreateInvitationRequest,
         invitations::InvitationViewResponse,
+        admin::impersonations::ImpersonateRequest,
     )),
     tags(
         (name = "system", description = "Health and key material"),
@@ -181,12 +183,17 @@ impl utoipa::Modify for BearerAuth {
         (name = "passkeys", description = "Passkey registration and authentication"),
         (name = "orgs", description = "Org management, membership, and invitations"),
         (name = "invitations", description = "Invitation accept and decline"),
+        (name = "admin", description = "Admin operations"),
     )
 )]
 pub struct ApiDoc;
 
 pub fn router(state: AppState) -> Router<AppState> {
     let admin = Router::new()
+        .route(
+            "/v1/admin/impersonations",
+            post(admin::impersonations::create),
+        )
         .route(
             "/v1/admin/oauth-providers",
             get(admin::oauth::get).put(admin::oauth::put),

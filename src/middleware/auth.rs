@@ -23,10 +23,12 @@ pub async fn require_auth(
         .ok_or(AuthError::Unauthorized)?;
 
     let parsed = tokens::parse(bearer).ok_or(AuthError::Unauthorized)?;
+    let is_impersonated = parsed.prefix == "impersonate";
 
-    let ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash)
+    let mut ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash)
         .await?
         .ok_or(AuthError::Unauthorized)?;
+    ctx.is_impersonated = is_impersonated;
 
     req.extensions_mut().insert(ctx);
     Ok(next.run(req).await)

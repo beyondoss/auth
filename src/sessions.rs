@@ -26,6 +26,7 @@ pub struct SessionContext {
     pub org: Org,
     pub session_id: Uuid,
     pub token_id: Uuid,
+    pub is_impersonated: bool,
 }
 
 pub struct RequestContext<'a> {
@@ -98,6 +99,7 @@ pub async fn validate(
     Ok(row.map(|r| SessionContext {
         session_id: r.session_id,
         token_id: r.token_id,
+        is_impersonated: false,
         user: User {
             id: r.user_id,
             primary_org_id: r.primary_org_id,

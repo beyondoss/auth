@@ -13,6 +13,7 @@ pub fn issue_access_token(
     ttl_seconds: i32,
     kid: Uuid,
     signing_key: &SigningKey,
+    is_impersonated: bool,
 ) -> Result<String, AuthError> {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use ed25519_dalek::Signer;
@@ -29,17 +30,22 @@ pub fn issue_access_token(
         .map_err(|e| AuthError::internal_with("JWT header serialization", e))?,
     );
 
+    let mut claims_map = serde_json::json!({
+        "jti": Uuid::new_v4().to_string(),
+        "sub": user_id.to_string(),
+        "iss": issuer_url,
+        "aud": audience,
+        "iat": now,
+        "nbf": now - 5,
+        "exp": exp,
+    });
+    if is_impersonated {
+        claims_map["impersonated"] = serde_json::Value::Bool(true);
+    }
+
     let claims = URL_SAFE_NO_PAD.encode(
-        serde_json::to_string(&json!({
-            "jti": Uuid::new_v4().to_string(),
-            "sub": user_id.to_string(),
-            "iss": issuer_url,
-            "aud": audience,
-            "iat": now,
-            "nbf": now - 5,
-            "exp": exp,
-        }))
-        .map_err(|e| AuthError::internal_with("JWT claims serialization", e))?,
+        serde_json::to_string(&claims_map)
+            .map_err(|e| AuthError::internal_with("JWT claims serialization", e))?,
     );
 
     let signing_input = format!("{header}.{claims}");

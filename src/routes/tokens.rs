@@ -50,8 +50,15 @@ pub async fn issue(
     let kid = state.signing_key.id;
     let signing_key = &state.signing_key.signing_key;
 
-    let access_token =
-        jwt::issue_access_token(ctx.user.id, issuer_url, audience, ttl, kid, signing_key)?;
+    let access_token = jwt::issue_access_token(
+        ctx.user.id,
+        issuer_url,
+        audience,
+        ttl,
+        kid,
+        signing_key,
+        ctx.is_impersonated,
+    )?;
 
     Ok((
         StatusCode::OK,

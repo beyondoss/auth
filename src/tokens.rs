@@ -8,6 +8,7 @@ use zeroize::Zeroizing;
 
 pub enum TokenPrefix {
     Session,
+    Impersonation,
     MagicLink,
     PasswordReset,
     EmailVerification,
@@ -19,6 +20,7 @@ impl TokenPrefix {
     pub fn as_str(&self) -> &'static str {
         match self {
             TokenPrefix::Session => "session",
+            TokenPrefix::Impersonation => "impersonate",
             TokenPrefix::MagicLink => "ml",
             TokenPrefix::PasswordReset => "pwr",
             TokenPrefix::EmailVerification => "ev",
