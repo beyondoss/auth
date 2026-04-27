@@ -9,6 +9,7 @@ pub mod depth_sweep;
 pub mod depth_sweep_cold;
 pub mod invalidation_storm;
 pub mod multi_decision_serial;
+pub mod read_write_mix;
 pub mod scale_sweep;
 pub mod single_check;
 
@@ -42,6 +43,7 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(bulk_write::BulkWrite::new(100)),
         Arc::new(bulk_write::BulkWrite::new(1000)),
         Arc::new(invalidation_storm::InvalidationStorm::new()),
+        Arc::new(read_write_mix::ReadWriteMix::new()),
         Arc::new(scale_sweep::ScaleSweep::new(10_000)),
         Arc::new(scale_sweep::ScaleSweep::new(100_000)),
         Arc::new(scale_sweep::ScaleSweep::new(1_000_000)),
