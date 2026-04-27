@@ -35,7 +35,7 @@ CREATE TABLE auth.relation_tuple (
     -- (e.g. "members of team X"). NULL means the subject is a direct user.
     subject_type     text        DEFAULT NULL,
     subject_relation text        DEFAULT NULL,
-    created_at       timestamptz NOT NULL DEFAULT clock_timestamp(),
+    created_at       timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT relation_tuple_pkey PRIMARY KEY (id, object_type)
 ) PARTITION BY LIST (object_type);
 
@@ -79,6 +79,9 @@ CREATE INDEX relation_tuple_subject_set_idx ON auth.relation_tuple (
 -- cache_hash is hashtextextended of the canonical key; the four text columns are
 -- still the identity (verified on every hit), so a hash collision causes a miss
 -- and recompute, never a wrong answer.
+-- No TTL: trigger-based invalidation is the sole freshness mechanism. Every
+-- relation_tuple mutation fires a statement-level trigger that deletes affected
+-- cache entries immediately, so time-based expiry adds nothing but spurious misses.
 
 CREATE TABLE auth.authz_check_cache (
     cache_hash  bigint      NOT NULL,
@@ -87,8 +90,7 @@ CREATE TABLE auth.authz_check_cache (
     relation    text        NOT NULL,
     subject_id  text        NOT NULL,
     is_allowed  boolean     NOT NULL,
-    computed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    expires_at  timestamptz NOT NULL DEFAULT clock_timestamp() + interval '5 minutes',
+    computed_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (cache_hash)
 ) PARTITION BY HASH (cache_hash);
 
@@ -101,9 +103,6 @@ CREATE UNLOGGED TABLE auth.authz_check_cache_5 PARTITION OF auth.authz_check_cac
 CREATE UNLOGGED TABLE auth.authz_check_cache_6 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 6);
 CREATE UNLOGGED TABLE auth.authz_check_cache_7 PARTITION OF auth.authz_check_cache FOR VALUES WITH (MODULUS 8, REMAINDER 7);
 
--- BRIN is tiny and sufficient here: cache rows are append-mostly and cleanup
--- queries scan by expires_at range.
-CREATE INDEX authz_check_cache_expires_at_idx  ON auth.authz_check_cache USING BRIN (expires_at);
 CREATE INDEX authz_check_cache_object_idx      ON auth.authz_check_cache (object_type, object_id);
 CREATE INDEX authz_check_cache_subject_idx     ON auth.authz_check_cache USING HASH (subject_id);
 
@@ -211,7 +210,7 @@ $$;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- authz_check: cached wrapper around authz_check_direct. Three overloads matching
--- authz_check_direct. Results are cached for 5 minutes; the trigger below
+-- authz_check_direct. Results are cached indefinitely; the trigger below
 -- invalidates relevant cache entries on any relation_tuple mutation.
 -- ──────────────────────────────────────────────────────────────────────────────
 
@@ -226,7 +225,6 @@ AS $$
 DECLARE
     v_cache_hash bigint;
     v_is_allowed boolean;
-    v_expires_at timestamptz;
 BEGIN
     -- chr(31) (ASCII unit separator) is used as the field delimiter so a
     -- delimiter character inside a caller-supplied id can't produce the same
@@ -236,15 +234,14 @@ BEGIN
         p_object_type || chr(31) || p_object_id, 0);
     -- Verify-on-hit: cache_hash is a seek hint; the four text columns are the
     -- identity. Hash collision -> predicate fails -> miss -> recompute.
-    SELECT is_allowed, expires_at
-      INTO v_is_allowed, v_expires_at
+    SELECT is_allowed
+      INTO v_is_allowed
       FROM auth.authz_check_cache
      WHERE cache_hash  = v_cache_hash
        AND subject_id  = p_subject_id
        AND relation    = p_relation
        AND object_type = p_object_type
-       AND object_id   = p_object_id
-       AND expires_at  > clock_timestamp();
+       AND object_id   = p_object_id;
     IF FOUND THEN
         RETURN v_is_allowed;
     END IF;
@@ -259,8 +256,7 @@ BEGIN
             relation    = EXCLUDED.relation,
             subject_id  = EXCLUDED.subject_id,
             is_allowed  = EXCLUDED.is_allowed,
-            computed_at = clock_timestamp(),
-            expires_at  = clock_timestamp() + interval '5 minutes';
+            computed_at = now();
     RETURN v_is_allowed;
 END;
 $$;
@@ -277,7 +273,6 @@ DECLARE
     v_canonical_rel text;
     v_cache_hash    bigint;
     v_is_allowed    boolean;
-    v_expires_at    timestamptz;
 BEGIN
     -- Canonicalize the relation set so caller order doesn't change the key.
     -- chr(31) joiner so a relation name containing the joiner can't collide
@@ -286,15 +281,14 @@ BEGIN
     v_cache_hash := hashtextextended(
         p_subject_id || chr(31) || v_canonical_rel || chr(31) ||
         p_object_type || chr(31) || p_object_id, 0);
-    SELECT is_allowed, expires_at
-      INTO v_is_allowed, v_expires_at
+    SELECT is_allowed
+      INTO v_is_allowed
       FROM auth.authz_check_cache
      WHERE cache_hash  = v_cache_hash
        AND subject_id  = p_subject_id
        AND relation    = v_canonical_rel
        AND object_type = p_object_type
-       AND object_id   = p_object_id
-       AND expires_at  > clock_timestamp();
+       AND object_id   = p_object_id;
     IF FOUND THEN
         RETURN v_is_allowed;
     END IF;
@@ -307,8 +301,7 @@ BEGIN
             relation    = EXCLUDED.relation,
             subject_id  = EXCLUDED.subject_id,
             is_allowed  = EXCLUDED.is_allowed,
-            computed_at = clock_timestamp(),
-            expires_at  = clock_timestamp() + interval '5 minutes';
+            computed_at = now();
     RETURN v_is_allowed;
 END;
 $$;
