@@ -1,7 +1,8 @@
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use dashmap::DashMap;
 use quick_cache::sync::Cache;
 use uuid::Uuid;
 
@@ -21,11 +22,41 @@ struct CheckEntry {
     computed_at: Instant,
 }
 
+struct VersionTable {
+    slots: Box<[AtomicU64]>,
+    mask: usize,
+}
+
+impl VersionTable {
+    fn new(size: usize) -> Self {
+        let size = size.next_power_of_two();
+        let slots = (0..size).map(|_| AtomicU64::new(0)).collect();
+        Self {
+            slots,
+            mask: size - 1,
+        }
+    }
+
+    fn get(&self, h: u64) -> u64 {
+        self.slots[h as usize & self.mask].load(Ordering::Relaxed)
+    }
+
+    fn bump(&self, h: u64) {
+        self.slots[h as usize & self.mask].fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+fn hash_one(val: impl Hash) -> u64 {
+    let mut h = std::hash::DefaultHasher::new();
+    val.hash(&mut h);
+    h.finish()
+}
+
 pub struct AuthzCache {
     checks: Cache<CheckKey, CheckEntry>,
     sessions: Cache<Uuid, Arc<str>>,
-    obj_versions: DashMap<(Arc<str>, Arc<str>), u64>,
-    subj_versions: DashMap<Arc<str>, u64>,
+    obj_versions: VersionTable,
+    subj_versions: VersionTable,
     max_age: Duration,
 }
 
@@ -34,8 +65,8 @@ impl AuthzCache {
         Self {
             checks: Cache::new(check_capacity),
             sessions: Cache::new(session_capacity),
-            obj_versions: DashMap::new(),
-            subj_versions: DashMap::new(),
+            obj_versions: VersionTable::new(4096),
+            subj_versions: VersionTable::new(4096),
             max_age,
         }
     }
@@ -59,14 +90,8 @@ impl AuthzCache {
         }
         let obj_ver = self
             .obj_versions
-            .get(&(key.resource_type.clone(), key.resource_id.clone()))
-            .map(|v| *v)
-            .unwrap_or(0);
-        let subj_ver = self
-            .subj_versions
-            .get(&key.subject_id)
-            .map(|v| *v)
-            .unwrap_or(0);
+            .get(hash_one((&key.resource_type, &key.resource_id)));
+        let subj_ver = self.subj_versions.get(hash_one(&key.subject_id));
         if entry.obj_ver != obj_ver || entry.subj_ver != subj_ver {
             return None;
         }
@@ -76,14 +101,8 @@ impl AuthzCache {
     pub fn insert_check(&self, key: CheckKey, allowed: bool) {
         let obj_ver = self
             .obj_versions
-            .get(&(key.resource_type.clone(), key.resource_id.clone()))
-            .map(|v| *v)
-            .unwrap_or(0);
-        let subj_ver = self
-            .subj_versions
-            .get(&key.subject_id)
-            .map(|v| *v)
-            .unwrap_or(0);
+            .get(hash_one((&key.resource_type, &key.resource_id)));
+        let subj_ver = self.subj_versions.get(hash_one(&key.subject_id));
         self.checks.insert(
             key,
             CheckEntry {
@@ -96,13 +115,7 @@ impl AuthzCache {
     }
 
     pub fn invalidate_for_write(&self, object_type: &str, object_id: &str, subject_id: &str) {
-        self.obj_versions
-            .entry((Arc::from(object_type), Arc::from(object_id)))
-            .and_modify(|v| *v += 1)
-            .or_insert(1);
-        self.subj_versions
-            .entry(Arc::from(subject_id))
-            .and_modify(|v| *v += 1)
-            .or_insert(1);
+        self.obj_versions.bump(hash_one((object_type, object_id)));
+        self.subj_versions.bump(hash_one(subject_id));
     }
 }

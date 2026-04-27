@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use crate::{
     app_config::AppConfig,
-    authz::schema::CompiledSchema,
+    authz::{cache::AuthzCache, schema::CompiledSchema},
     keys::LoadedKey,
     metrics::Metrics,
     routes::{self, ApiDoc},
@@ -50,6 +50,7 @@ pub struct AppState {
     /// Public base URL of this service (e.g. "https://auth.example.com"), used to construct
     /// OAuth callback URIs. When None, derived from the incoming request Host header.
     pub public_url: Option<String>,
+    pub authz_cache: Arc<AuthzCache>,
 }
 
 #[derive(Clone)]

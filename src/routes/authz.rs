@@ -9,8 +9,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
+use std::sync::Arc;
+
 use crate::{
     authz::{
+        cache::CheckKey,
         engine::{self, BatchOp},
         schema::{AuthzCheckCall, AuthzSchema, CompiledSchema, compile},
     },
@@ -233,13 +236,23 @@ pub async fn check_permission(
 
     if let Some(explicit_user) = params.user {
         let or_chain = resolve_or_chain(schema, &params.resource_type, &params.permission, false)?;
+        let cache_key = CheckKey {
+            subject_id: Arc::from(explicit_user.as_str()),
+            resource_type: Arc::from(params.resource_type.as_str()),
+            resource_id: Arc::from(params.resource_id.as_str()),
+            permission: Arc::from(params.permission.as_str()),
+        };
+        if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
+            return Ok(Json(CheckResponse { allowed }));
+        }
         let allowed =
             engine::check_standalone(&state.pool, &explicit_user, &params.resource_id, &or_chain)
                 .await?;
+        state.authz_cache.insert_check(cache_key, allowed);
         return Ok(Json(CheckResponse { allowed }));
     }
 
-    // Hot path: bundled session-validate + authz check in one DB round-trip.
+    // Hot path: session cache → check cache → DB (one round-trip on miss).
     let bearer = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -250,7 +263,33 @@ pub async fn check_permission(
     let parsed = tokens::parse(&bearer).ok_or(AuthError::Unauthorized)?;
     let or_chain = resolve_or_chain(schema, &params.resource_type, &params.permission, true)?;
 
-    let allowed = engine::check_with_session(
+    // Try session cache first; if hit, can also try check cache (0 DB calls).
+    if let Some(subject_id) = state.authz_cache.get_session(parsed.id) {
+        let cache_key = CheckKey {
+            subject_id: subject_id.clone(),
+            resource_type: Arc::from(params.resource_type.as_str()),
+            resource_id: Arc::from(params.resource_id.as_str()),
+            permission: Arc::from(params.permission.as_str()),
+        };
+        if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
+            return Ok(Json(CheckResponse { allowed }));
+        }
+        // Session cached but check missed — standalone check (1 DB call).
+        let standalone_chain =
+            resolve_or_chain(schema, &params.resource_type, &params.permission, false)?;
+        let allowed = engine::check_standalone(
+            &state.pool,
+            &subject_id,
+            &params.resource_id,
+            &standalone_chain,
+        )
+        .await?;
+        state.authz_cache.insert_check(cache_key, allowed);
+        return Ok(Json(CheckResponse { allowed }));
+    }
+
+    // Full miss: bundled session-validate + authz check in one DB round-trip.
+    let (subject_id, allowed) = engine::check_with_session(
         &state.pool,
         parsed.id,
         &parsed.secret_hash,
@@ -259,6 +298,20 @@ pub async fn check_permission(
     )
     .await?
     .ok_or(AuthError::Unauthorized)?;
+
+    let subject_id: Arc<str> = Arc::from(subject_id.as_str());
+    state
+        .authz_cache
+        .insert_session(parsed.id, subject_id.clone());
+    state.authz_cache.insert_check(
+        CheckKey {
+            subject_id,
+            resource_type: Arc::from(params.resource_type.as_str()),
+            resource_id: Arc::from(params.resource_id.as_str()),
+            permission: Arc::from(params.permission.as_str()),
+        },
+        allowed,
+    );
 
     Ok(Json(CheckResponse { allowed }))
 }
@@ -294,7 +347,7 @@ pub async fn batch_check_permissions(
     let schema = schema_guard_to_compiled(&schema_guard)?;
 
     // Resolve session subject lazily — only if at least one check omits explicit user.
-    let session_subject: Option<String> = if req.checks.iter().any(|c| c.user.is_none()) {
+    let session_subject: Option<Arc<str>> = if req.checks.iter().any(|c| c.user.is_none()) {
         let bearer = headers
             .get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
@@ -302,11 +355,17 @@ pub async fn batch_check_permissions(
             .map(|s| s.to_owned())
             .ok_or(AuthError::Unauthorized)?;
         let parsed = tokens::parse(&bearer).ok_or(AuthError::Unauthorized)?;
-        Some(
-            engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash)
+        let subject_id = if let Some(cached) = state.authz_cache.get_session(parsed.id) {
+            cached
+        } else {
+            let resolved = engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash)
                 .await?
-                .ok_or(AuthError::Unauthorized)?,
-        )
+                .ok_or(AuthError::Unauthorized)?;
+            let arc: Arc<str> = Arc::from(resolved.as_str());
+            state.authz_cache.insert_session(parsed.id, arc.clone());
+            arc
+        };
+        Some(subject_id)
     } else {
         None
     };
@@ -314,12 +373,24 @@ pub async fn batch_check_permissions(
     // Build groups: (subject_id, or_chain) → Vec<(original_index, object_id)>.
     // Checks sharing the same subject + permission + resource_type hit the same or_chain
     // and are batched into one UNNEST call.
-    let mut groups: HashMap<(String, String), Vec<(usize, String)>> = HashMap::new();
+    let mut results = vec![false; req.checks.len()];
+    let mut groups: HashMap<(Arc<str>, String), Vec<(usize, String)>> = HashMap::new();
+
     for (i, check) in req.checks.iter().enumerate() {
-        let subject_id = match &check.user {
-            Some(u) => u.clone(),
+        let subject_id: Arc<str> = match &check.user {
+            Some(u) => Arc::from(u.as_str()),
             None => session_subject.clone().unwrap(),
         };
+        let cache_key = CheckKey {
+            subject_id: subject_id.clone(),
+            resource_type: Arc::from(check.resource_type.as_str()),
+            resource_id: Arc::from(check.resource_id.as_str()),
+            permission: Arc::from(check.permission.as_str()),
+        };
+        if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
+            results[i] = allowed;
+            continue;
+        }
         let or_chain = resolve_batch_or_chain(schema, &check.resource_type, &check.permission)?;
         match groups.entry((subject_id, or_chain)) {
             Entry::Occupied(mut e) => e.get_mut().push((i, check.resource_id.clone())),
@@ -329,14 +400,24 @@ pub async fn batch_check_permissions(
         }
     }
 
-    let mut results = vec![false; req.checks.len()];
     for ((subject_id, or_chain), items) in groups {
         let object_ids: Vec<String> = items.iter().map(|(_, oid)| oid.clone()).collect();
         let bools =
             engine::batch_check_standalone(&state.pool, &subject_id, &object_ids, &or_chain)
                 .await?;
-        for ((idx, _), allowed) in items.iter().zip(bools) {
+        for ((idx, oid), allowed) in items.iter().zip(bools) {
             results[*idx] = allowed;
+            // Cache the result — we need the permission to build the key.
+            let check = &req.checks[*idx];
+            state.authz_cache.insert_check(
+                CheckKey {
+                    subject_id: subject_id.clone(),
+                    resource_type: Arc::from(check.resource_type.as_str()),
+                    resource_id: Arc::from(oid.as_str()),
+                    permission: Arc::from(check.permission.as_str()),
+                },
+                allowed,
+            );
         }
     }
 
@@ -372,6 +453,11 @@ pub async fn write_relation(
         req.subject.relation.as_deref(),
     )
     .await?;
+    state.authz_cache.invalidate_for_write(
+        &req.object.object_type,
+        &req.object.id,
+        &req.subject.id,
+    );
     Ok(StatusCode::CREATED)
 }
 
@@ -406,6 +492,11 @@ pub async fn delete_relation(
     )
     .await?;
     if deleted {
+        state.authz_cache.invalidate_for_write(
+            &req.object.object_type,
+            &req.object.id,
+            &req.subject.id,
+        );
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(AuthError::NotFound)
@@ -431,9 +522,14 @@ pub async fn batch_relations(
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
     };
-    let writes = req.writes.into_iter().map(into_batch_op).collect();
-    let deletes = req.deletes.into_iter().map(into_batch_op).collect();
-    let result = engine::batch_relations(&state.pool, writes, deletes).await?;
+    let write_ops: Vec<_> = req.writes.into_iter().map(into_batch_op).collect();
+    let delete_ops: Vec<_> = req.deletes.into_iter().map(into_batch_op).collect();
+    for op in write_ops.iter().chain(delete_ops.iter()) {
+        state
+            .authz_cache
+            .invalidate_for_write(&op.object_type, &op.object_id, &op.subject_id);
+    }
+    let result = engine::batch_relations(&state.pool, write_ops, delete_ops).await?;
     Ok(Json(BatchResponse {
         written: result.written,
         deleted: result.deleted,

@@ -143,10 +143,10 @@ pub async fn batch_relations(
 
 /// Bundled CTE: validate session + authz check in one DB round-trip.
 ///
-/// Returns `None` if the token is invalid or expired; `Some(allowed)` otherwise.
+/// Returns `None` if the token is invalid or expired; `Some((subject_id, allowed))` otherwise.
 /// `or_chain` is the SQL fragment produced by `CompiledSchema::build_or_chain`.
 ///
-/// Uses the non-macro `sqlx::query_scalar` because the query shape is dynamic
+/// Uses the non-macro `sqlx::query_as` because the query shape is dynamic
 /// (the OR-chain length varies by permission/schema). This is the one justified
 /// exception to the type-safe macro rule.
 pub async fn check_with_session(
@@ -155,7 +155,7 @@ pub async fn check_with_session(
     secret_hash: &[u8],
     object_id: &str,
     or_chain: &str,
-) -> Result<Option<bool>, AuthError> {
+) -> Result<Option<(String, bool)>, AuthError> {
     let sql = format!(
         r#"
         WITH valid_token AS (
@@ -179,14 +179,14 @@ pub async fn check_with_session(
             INNER JOIN auth.sessions s ON s.token_id  = v.token_id
             INNER JOIN auth.users  u ON u.id = s.user_id AND u.deleted_at IS NULL
         )
-        SELECT (
+        SELECT subject_id, (
             {or_chain}
         )
         FROM subject
         "#
     );
 
-    sqlx::query_scalar::<_, bool>(&sql)
+    sqlx::query_as::<_, (String, bool)>(&sql)
         .bind(token_id)
         .bind(secret_hash)
         .bind(object_id)

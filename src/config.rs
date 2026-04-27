@@ -51,6 +51,15 @@ pub struct ServeConfig {
     /// If unset, redirect URL validation is skipped — configure this in production.
     #[arg(long, env = "OAUTH_ALLOWED_REDIRECT_ORIGINS")]
     pub oauth_allowed_redirect_origins: Option<String>,
+
+    /// Maximum number of (subject, resource, permission) entries in the in-process authz check cache.
+    #[arg(long, env = "AUTHZ_CACHE_SIZE", default_value_t = 100_000)]
+    pub authz_cache_size: usize,
+
+    /// TTL in seconds for authz check cache entries. Version-tag invalidation handles most
+    /// write-side correctness; TTL is a safety net for deep-chain transitive changes.
+    #[arg(long, env = "AUTHZ_CACHE_TTL_SECS", default_value_t = 1800)]
+    pub authz_cache_ttl_secs: u64,
 }
 
 #[derive(Debug, Args)]

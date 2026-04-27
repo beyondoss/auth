@@ -572,6 +572,8 @@ pub async fn delete_current(
         .await
         .map_err(AuthError::from)?;
 
+    state.authz_cache.invalidate_session(ctx.token_id);
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -600,31 +602,39 @@ pub async fn delete_by_id(
             .execute(&state.pool)
             .await
             .map_err(AuthError::from)?;
+        state.authz_cache.invalidate_session(ctx.token_id);
         return Ok(StatusCode::NO_CONTENT);
     }
 
     // Delete the token only if the session belongs to the authenticated user.
     // Zero rows deleted → session doesn't exist or belongs to another user → 404.
     // Same response for both cases prevents IDOR information disclosure.
-    let result = sqlx::query!(
+    // RETURNING id gives us the token_id for session cache invalidation.
+    let deleted_token_id = sqlx::query_scalar!(
         r#"
         WITH target AS (
             SELECT s.token_id
             FROM auth.sessions s
             WHERE s.id = $1 AND s.user_id = $2
+        ),
+        deleted AS (
+            DELETE FROM auth.tokens WHERE id = (SELECT token_id FROM target)
+            RETURNING id
         )
-        DELETE FROM auth.tokens WHERE id = (SELECT token_id FROM target)
+        SELECT id AS "id: Uuid" FROM deleted
         "#,
         session_id,
         ctx.user.id,
     )
-    .execute(&state.pool)
+    .fetch_optional(&state.pool)
     .await
     .map_err(AuthError::from)?;
 
-    if result.rows_affected() == 0 {
-        return Err(AuthError::NotFound);
+    match deleted_token_id {
+        None => Err(AuthError::NotFound),
+        Some(token_id) => {
+            state.authz_cache.invalidate_session(token_id);
+            Ok(StatusCode::NO_CONTENT)
+        }
     }
-
-    Ok(StatusCode::NO_CONTENT)
 }

@@ -52,3 +52,12 @@ pub fn compile_authz_schema(cfg: &AppConfig) -> Result<Option<CompiledSchema>, S
         })
         .transpose()
 }
+
+/// Extract resource names from the stored authz schema, for partition management.
+pub fn authz_resource_names(cfg: &AppConfig) -> Vec<String> {
+    cfg.authz_schema
+        .as_ref()
+        .and_then(|v| serde_json::from_value::<AuthzSchema>(v.clone()).ok())
+        .map(|s| s.resources.into_iter().map(|r| r.name).collect())
+        .unwrap_or_default()
+}
