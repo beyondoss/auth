@@ -164,14 +164,16 @@ async fn get_org_as_non_member_returns_403() {
 }
 
 #[tokio::test]
-async fn get_org_not_found_returns_404() {
+async fn get_org_nonexistent_returns_403() {
+    // require_member fires before the fetch — a non-existent org is indistinguishable
+    // from one the caller simply doesn't belong to, so both return 403.
     let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
 
     TestClient::new()
         .bearer(&auth.session.token)
         .get(&format!("/v1/orgs/{}", Uuid::now_v7()))
         .await
-        .assert_status(404);
+        .assert_status(403);
 }
 
 // ── PATCH /v1/orgs/{id} ──────────────────────────────────────────────────────

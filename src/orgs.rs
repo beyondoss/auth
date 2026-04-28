@@ -74,7 +74,14 @@ pub async fn create(
     )
     .fetch_one(tx.as_mut())
     .await
-    .map_err(AuthError::from)
+    .map_err(|e| {
+        if let sqlx::Error::Database(ref db) = e {
+            if db.constraint() == Some("orgs_slug_idx") {
+                return AuthError::SlugConflict;
+            }
+        }
+        AuthError::from(e)
+    })
 }
 
 pub async fn get(pool: &PgPool, org_id: Uuid) -> Result<Org, AuthError> {

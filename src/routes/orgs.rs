@@ -141,15 +141,7 @@ pub async fn create_org(
         None,
         req.metadata,
     )
-    .await
-    .map_err(|e| {
-        if let AuthError::Db { ref message, .. } = e {
-            if message.contains("org_slug_idx") {
-                return AuthError::SlugConflict;
-            }
-        }
-        e
-    })?;
+    .await?;
 
     orgs::add_member(&mut tx, org_id, ctx.user.id, "owner").await?;
 
