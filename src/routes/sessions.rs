@@ -1,7 +1,7 @@
 use axum::{
     Json,
     extract::{Extension, Path, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -77,26 +77,6 @@ pub struct CurrentSessionResponse {
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
-    let ip_address = headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        .or_else(|| {
-            headers
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next())
-                .map(str::trim)
-        });
-    RequestContext {
-        ip_address,
-        user_agent: headers
-            .get(header::USER_AGENT)
-            .and_then(|v| v.to_str().ok()),
-    }
-}
 
 // ── POST /v1/sessions ─────────────────────────────────────────────────────────
 
@@ -117,7 +97,7 @@ pub async fn login(
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, AuthError> {
-    let req_ctx = request_context(&headers);
+    let req_ctx = sessions::request_context(&headers);
     let cfg = state.app_config.read().await;
     let ttl = cfg.session_ttl_seconds;
     drop(cfg);
@@ -251,6 +231,7 @@ async fn login_password_reset(
         one_time_token::consume(&state.pool, TokenPrefix::PasswordReset, raw_token).await?;
 
     let new_hash = passwords::hash(new_password)?;
+    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
 
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
 
@@ -277,8 +258,6 @@ async fn login_password_reset(
     let (session_id, expires_at) =
         sessions::create(&mut tx, &session_token, user_id, ttl, req_ctx).await?;
     tx.commit().await.map_err(AuthError::from)?;
-
-    let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
 
     Ok((
         StatusCode::CREATED,

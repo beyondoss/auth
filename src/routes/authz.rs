@@ -23,6 +23,9 @@ use crate::{
     tokens,
 };
 
+type CheckGroup = HashMap<(Arc<str>, String), Vec<(usize, String)>>;
+type PathBatch = HashMap<String, (Vec<String>, Vec<String>, Vec<String>, Vec<(usize, String, String)>)>;
+
 // ── Request / response types ──────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -394,12 +397,12 @@ pub async fn batch_check_permissions(
     // Checks sharing the same subject + permission + resource_type hit the same or_chain
     // and are batched into one UNNEST call.
     let mut results = vec![false; req.checks.len()];
-    let mut groups: HashMap<(Arc<str>, String), Vec<(usize, String)>> = HashMap::new();
+    let mut groups: CheckGroup = HashMap::new();
 
     for (i, check) in req.checks.iter().enumerate() {
         let subject_id: Arc<str> = match &check.user {
             Some(u) => Arc::from(u.as_str()),
-            None => session_subject.clone().unwrap(),
+            None => session_subject.clone().expect("invariant: session_subject set when user field is absent"),
         };
         let cache_key = CheckKey {
             subject_id: subject_id.clone(),
@@ -509,18 +512,15 @@ pub async fn post_checks(
 
     // MultiHop path batches: key encodes the shared path structure;
     // value is (relation_prefix, object_type_path, terminal_relations, items).
-    let mut path_batches: HashMap<
-        String,
-        (Vec<String>, Vec<String>, Vec<String>, Vec<(usize, String, String)>),
-    > = HashMap::new();
+    let mut path_batches: PathBatch = HashMap::new();
 
     // Fallback for when the extension is not loaded.
-    let mut fallback_groups: HashMap<(Arc<str>, String), Vec<(usize, String)>> = HashMap::new();
+    let mut fallback_groups: CheckGroup = HashMap::new();
 
     for (i, check) in req.checks.iter().enumerate() {
         let subject_id: Arc<str> = match &check.user {
             Some(u) => Arc::from(u.as_str()),
-            None => session_subject.clone().unwrap(),
+            None => session_subject.clone().expect("invariant: session_subject set when user field is absent"),
         };
         subjects[i] = Some(subject_id.clone());
 
@@ -569,6 +569,8 @@ pub async fn post_checks(
                         object_type_path,
                         terminal_relations,
                     } => {
+                        // \x00/\x01 are safe delimiters: validate_ident guarantees
+                        // identifiers match [a-z][a-z0-9_]* and cannot contain them.
                         let key = format!(
                             "{}\x00{}\x00{}",
                             relation_prefix.join("\x01"),
@@ -632,7 +634,7 @@ pub async fn post_checks(
         if handled[i] {
             results[i] = aggregated[i];
             let check = &req.checks[i];
-            let subject_id = subjects[i].clone().unwrap();
+            let subject_id = subjects[i].clone().expect("invariant: subjects[i] populated for all handled[i] indices");
             state.authz_cache.insert_check(
                 CheckKey {
                     subject_id,
@@ -683,10 +685,10 @@ pub async fn write_relation(
     State(state): State<AppState>,
     Json(req): Json<RelationRequest>,
 ) -> Result<StatusCode, AuthError> {
-    let _ = {
+    {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
-    };
+    }
     engine::write_relation(
         &state.pool,
         &state.partition_cache,
@@ -722,10 +724,10 @@ pub async fn delete_relation(
     State(state): State<AppState>,
     Json(req): Json<RelationRequest>,
 ) -> Result<StatusCode, AuthError> {
-    let _ = {
+    {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
-    };
+    }
     let deleted = engine::delete_relation(
         &state.pool,
         &req.object.object_type,
@@ -763,10 +765,10 @@ pub async fn batch_relations(
     State(state): State<AppState>,
     Json(req): Json<BatchRequest>,
 ) -> Result<Json<BatchResponse>, AuthError> {
-    let _ = {
+    {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
-    };
+    }
     let write_ops: Vec<_> = req.writes.into_iter().map(into_batch_op).collect();
     let delete_ops: Vec<_> = req.deletes.into_iter().map(into_batch_op).collect();
     for op in write_ops.iter().chain(delete_ops.iter()) {
@@ -858,10 +860,10 @@ pub async fn list_subjects(
     State(state): State<AppState>,
     Query(params): Query<SubjectsQuery>,
 ) -> Result<Json<SubjectsResponse>, AuthError> {
-    let _ = {
+    {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
-    };
+    }
     let rows = engine::expand(
         &state.pool,
         &params.object_type,

@@ -64,7 +64,7 @@ pub enum AuthError {
     TokenUsed,
 
     #[error("oauth error: {message}")]
-    OAuthError { message: String },
+    OAuth { message: String },
 
     #[error("mfa error: {message}")]
     MfaError { message: String },
@@ -117,6 +117,7 @@ pub enum AuthError {
     #[error("unknown permission: {permission}")]
     AuthzUnknownPermission { permission: String },
 
+    /// `message` is emitted verbatim in structured error logs — do not include PII.
     #[error("internal error: {message}")]
     Internal {
         message: String,
@@ -226,7 +227,7 @@ impl IntoResponse for AuthError {
                 (StatusCode::UNAUTHORIZED, "token_expired", self.to_string())
             }
             AuthError::TokenUsed => (StatusCode::UNAUTHORIZED, "token_used", self.to_string()),
-            AuthError::OAuthError { .. } => {
+            AuthError::OAuth { .. } => {
                 (StatusCode::BAD_REQUEST, "oauth_error", self.to_string())
             }
             AuthError::MfaError { .. } => (StatusCode::UNAUTHORIZED, "mfa_error", self.to_string()),

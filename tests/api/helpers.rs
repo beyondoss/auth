@@ -183,6 +183,7 @@ impl TestResponse {
         })
     }
 
+    #[allow(dead_code)]
     pub fn text(self) -> String {
         self.body
     }

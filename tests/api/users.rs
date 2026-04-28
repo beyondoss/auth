@@ -122,3 +122,52 @@ async fn delete_me_returns_204_and_invalidates_session() {
         .await
         .assert_status(401);
 }
+
+#[tokio::test]
+async fn delete_me_also_soft_deletes_personal_org() {
+    let a = signup(&unique_email(), "correct-horse-battery-staple").await;
+    let b = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    // Give user B membership in A's personal org so we can observe its visibility.
+    let inv = TestClient::new()
+        .bearer(&a.session.token)
+        .post(
+            &format!("/v1/orgs/{}/invitations", a.org.id),
+            &serde_json::json!({ "role": "member" }),
+        )
+        .await
+        .assert_status(201)
+        .json::<beyond_auth::InvitationResponse>();
+
+    TestClient::new()
+        .bearer(&b.session.token)
+        .post(
+            &format!(
+                "/v1/invitations/{}/acceptances?token={}",
+                inv.id,
+                inv.token.expect("token must be present on creation")
+            ),
+            &serde_json::json!({}),
+        )
+        .await
+        .assert_status(204);
+
+    TestClient::new()
+        .bearer(&a.session.token)
+        .delete("/v1/users/me")
+        .await
+        .assert_status(204);
+
+    // The soft-deleted org must no longer appear in B's org list.
+    let orgs = TestClient::new()
+        .bearer(&b.session.token)
+        .get("/v1/orgs")
+        .await
+        .assert_status(200)
+        .json::<beyond_auth::OrgsResponse>();
+
+    assert!(
+        !orgs.orgs.iter().any(|o| o.id == a.org.id),
+        "soft-deleted personal org must not appear in a member's org list"
+    );
+}

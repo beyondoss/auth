@@ -142,6 +142,52 @@ async fn regenerate_recovery_codes_returns_10_new_codes() {
 }
 
 #[tokio::test]
+async fn prior_recovery_codes_rejected_after_regeneration() {
+    let email = unique_email();
+    let auth = signup(&email, "correct-horse-battery-staple").await;
+    let enrollment = enroll_totp(&auth.session.token).await;
+
+    // Regenerate using a fresh TOTP code.
+    let code = totp_now(&enrollment.secret_b32);
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .post("/v1/totp/recovery-codes", &serde_json::json!({ "code": code }))
+        .await
+        .assert_status(200);
+
+    // The original recovery code must now be rejected.
+    #[derive(serde::Deserialize)]
+    struct StepUpResponse {
+        step_up_token: String,
+    }
+
+    let step_up = TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "password",
+                "email": email,
+                "password": "correct-horse-battery-staple"
+            }),
+        )
+        .await
+        .assert_status(200)
+        .json::<StepUpResponse>();
+
+    TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "totp_recovery",
+                "step_up_token": step_up.step_up_token,
+                "code": enrollment.recovery_codes[0]
+            }),
+        )
+        .await
+        .assert_status(401);
+}
+
+#[tokio::test]
 async fn regenerate_recovery_codes_invalid_totp_returns_401() {
     let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
     enroll_totp(&auth.session.token).await;

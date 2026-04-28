@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -25,7 +27,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Start the HTTP server
-    Serve(ServeConfig),
+    Serve(Box<ServeConfig>),
     /// Run database migrations only (without starting the server)
     Migrate(MigrateConfig),
     /// Write openapi/v1.json from the compiled route annotations
@@ -36,7 +38,7 @@ pub async fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Serve(cfg) => serve(cfg).await,
+        Command::Serve(cfg) => serve(*cfg).await,
         Command::Migrate(cfg) => migrate(cfg).await,
         Command::GenerateOpenapi => generate_openapi(),
     }
@@ -140,7 +142,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         app_config: Arc::new(RwLock::new(app_config)),
         authz_schema: Arc::new(RwLock::new(compiled_authz)),
         metrics: crate::metrics::Metrics::new(),
-        admin_secret: cfg.admin_secret.clone(),
+        admin_secret: http::AdminSecret::new(cfg.admin_secret.clone()),
         http_client,
         oauth: Arc::new(RwLock::new(oauth)),
         webauthn: Arc::new(webauthn),

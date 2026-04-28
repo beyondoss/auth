@@ -127,6 +127,7 @@
 //! [x] checks_via_subject_set
 //! [x] checks_via_parent_hierarchy_falls_back_correctly
 //! [x] checks_mixed_parallel_and_fallback
+//! [x] checks_three_level_hierarchy
 //! [x] checks_session_bearer
 //! [x] checks_no_auth_with_session_check_returns_401
 //! [x] checks_unknown_permission_returns_422
@@ -337,6 +338,7 @@ pub struct SubjectsResponse {
 #[derive(serde::Deserialize, Debug)]
 pub struct Subject {
     pub id: String,
+    #[allow(dead_code)]
     pub relation: String,
 }
 

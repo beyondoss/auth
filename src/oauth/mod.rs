@@ -249,8 +249,7 @@ pub async fn find_or_create_oauth_user(
     if email_link_enabled
         && let Some(email) = profile.email.as_deref()
         && profile.email_verified == Some(true)
-    {
-        if let Some(row) = sqlx::query!(
+        && let Some(row) = sqlx::query!(
             r#"
             SELECT u.id AS "id!: Uuid"
             FROM auth.users u
@@ -265,18 +264,17 @@ pub async fn find_or_create_oauth_user(
         .fetch_optional(tx.as_mut())
         .await
         .map_err(AuthError::from)?
+    {
+        match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, b"")
+            .await
         {
-            match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, b"")
-                .await
-            {
-                Ok(_) => {}
-                Err(e) if is_identity_conflict(&e) => { /* another request won the race; row.id is still correct */
-                }
-                Err(e) => return Err(e),
+            Ok(_) => {}
+            Err(e) if is_identity_conflict(&e) => { /* another request won the race; row.id is still correct */
             }
-            tx.commit().await.map_err(AuthError::from)?;
-            return Ok(row.id);
+            Err(e) => return Err(e),
         }
+        tx.commit().await.map_err(AuthError::from)?;
+        return Ok(row.id);
     }
 
     // 3. Create a brand new user

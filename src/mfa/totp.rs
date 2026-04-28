@@ -235,7 +235,7 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
         / 30;
     if let Some(last_used) = row.last_used_at {
         let last_step = last_used.timestamp().max(0) as u64 / 30;
-        if last_step + 1 >= now_step {
+        if last_step >= now_step {
             return Err(AuthError::MfaError {
                 message: "code already used".into(),
             });

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -32,6 +34,26 @@ use crate::{
     routes::{self, ApiDoc},
 };
 
+/// Wrapper for the admin bearer secret that suppresses accidental `Debug` printing.
+#[derive(Clone)]
+pub struct AdminSecret(String);
+
+impl AdminSecret {
+    pub fn new(s: String) -> Self {
+        Self(s)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl std::fmt::Debug for AdminSecret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[redacted]")
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
@@ -40,7 +62,7 @@ pub struct AppState {
     pub app_config: Arc<RwLock<AppConfig>>,
     pub authz_schema: Arc<RwLock<Option<CompiledSchema>>>,
     pub metrics: Arc<Metrics>,
-    pub admin_secret: String,
+    pub admin_secret: AdminSecret,
     pub http_client: reqwest::Client,
     pub oauth: Arc<RwLock<crate::oauth::OAuthProviders>>,
     pub webauthn: Arc<webauthn_rs::Webauthn>,

@@ -57,7 +57,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         app_config: Arc::new(RwLock::new(app_config)),
         authz_schema: Arc::new(RwLock::new(compiled_authz)),
         metrics: Metrics::new(),
-        admin_secret: ADMIN_SECRET.to_string(),
+        admin_secret: crate::http::AdminSecret::new(ADMIN_SECRET.to_string()),
         http_client,
         oauth: Arc::new(RwLock::new(OAuthProviders::default())),
         webauthn: Arc::new(webauthn),
@@ -85,7 +85,6 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
 }
 
 /// Create a minimal user+session directly in the DB and return a valid bearer token.
-/// Uses untyped sqlx queries — bench setup only, never on the hot path.
 pub async fn create_session(pool: &PgPool) -> Result<BenchSession> {
     let user_id = Uuid::now_v7();
     let org_id = Uuid::now_v7();
@@ -94,48 +93,55 @@ pub async fn create_session(pool: &PgPool) -> Result<BenchSession> {
     let token = Token::new(TokenPrefix::Session);
     let secret_hash = token.secret_hash();
     let bearer = format!("Bearer {token}");
+    let slug = format!("bench-{}", org_id.simple());
+    let email = format!("bench-{}@bench.local", user_id.simple());
 
     let mut tx = pool.begin().await?;
 
     // org → user circular FK: both DEFERRABLE INITIALLY DEFERRED
-    sqlx::query("INSERT INTO auth.orgs (id, user_id, name, slug) VALUES ($1, $2, 'bench', $3)")
-        .bind(org_id)
-        .bind(user_id)
-        .bind(format!("bench-{}", org_id.simple()))
-        .execute(tx.as_mut())
-        .await?;
+    sqlx::query!(
+        "INSERT INTO auth.orgs (id, user_id, name, slug) VALUES ($1, $2, 'bench', $3)",
+        org_id,
+        user_id,
+        slug,
+    )
+    .execute(tx.as_mut())
+    .await?;
 
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO auth.users (id, primary_org_id, primary_email_id) VALUES ($1, $2, $3)",
+        user_id,
+        org_id,
+        email_id,
     )
-    .bind(user_id)
-    .bind(org_id)
-    .bind(email_id)
     .execute(tx.as_mut())
     .await?;
 
-    sqlx::query("INSERT INTO auth.emails (id, user_id, email) VALUES ($1, $2, $3)")
-        .bind(email_id)
-        .bind(user_id)
-        .bind(format!("bench-{}@bench.local", user_id.simple()))
-        .execute(tx.as_mut())
-        .await?;
-
-    sqlx::query(
-        "INSERT INTO auth.tokens (id, secret, expires_at) \
-         VALUES ($1, $2, now() + interval '1 day')",
+    sqlx::query!(
+        "INSERT INTO auth.emails (id, user_id, email) VALUES ($1, $2, $3)",
+        email_id,
+        user_id,
+        email,
     )
-    .bind(token.id)
-    .bind(secret_hash.as_slice())
     .execute(tx.as_mut())
     .await?;
 
-    sqlx::query("INSERT INTO auth.sessions (id, user_id, token_id) VALUES ($1, $2, $3)")
-        .bind(session_id)
-        .bind(user_id)
-        .bind(token.id)
-        .execute(tx.as_mut())
-        .await?;
+    sqlx::query!(
+        "INSERT INTO auth.tokens (id, secret, expires_at) VALUES ($1, $2, now() + interval '1 day')",
+        token.id,
+        secret_hash.as_slice(),
+    )
+    .execute(tx.as_mut())
+    .await?;
+
+    sqlx::query!(
+        "INSERT INTO auth.sessions (id, user_id, token_id) VALUES ($1, $2, $3)",
+        session_id,
+        user_id,
+        token.id,
+    )
+    .execute(tx.as_mut())
+    .await?;
 
     tx.commit().await?;
 

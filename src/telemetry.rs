@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::WithExportConfig as _;
 use opentelemetry_sdk::{

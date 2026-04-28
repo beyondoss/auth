@@ -8,6 +8,7 @@ use crate::{error::AuthError, keys::LoadedKey};
 
 pub struct StateClaims {
     pub pkce_verifier: String,
+    #[allow(dead_code)]
     pub redirect_url: String,
     /// Set when an authenticated user is linking an additional provider to their account.
     pub link_user_id: Option<Uuid>,

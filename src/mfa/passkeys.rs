@@ -266,6 +266,7 @@ pub async fn credentials_for_user(
         .collect())
 }
 
+#[allow(dead_code)]
 pub async fn find_credential(
     pool: &sqlx::PgPool,
     credential_id: &[u8],
@@ -286,6 +287,7 @@ pub async fn find_credential(
     Ok(Some((row.id, row.user_id, passkey)))
 }
 
+#[allow(dead_code)]
 pub async fn update_credential(
     pool: &sqlx::PgPool,
     row_id: Uuid,

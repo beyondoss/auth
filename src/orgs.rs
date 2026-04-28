@@ -75,10 +75,10 @@ pub async fn create(
     .fetch_one(tx.as_mut())
     .await
     .map_err(|e| {
-        if let sqlx::Error::Database(ref db) = e {
-            if db.constraint() == Some("orgs_slug_idx") {
-                return AuthError::SlugConflict;
-            }
+        if let sqlx::Error::Database(ref db) = e
+            && db.constraint() == Some("orgs_slug_idx")
+        {
+            return AuthError::SlugConflict;
         }
         AuthError::from(e)
     })
@@ -154,10 +154,10 @@ pub async fn update(
     .fetch_optional(pool)
     .await
     .map_err(|e| {
-        if let sqlx::Error::Database(ref db) = e {
-            if db.constraint() == Some("orgs_slug_idx") {
-                return AuthError::SlugConflict;
-            }
+        if let sqlx::Error::Database(ref db) = e
+            && db.constraint() == Some("orgs_slug_idx")
+        {
+            return AuthError::SlugConflict;
         }
         AuthError::from(e)
     })?
@@ -298,10 +298,10 @@ pub async fn add_member(
     .execute(tx.as_mut())
     .await
     .map_err(|e| {
-        if let sqlx::Error::Database(ref db) = e {
-            if db.constraint().is_some() {
-                return AuthError::AlreadyMember;
-            }
+        if let sqlx::Error::Database(ref db) = e
+            && db.constraint().is_some()
+        {
+            return AuthError::AlreadyMember;
         }
         AuthError::from(e)
     })?;

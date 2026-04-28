@@ -9,6 +9,7 @@ use crate::error::AuthError;
 
 // ── Write / delete relations ──────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 pub async fn write_relation(
     pool: &PgPool,
     partition_cache: &RwLock<HashSet<String>>,
@@ -430,6 +431,7 @@ pub async fn enumerate_ids(
 /// hierarchy: find parents of `parent_type` the subject can access via
 /// `parent_roles`, then return child objects linked to those parents via
 /// `parent_link_relation`. Returns up to `limit` IDs with cursor applied.
+#[allow(clippy::too_many_arguments)]
 pub async fn enumerate_via_parent(
     pool: &PgPool,
     subject_id: &str,

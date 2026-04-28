@@ -69,17 +69,17 @@ impl GithubClient {
             ])
             .send()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
         if !token_resp.status().is_success() {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: format!("github returned {}", token_resp.status()),
             });
         }
 
-        let token: TokenResponse = token_resp.json().await.map_err(|e| AuthError::OAuthError {
+        let token: TokenResponse = token_resp.json().await.map_err(|e| AuthError::OAuth {
             message: e.to_string(),
         })?;
 
@@ -93,17 +93,17 @@ impl GithubClient {
             .header(reqwest::header::USER_AGENT, "beyond-auth")
             .send()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
         if !user_resp.status().is_success() {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: format!("github returned {}", user_resp.status()),
             });
         }
 
-        let user: GithubUser = user_resp.json().await.map_err(|e| AuthError::OAuthError {
+        let user: GithubUser = user_resp.json().await.map_err(|e| AuthError::OAuth {
             message: e.to_string(),
         })?;
 
@@ -117,12 +117,12 @@ impl GithubClient {
             .header(reqwest::header::USER_AGENT, "beyond-auth")
             .send()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
         if !emails_resp.status().is_success() {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: format!("github returned {}", emails_resp.status()),
             });
         }
@@ -131,7 +131,7 @@ impl GithubClient {
             emails_resp
                 .json()
                 .await
-                .map_err(|e| AuthError::OAuthError {
+                .map_err(|e| AuthError::OAuth {
                     message: e.to_string(),
                 })?;
 

@@ -193,6 +193,37 @@ async fn checks_unknown_resource_type_returns_422() {
         .assert_status(422);
 }
 
+/// [x] checks_three_level_hierarchy
+/// The three-level schema generates 1 SingleHop + 2 MultiHops for `read` on
+/// `document`, which the compiler collapses into `authz_check_multi()`. Verify
+/// all three grant paths (direct, 1-hop, 2-hop) resolve correctly.
+#[tokio::test]
+async fn checks_three_level_hierarchy() {
+    let _guard = with_three_level_schema().await;
+    let (doc, folder, workspace) = (uid(), uid(), uid());
+    let (direct_user, folder_user, workspace_user) = (uid(), uid(), uid());
+
+    // Link the hierarchy: document → folder → workspace.
+    write_rel("document", &doc, "folder", &folder).await;
+    write_rel("folder", &folder, "workspace", &workspace).await;
+
+    write_rel("document", &doc, "viewer", &direct_user).await;
+    write_rel("folder", &folder, "viewer", &folder_user).await;
+    write_rel("workspace", &workspace, "viewer", &workspace_user).await;
+
+    let req = serde_json::json!({"checks": [
+        // SingleHop — direct viewer on document.
+        {"user": direct_user,    "permission": "read", "resource_type": "document", "resource_id": doc},
+        // 1-hop MultiHop — viewer via folder.
+        {"user": folder_user,    "permission": "read", "resource_type": "document", "resource_id": doc},
+        // 2-hop MultiHop — viewer via workspace; exercises authz_check_multi.
+        {"user": workspace_user, "permission": "read", "resource_type": "document", "resource_id": doc},
+        // No relation — must be denied.
+        {"user": uid(),          "permission": "read", "resource_type": "document", "resource_id": doc},
+    ]});
+    assert_eq!(post_checks(req).await, vec![true, true, true, false]);
+}
+
 // ── Local helpers ──────────────────────────────────────────────────────────────
 
 async fn write_rel(obj_type: &str, obj_id: &str, relation: &str, subject_id: &str) {

@@ -565,6 +565,69 @@ async fn totp_recovery_code_consumed_only_once() {
         .assert_status(401);
 }
 
+// ── Soft-delete ───────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn deleted_user_cannot_login() {
+    let email = unique_email();
+    let auth = signup(&email, "correct-horse-battery-staple").await;
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .delete("/v1/users/me")
+        .await
+        .assert_status(204);
+
+    TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "password",
+                "email": email,
+                "password": "correct-horse-battery-staple"
+            }),
+        )
+        .await
+        .assert_status(401);
+}
+
+// ── Concurrent token consumption ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn magic_link_token_consumed_exactly_once_concurrently() {
+    let email = unique_email();
+    signup(&email, "correct-horse-battery-staple").await;
+
+    let ott = TestClient::new()
+        .post("/v1/magic-links", &serde_json::json!({ "email": email }))
+        .await
+        .assert_status(200)
+        .json::<OttResponse>();
+
+    let grant = serde_json::json!({
+        "grant_type": "magic_link",
+        "token": ott.token
+    });
+
+    let (c1, c2) = (TestClient::new(), TestClient::new());
+    let (r1, r2) = tokio::join!(
+        c1.post("/v1/sessions", &grant),
+        c2.post("/v1/sessions", &grant),
+    );
+
+    let statuses = [r1.status(), r2.status()];
+    assert_eq!(
+        statuses.iter().filter(|&&s| s == 201).count(),
+        1,
+        "exactly one concurrent request must create a session"
+    );
+    assert_eq!(
+        statuses.iter().filter(|&&s| s == 401).count(),
+        1,
+        "exactly one concurrent request must be rejected"
+    );
+}
+
 // ── Session management ────────────────────────────────────────────────────────
 
 #[tokio::test]

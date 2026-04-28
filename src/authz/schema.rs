@@ -71,6 +71,8 @@ pub enum SchemaError {
     UnknownPermissionRole(String, String, String),
     #[error("resource {0:?}: parent_resource {1:?} is not a defined resource")]
     UnknownParentResource(String, String),
+    #[error("schema JSON is malformed: {0}")]
+    ParseError(String),
     #[error("schema version {0} is not supported (expected 1)")]
     UnsupportedVersion(u32),
 }
@@ -79,11 +81,10 @@ pub fn validate_ident(s: &str) -> Result<(), SchemaError> {
     if s.is_empty() {
         return Err(SchemaError::InvalidIdentifier(s.to_owned()));
     }
-    let mut chars = s.chars();
-    if !chars.next().unwrap().is_ascii_lowercase() {
+    if !s.starts_with(|c: char| c.is_ascii_lowercase()) {
         return Err(SchemaError::InvalidIdentifier(s.to_owned()));
     }
-    if chars.any(|c| !matches!(c, 'a'..='z' | '0'..='9' | '_')) {
+    if s.chars().skip(1).any(|c| !matches!(c, 'a'..='z' | '0'..='9' | '_')) {
         return Err(SchemaError::InvalidIdentifier(s.to_owned()));
     }
     Ok(())

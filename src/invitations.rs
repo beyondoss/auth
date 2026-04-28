@@ -48,10 +48,10 @@ pub async fn create(
     .fetch_one(pool)
     .await
     .map_err(|e| {
-        if let sqlx::Error::Database(ref db) = e {
-            if db.constraint() == Some("org_invitations_email_unique") {
-                return AuthError::Conflict;
-            }
+        if let sqlx::Error::Database(ref db) = e
+            && db.constraint() == Some("org_invitations_email_unique")
+        {
+            return AuthError::Conflict;
         }
         AuthError::from(e)
     })

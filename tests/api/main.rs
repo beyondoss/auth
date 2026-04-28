@@ -1,10 +1,14 @@
+mod admin;
 mod authz;
 mod emails;
 mod healthz;
 mod helpers;
 mod identities;
+mod invitations;
 mod magic_link;
+mod oauth;
 mod orgs;
+mod passkeys;
 mod password_reset;
 mod sessions;
 mod totp;

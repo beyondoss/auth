@@ -97,35 +97,35 @@ impl OidcClient {
             ])
             .send()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
         if !token_resp.status().is_success() {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: format!("oidc returned {}", token_resp.status()),
             });
         }
 
-        let token: TokenResponse = token_resp.json().await.map_err(|e| AuthError::OAuthError {
+        let token: TokenResponse = token_resp.json().await.map_err(|e| AuthError::OAuth {
             message: e.to_string(),
         })?;
 
         let id_token_sub: Option<String> = if let Some(id_token) = token.id_token.as_deref() {
             let parts: Vec<&str> = id_token.split('.').collect();
             if parts.len() != 3 {
-                return Err(AuthError::OAuthError {
+                return Err(AuthError::OAuth {
                     message: "oidc returned malformed id_token".to_string(),
                 });
             }
             let payload_bytes =
                 URL_SAFE_NO_PAD
                     .decode(parts[1])
-                    .map_err(|e| AuthError::OAuthError {
+                    .map_err(|e| AuthError::OAuth {
                         message: format!("failed to decode id_token payload: {e}"),
                     })?;
             let claims: Value =
-                serde_json::from_slice(&payload_bytes).map_err(|e| AuthError::OAuthError {
+                serde_json::from_slice(&payload_bytes).map_err(|e| AuthError::OAuth {
                     message: format!("failed to parse id_token claims: {e}"),
                 })?;
             claims.get("sub").and_then(|v| v.as_str()).map(String::from)
@@ -142,12 +142,12 @@ impl OidcClient {
             )
             .send()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
         if !userinfo_resp.status().is_success() {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: format!("oidc userinfo returned {}", userinfo_resp.status()),
             });
         }
@@ -155,7 +155,7 @@ impl OidcClient {
         let userinfo: Value = userinfo_resp
             .json()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
@@ -166,7 +166,7 @@ impl OidcClient {
                     .and_then(|v| v.as_str())
                     .map(String::from)
             })
-            .ok_or_else(|| AuthError::OAuthError {
+            .ok_or_else(|| AuthError::OAuth {
                 message: "oidc missing sub".to_string(),
             })?;
 

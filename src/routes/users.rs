@@ -1,7 +1,7 @@
 use axum::{
     Json,
     extract::{Extension, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -14,7 +14,7 @@ use crate::{
     identities,
     orgs::{self, Org},
     passwords,
-    sessions::{self, RequestContext, SessionContext},
+    sessions::{self, SessionContext},
     tokens::{Token, TokenPrefix},
     users::{self, User},
 };
@@ -74,27 +74,6 @@ pub struct SessionBody {
     /// Opaque bearer token — store securely, transmit as `Authorization: Bearer <token>`.
     pub token: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
-    let ip_address = headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        .or_else(|| {
-            headers
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next())
-                .map(str::trim)
-        });
-    RequestContext {
-        ip_address,
-        user_agent: headers
-            .get(header::USER_AGENT)
-            .and_then(|v| v.to_str().ok()),
-    }
 }
 
 pub fn make_auth_response(
@@ -235,7 +214,7 @@ pub async fn signup(
 
     let token = Token::new(TokenPrefix::Session);
     let cfg = state.app_config.read().await;
-    let ctx = request_context(&headers);
+    let ctx = sessions::request_context(&headers);
     let (session_id, expires_at) =
         sessions::create(&mut tx, &token, user_id, cfg.session_ttl_seconds, &ctx).await?;
 

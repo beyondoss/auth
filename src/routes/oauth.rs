@@ -10,7 +10,7 @@ use crate::{
     error::AuthError,
     http::AppState,
     oauth::{self, pkce::PkceVerifier},
-    sessions::{self, RequestContext},
+    sessions,
     tokens::{Token, TokenPrefix},
 };
 
@@ -83,25 +83,6 @@ fn validate_redirect_url(url: &str, allowlist: &[String]) -> Result<(), AuthErro
         Ok(())
     } else {
         Err(AuthError::OAuthRedirectNotAllowed)
-    }
-}
-
-fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
-    let ip_address = headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        .or_else(|| {
-            headers
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next())
-                .map(str::trim)
-        });
-    RequestContext {
-        ip_address,
-        user_agent: headers
-            .get(header::USER_AGENT)
-            .and_then(|v| v.to_str().ok()),
     }
 }
 
@@ -338,7 +319,7 @@ async fn create_session(
     };
 
     let session_token = Token::new(TokenPrefix::Session);
-    let ctx = request_context(headers);
+    let ctx = sessions::request_context(headers);
 
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
     let (_session_id, expires_at) =

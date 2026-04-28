@@ -86,23 +86,23 @@ impl MicrosoftClient {
             ])
             .send()
             .await
-            .map_err(|e| AuthError::OAuthError {
+            .map_err(|e| AuthError::OAuth {
                 message: e.to_string(),
             })?;
 
         if !token_resp.status().is_success() {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: format!("microsoft returned {}", token_resp.status()),
             });
         }
 
-        let token: TokenResponse = token_resp.json().await.map_err(|e| AuthError::OAuthError {
+        let token: TokenResponse = token_resp.json().await.map_err(|e| AuthError::OAuth {
             message: e.to_string(),
         })?;
 
         let parts: Vec<&str> = token.id_token.split('.').collect();
         if parts.len() != 3 {
-            return Err(AuthError::OAuthError {
+            return Err(AuthError::OAuth {
                 message: "microsoft returned malformed id_token".to_string(),
             });
         }
@@ -110,19 +110,19 @@ impl MicrosoftClient {
         let payload_bytes =
             URL_SAFE_NO_PAD
                 .decode(parts[1])
-                .map_err(|e| AuthError::OAuthError {
+                .map_err(|e| AuthError::OAuth {
                     message: format!("failed to decode id_token payload: {e}"),
                 })?;
 
         let claims: Value =
-            serde_json::from_slice(&payload_bytes).map_err(|e| AuthError::OAuthError {
+            serde_json::from_slice(&payload_bytes).map_err(|e| AuthError::OAuth {
                 message: format!("failed to parse id_token claims: {e}"),
             })?;
 
         let sub = claims
             .get("sub")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AuthError::OAuthError {
+            .ok_or_else(|| AuthError::OAuth {
                 message: "id_token missing sub claim".to_string(),
             })?
             .to_string();

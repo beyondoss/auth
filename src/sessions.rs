@@ -1,3 +1,4 @@
+use axum::http::{HeaderMap, header};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
@@ -32,6 +33,25 @@ pub struct SessionContext {
 pub struct RequestContext<'a> {
     pub ip_address: Option<&'a str>,
     pub user_agent: Option<&'a str>,
+}
+
+pub fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
+    let ip_address = headers
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| {
+            headers
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .map(str::trim)
+        });
+    RequestContext {
+        ip_address,
+        user_agent: headers
+            .get(header::USER_AGENT)
+            .and_then(|v| v.to_str().ok()),
+    }
 }
 
 /// Validate a bearer token and return the caller's context in one round-trip.
