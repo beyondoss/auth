@@ -204,6 +204,30 @@ total queries = hops + 1 regardless of N.
 
 Used by: POST /v1/authz/checks for MultiHop (hierarchy) permission checks.';
 
+CREATE FUNCTION auth.authz_check_multi(
+    subject_id         text,
+    direct_relations   text[],
+    relation_prefix    text[],
+    object_type_path   text[],
+    terminal_relations text[],
+    object_id          text
+) RETURNS boolean
+    LANGUAGE c STABLE STRICT
+    AS 'authz_extension', 'authz_check_multi_wrapper';
+
+COMMENT ON FUNCTION auth.authz_check_multi(text, text[], text[], text[], text[], text) IS
+'Combined direct BFS + hierarchy walk in a single call.
+
+Equivalent to:
+  authz_check(subject_id, direct_relations, object_type_path[1], object_id)
+  OR authz_check_path(subject_id, relation_prefix, object_type_path, terminal_relations, object_id)
+
+but evaluated inside one SPI session instead of two, saving the per-call connection
+overhead. The schema compiler emits this function whenever a permission has both
+direct-grant roles and a parent hierarchy.
+
+Used by: GET /v1/authz/decisions, POST /v1/authz/decisions.';
+
 CREATE FUNCTION auth.authz_check_batch(
     subject_ids  text[],
     relations    text[],

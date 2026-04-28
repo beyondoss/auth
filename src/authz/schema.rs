@@ -262,98 +262,20 @@ impl CompiledSchema {
     /// resource type names come from the validated schema and are safe to embed as literals.
     pub fn build_or_chain(&self, resource_type: &str, permission: &str) -> Option<String> {
         let calls = self.get_checks(resource_type, permission)?;
-        let parts: Vec<String> = calls
-            .iter()
-            .map(|c| match c {
-                AuthzCheckCall::SingleHop {
-                    relations,
-                    object_type,
-                } => {
-                    let arr = relations
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "auth.authz_check(subject.subject_id, ARRAY[{arr}]::text[], '{object_type}', $3)"
-                    )
-                }
-                AuthzCheckCall::MultiHop {
-                    relation_prefix,
-                    object_type_path,
-                    terminal_relations,
-                } => {
-                    let prefix = relation_prefix
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let types = object_type_path
-                        .iter()
-                        .map(|t| format!("'{t}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let terms = terminal_relations
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "auth.authz_check_path(subject.subject_id, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], $3)"
-                    )
-                }
-            })
-            .collect();
-        Some(parts.join("\n    OR "))
+        if let Some(expr) = emit_multi_call(calls, "subject.subject_id", "$3") {
+            return Some(expr);
+        }
+        Some(calls.iter().map(|c| format_call(c, "subject.subject_id", "$3")).collect::<Vec<_>>().join("\n    OR "))
     }
 
     /// Build an OR-chain for a UNNEST batch check. `subject_id` is `$1` (scalar bind);
     /// `object_id` comes from `t.object_id` in `UNNEST($2::text[]) AS t(object_id)`.
     pub fn build_batch_or_chain(&self, resource_type: &str, permission: &str) -> Option<String> {
         let calls = self.get_checks(resource_type, permission)?;
-        let parts: Vec<String> = calls
-            .iter()
-            .map(|c| match c {
-                AuthzCheckCall::SingleHop {
-                    relations,
-                    object_type,
-                } => {
-                    let arr = relations
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "auth.authz_check($1, ARRAY[{arr}]::text[], '{object_type}', t.object_id)"
-                    )
-                }
-                AuthzCheckCall::MultiHop {
-                    relation_prefix,
-                    object_type_path,
-                    terminal_relations,
-                } => {
-                    let prefix = relation_prefix
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let types = object_type_path
-                        .iter()
-                        .map(|tp| format!("'{tp}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let terms = terminal_relations
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "auth.authz_check_path($1, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], t.object_id)"
-                    )
-                }
-            })
-            .collect();
-        Some(parts.join("\n    OR "))
+        if let Some(expr) = emit_multi_call(calls, "$1", "t.object_id") {
+            return Some(expr);
+        }
+        Some(calls.iter().map(|c| format_call(c, "$1", "t.object_id")).collect::<Vec<_>>().join("\n    OR "))
     }
 
     /// Build an OR-chain for a standalone check (no session CTE). `subject_id` is `$1`,
@@ -364,48 +286,53 @@ impl CompiledSchema {
         permission: &str,
     ) -> Option<String> {
         let calls = self.get_checks(resource_type, permission)?;
-        let parts: Vec<String> = calls
-            .iter()
-            .map(|c| match c {
-                AuthzCheckCall::SingleHop {
-                    relations,
-                    object_type,
-                } => {
-                    let arr = relations
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!("auth.authz_check($1, ARRAY[{arr}]::text[], '{object_type}', $2)")
-                }
-                AuthzCheckCall::MultiHop {
-                    relation_prefix,
-                    object_type_path,
-                    terminal_relations,
-                } => {
-                    let prefix = relation_prefix
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let types = object_type_path
-                        .iter()
-                        .map(|t| format!("'{t}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let terms = terminal_relations
-                        .iter()
-                        .map(|r| format!("'{r}'"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "auth.authz_check_path($1, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], $2)"
-                    )
-                }
-            })
-            .collect();
-        Some(parts.join("\n    OR "))
+        if let Some(expr) = emit_multi_call(calls, "$1", "$2") {
+            return Some(expr);
+        }
+        Some(calls.iter().map(|c| format_call(c, "$1", "$2")).collect::<Vec<_>>().join("\n    OR "))
     }
+}
+
+fn format_call(call: &AuthzCheckCall, subject: &str, object: &str) -> String {
+    match call {
+        AuthzCheckCall::SingleHop { relations, object_type } => {
+            let arr = relations.iter().map(|r| format!("'{r}'")).collect::<Vec<_>>().join(", ");
+            format!("auth.authz_check({subject}, ARRAY[{arr}]::text[], '{object_type}', {object})")
+        }
+        AuthzCheckCall::MultiHop { relation_prefix, object_type_path, terminal_relations } => {
+            let prefix = relation_prefix.iter().map(|r| format!("'{r}'")).collect::<Vec<_>>().join(", ");
+            let types = object_type_path.iter().map(|t| format!("'{t}'")).collect::<Vec<_>>().join(", ");
+            let terms = terminal_relations.iter().map(|r| format!("'{r}'")).collect::<Vec<_>>().join(", ");
+            format!("auth.authz_check_path({subject}, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], {object})")
+        }
+    }
+}
+
+/// When calls contain exactly 1 SingleHop + ≥1 MultiHop, collapse them into a
+/// single `authz_check_multi` call using the deepest MultiHop path. This covers
+/// all hierarchy levels in one SPI session instead of N separate calls.
+fn emit_multi_call(calls: &[AuthzCheckCall], subject: &str, object: &str) -> Option<String> {
+    let single = calls.iter().find_map(|c| match c {
+        AuthzCheckCall::SingleHop { relations, .. } => Some(relations),
+        _ => None,
+    })?;
+    let multi_hops: Vec<_> = calls.iter().filter_map(|c| match c {
+        AuthzCheckCall::MultiHop { relation_prefix, object_type_path, terminal_relations } => {
+            Some((relation_prefix, object_type_path, terminal_relations))
+        }
+        _ => None,
+    }).collect();
+    if multi_hops.is_empty() {
+        return None;
+    }
+    let (prefix, type_path, terms) = multi_hops.iter().max_by_key(|(p, _, _)| p.len()).unwrap();
+    let direct = single.iter().map(|r| format!("'{r}'")).collect::<Vec<_>>().join(", ");
+    let pfx = prefix.iter().map(|r| format!("'{r}'")).collect::<Vec<_>>().join(", ");
+    let types = type_path.iter().map(|t| format!("'{t}'")).collect::<Vec<_>>().join(", ");
+    let terminal = terms.iter().map(|r| format!("'{r}'")).collect::<Vec<_>>().join(", ");
+    Some(format!(
+        "auth.authz_check_multi({subject}, ARRAY[{direct}]::text[], ARRAY[{pfx}]::text[], ARRAY[{types}]::text[], ARRAY[{terminal}]::text[], {object})"
+    ))
 }
 
 #[cfg(test)]

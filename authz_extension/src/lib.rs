@@ -658,3 +658,110 @@ fn authz_check_path_batch(
         Err(e) => pgrx::error!("authz_check_path_batch: {e}"),
     }
 }
+
+// ── Combined BFS + hierarchy walk (1 SPI session for both) ───────────────────
+
+/// authz_check_multi(subject_id, direct_relations, relation_prefix, object_type_path, terminal_relations, object_id) → bool
+///
+/// Combines a direct BFS check with a multi-hop hierarchy walk in a single
+/// Spi::connect.  Replaces the OR-chain pattern
+///   authz_check(...) OR authz_check_path(...)
+/// with one function call, saving one Spi::connect overhead per hierarchy level.
+///
+/// Algorithm:
+///   1. BFS check on the direct object (full subject-set expansion).
+///   2. Walk relation_prefix hop-by-hop; at each ancestor level check whether
+///      subject_id holds any terminal_relations directly (no BFS — matches
+///      authz_check_path semantics).
+#[pg_extern(name = "authz_check_multi", schema = "auth", stable)]
+fn authz_check_multi(
+    subject_id: &str,
+    direct_relations: pgrx::Array<&str>,
+    relation_prefix: pgrx::Array<&str>,
+    object_type_path: pgrx::Array<&str>,
+    terminal_relations: pgrx::Array<&str>,
+    object_id: &str,
+) -> bool {
+    let direct_rels: Vec<Option<String>> = direct_relations
+        .iter()
+        .map(|r| r.map(str::to_string))
+        .collect();
+    let prefix: Vec<String> = relation_prefix
+        .iter()
+        .map(|r| r.unwrap_or("").to_string())
+        .collect();
+    let type_path: Vec<String> = object_type_path
+        .iter()
+        .map(|t| t.unwrap_or("").to_string())
+        .collect();
+    let term_rels: Vec<Option<String>> = terminal_relations
+        .iter()
+        .map(|r| r.map(str::to_string))
+        .collect();
+
+    if type_path.is_empty() {
+        return false;
+    }
+
+    match Spi::connect(|client| {
+        // Step 1: BFS check on the direct object (handles group membership).
+        if bfs_with_client(&client, subject_id, direct_rels, &type_path[0], object_id)? {
+            return Ok::<bool, spi::Error>(true);
+        }
+
+        // Step 2: Walk hierarchy, checking terminal relations at each ancestor.
+        let mut current_id = object_id.to_string();
+        for k in 0..prefix.len() {
+            let next_id: Option<String> = client
+                .select(
+                    "SELECT subject_id FROM auth.authz_relations \
+                     WHERE object_type = $1 AND object_id = $2 AND relation = $3 \
+                       AND subject_set_type IS NULL LIMIT 1",
+                    None,
+                    &[
+                        type_path[k].clone().into(),
+                        current_id.clone().into(),
+                        prefix[k].clone().into(),
+                    ],
+                )?
+                .first()
+                .get::<String>(1)?;
+
+            let Some(parent_id) = next_id else {
+                return Ok(false);
+            };
+            current_id = parent_id;
+
+            let found: bool = client
+                .select(
+                    "SELECT EXISTS ( \
+                         SELECT 1 FROM auth.authz_relations \
+                         WHERE object_type      = $1 \
+                           AND object_id        = $2 \
+                           AND relation         = ANY($3::text[]) \
+                           AND subject_id       = $4 \
+                           AND subject_set_type IS NULL \
+                     )",
+                    None,
+                    &[
+                        type_path[k + 1].clone().into(),
+                        current_id.clone().into(),
+                        term_rels.clone().into(),
+                        subject_id.into(),
+                    ],
+                )?
+                .first()
+                .get::<bool>(1)?
+                .unwrap_or(false);
+
+            if found {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }) {
+        Ok(r) => r,
+        Err(e) => pgrx::error!("authz_check_multi: {e}"),
+    }
+}

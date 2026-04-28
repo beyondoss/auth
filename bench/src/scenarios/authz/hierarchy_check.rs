@@ -128,6 +128,52 @@ impl Scenario for HierarchyOrChainOld {
     }
 }
 
+/// Combined call: 1 authz_check_multi covers direct BFS + hierarchy in one SPI session.
+/// This is what the schema compiler now generates when a resource has both direct grants and a hierarchy.
+pub struct HierarchyMulti {
+    doc_sampler: ZipfSampler,
+}
+
+impl HierarchyMulti {
+    pub fn new() -> Self {
+        Self { doc_sampler: ZipfSampler::new(N_DOCS, 1.0) }
+    }
+}
+
+#[async_trait]
+impl Scenario for HierarchyMulti {
+    fn name(&self) -> &str { "authz::hierarchy_multi" }
+
+    fn question(&self) -> &str {
+        "authz_check_multi (1 SPI session: direct BFS + hierarchy walk): QPS vs 2-call OR-chain?"
+    }
+
+    async fn setup(&self, pool: &PgPool) -> Result<()> {
+        seed_hierarchy(pool).await
+    }
+
+    async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
+        let u = ctx.rng.gen_range(0..N_USERS);
+        let d = self.doc_sampler.sample(&mut ctx.rng);
+        let row: (bool,) = sqlx::query_as(
+            "SELECT auth.authz_check_multi(\
+                $1, \
+                ARRAY['owner','editor','viewer']::text[], \
+                ARRAY['folder']::text[], \
+                ARRAY['hier_doc','hier_folder']::text[], \
+                ARRAY['owner','editor','viewer']::text[], \
+                $2\
+            )",
+        )
+        .bind(format!("hu_{u}"))
+        .bind(format!("hd_{d}"))
+        .fetch_one(ctx.pool)
+        .await?;
+        let _ = row.0;
+        Ok(())
+    }
+}
+
 /// New OR-chain pattern: 1 authz_check + 1 authz_check_path with terminal array.
 /// This is what the schema compiler now generates — N_levels calls instead of N_roles × N_levels.
 pub struct HierarchyOrChainNew {

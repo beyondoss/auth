@@ -31,6 +31,7 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(multi_decision_serial::MultiDecisionSerial::new()),
         Arc::new(hierarchy_check::HierarchyOrChainOld::new()),
         Arc::new(hierarchy_check::HierarchyOrChainNew::new()),
+        Arc::new(hierarchy_check::HierarchyMulti::new()),
         Arc::new(batch_check::BatchCheck::new(4)),
         Arc::new(batch_check::BatchCheck::new(16)),
         Arc::new(batch_check::BatchCheck::new(64)),
