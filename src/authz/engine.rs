@@ -325,6 +325,34 @@ pub async fn parallel_batch_check(
     Ok(bools)
 }
 
+/// Call authz_check_path_batch for N hierarchy checks sharing the same path structure.
+/// Returns one bool per input row in the same order.
+/// Non-macro sqlx: function is a pgrx extension not known at compile time.
+pub async fn path_batch_check(
+    pool: &PgPool,
+    subject_ids: &[String],
+    relation_prefix: &[String],
+    object_type_path: &[String],
+    terminal_relations: &[String],
+    object_ids: &[String],
+) -> Result<Vec<bool>, AuthError> {
+    if subject_ids.is_empty() {
+        return Ok(vec![]);
+    }
+    let (bools,): (Vec<bool>,) = sqlx::query_as(
+        "SELECT auth.authz_check_path_batch($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])",
+    )
+    .bind(subject_ids)
+    .bind(relation_prefix)
+    .bind(object_type_path)
+    .bind(terminal_relations)
+    .bind(object_ids)
+    .fetch_one(pool)
+    .await
+    .map_err(AuthError::from)?;
+    Ok(bools)
+}
+
 // ── Expand ────────────────────────────────────────────────────────────────────
 
 #[derive(Debug)]

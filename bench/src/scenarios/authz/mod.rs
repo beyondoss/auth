@@ -10,6 +10,7 @@ pub mod depth_sweep;
 pub mod depth_sweep_cold;
 pub mod early_exit;
 pub mod early_exit_v2;
+pub mod hierarchy_check;
 pub mod multi_decision_serial;
 pub mod read_write_mix;
 pub mod scale_sweep;
@@ -28,6 +29,8 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
     vec![
         Arc::new(single_check::SingleCheck::new()),
         Arc::new(multi_decision_serial::MultiDecisionSerial::new()),
+        Arc::new(hierarchy_check::HierarchyOrChainOld::new()),
+        Arc::new(hierarchy_check::HierarchyOrChainNew::new()),
         Arc::new(batch_check::BatchCheck::new(4)),
         Arc::new(batch_check::BatchCheck::new(16)),
         Arc::new(batch_check::BatchCheck::new(64)),

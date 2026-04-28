@@ -499,16 +499,22 @@ pub async fn post_checks(
     let n = req.checks.len();
     let mut results = vec![false; n];
 
-    // Atomic rows for the parallel-batch path; index_map[k] is the original check index
-    // each atomic row contributes to (OR-aggregated).
+    // Atomic rows for SingleHop parallel batch.
     let mut parallel_rows: Vec<(String, String, String, String)> = Vec::new();
     let mut parallel_origin: Vec<usize> = Vec::new();
-    // Subject per original index, kept for caching after the parallel batch.
+    // Subject per original index, kept for caching.
     let mut subjects: Vec<Option<Arc<str>>> = vec![None; n];
-    // Track which original indices contributed any atomic rows (so we can default-cache false).
-    let mut has_parallel: Vec<bool> = vec![false; n];
+    // Tracks which indices are handled by the extension (SingleHop or MultiHop).
+    let mut handled: Vec<bool> = vec![false; n];
 
-    // Fallback grouping (same shape as batch_check_permissions).
+    // MultiHop path batches: key encodes the shared path structure;
+    // value is (relation_prefix, object_type_path, terminal_relations, items).
+    let mut path_batches: HashMap<
+        String,
+        (Vec<String>, Vec<String>, Vec<String>, Vec<(usize, String, String)>),
+    > = HashMap::new();
+
+    // Fallback for when the extension is not loaded.
     let mut fallback_groups: HashMap<(Arc<str>, String), Vec<(usize, String)>> = HashMap::new();
 
     for (i, check) in req.checks.iter().enumerate() {
@@ -543,26 +549,45 @@ pub async fn post_checks(
                 }
             })?;
 
-        let all_single_hop = calls
-            .iter()
-            .all(|c| matches!(c, AuthzCheckCall::SingleHop { .. }));
-
-        if state.parallel_batch_available && all_single_hop {
+        if state.parallel_batch_available {
             for c in calls {
-                if let AuthzCheckCall::SingleHop {
-                    relations,
-                    object_type,
-                } = c
-                {
-                    for relation in relations {
-                        parallel_rows.push((
-                            subject_id.to_string(),
-                            relation.clone(),
-                            object_type.clone(),
-                            check.resource_id.clone(),
-                        ));
-                        parallel_origin.push(i);
-                        has_parallel[i] = true;
+                match c {
+                    AuthzCheckCall::SingleHop { relations, object_type } => {
+                        for relation in relations {
+                            parallel_rows.push((
+                                subject_id.to_string(),
+                                relation.clone(),
+                                object_type.clone(),
+                                check.resource_id.clone(),
+                            ));
+                            parallel_origin.push(i);
+                            handled[i] = true;
+                        }
+                    }
+                    AuthzCheckCall::MultiHop {
+                        relation_prefix,
+                        object_type_path,
+                        terminal_relations,
+                    } => {
+                        let key = format!(
+                            "{}\x00{}\x00{}",
+                            relation_prefix.join("\x01"),
+                            object_type_path.join("\x01"),
+                            terminal_relations.join("\x01"),
+                        );
+                        path_batches
+                            .entry(key)
+                            .or_insert_with(|| {
+                                (
+                                    relation_prefix.clone(),
+                                    object_type_path.clone(),
+                                    terminal_relations.clone(),
+                                    Vec::new(),
+                                )
+                            })
+                            .3
+                            .push((i, subject_id.to_string(), check.resource_id.clone()));
+                        handled[i] = true;
                     }
                 }
             }
@@ -578,30 +603,45 @@ pub async fn post_checks(
         }
     }
 
+    // OR-aggregate results from SingleHop parallel batch and MultiHop path batches.
+    let mut aggregated = vec![false; n];
+
     if !parallel_rows.is_empty() {
         let atomic_results = engine::parallel_batch_check(&state.pool, &parallel_rows).await?;
-        // OR-aggregate per original index.
-        let mut aggregated = vec![false; n];
         for (k, allowed) in atomic_results.iter().enumerate() {
             if *allowed {
                 aggregated[parallel_origin[k]] = true;
             }
         }
-        for i in 0..n {
-            if has_parallel[i] {
-                results[i] = aggregated[i];
-                let check = &req.checks[i];
-                let subject_id = subjects[i].clone().unwrap();
-                state.authz_cache.insert_check(
-                    CheckKey {
-                        subject_id,
-                        resource_type: Arc::from(check.resource_type.as_str()),
-                        resource_id: Arc::from(check.resource_id.as_str()),
-                        permission: Arc::from(check.permission.as_str()),
-                    },
-                    aggregated[i],
-                );
+    }
+
+    for (_, (rel_prefix, obj_type_path, term_rels, items)) in path_batches {
+        let sids: Vec<String> = items.iter().map(|(_, s, _)| s.clone()).collect();
+        let oids: Vec<String> = items.iter().map(|(_, _, o)| o.clone()).collect();
+        let bools =
+            engine::path_batch_check(&state.pool, &sids, &rel_prefix, &obj_type_path, &term_rels, &oids)
+                .await?;
+        for ((idx, _, _), allowed) in items.iter().zip(bools) {
+            if allowed {
+                aggregated[*idx] = true;
             }
+        }
+    }
+
+    for i in 0..n {
+        if handled[i] {
+            results[i] = aggregated[i];
+            let check = &req.checks[i];
+            let subject_id = subjects[i].clone().unwrap();
+            state.authz_cache.insert_check(
+                CheckKey {
+                    subject_id,
+                    resource_type: Arc::from(check.resource_type.as_str()),
+                    resource_id: Arc::from(check.resource_id.as_str()),
+                    permission: Arc::from(check.permission.as_str()),
+                },
+                aggregated[i],
+            );
         }
     }
 
@@ -891,13 +931,14 @@ pub async fn list_objects(
                 direct_relations.extend(relations.iter().cloned());
             }
             AuthzCheckCall::MultiHop {
-                relation_path,
+                relation_prefix,
                 object_type_path,
+                terminal_relations,
             } => {
                 multi_hop
-                    .entry((relation_path[0].clone(), object_type_path[1].clone()))
+                    .entry((relation_prefix[0].clone(), object_type_path[1].clone()))
                     .or_default()
-                    .push(relation_path[1].clone());
+                    .extend(terminal_relations.iter().cloned());
             }
         }
     }

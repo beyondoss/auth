@@ -491,3 +491,172 @@ fn authz_check_parallel_batch(
         Err(e) => pgrx::error!("authz_check_parallel_batch: {e}"),
     }
 }
+
+// ── Path batch: N checks sharing a hierarchy path, P+1 SQL queries ───────────
+
+/// authz_check_path_batch(subject_ids, relation_prefix, object_type_path, terminal_relations, object_ids) → bool[]
+///
+/// Batches N hierarchy path checks that share the same path structure but
+/// have different (subject_id, object_id) pairs.  Issues exactly P+1 SQL
+/// queries where P = relation_prefix.len() — one per intermediate hop plus
+/// one terminal hop — regardless of N.
+#[pg_extern(name = "authz_check_path_batch", schema = "auth", stable)]
+fn authz_check_path_batch(
+    subject_ids: pgrx::Array<&str>,
+    relation_prefix: pgrx::Array<&str>,
+    object_type_path: pgrx::Array<&str>,
+    terminal_relations: pgrx::Array<&str>,
+    object_ids: pgrx::Array<&str>,
+) -> Vec<Option<bool>> {
+    // Collect all input arrays into owned Vecs before entering Spi::connect.
+    let sids: Vec<String> = subject_ids
+        .iter()
+        .map(|s| s.unwrap_or("").to_string())
+        .collect();
+    let oids: Vec<String> = object_ids
+        .iter()
+        .map(|o| o.unwrap_or("").to_string())
+        .collect();
+    let prefix: Vec<String> = relation_prefix
+        .iter()
+        .map(|r| r.unwrap_or("").to_string())
+        .collect();
+    let type_path: Vec<String> = object_type_path
+        .iter()
+        .map(|t| t.unwrap_or("").to_string())
+        .collect();
+    let term_rels: Vec<String> = terminal_relations
+        .iter()
+        .map(|r| r.unwrap_or("").to_string())
+        .collect();
+
+    let n = sids.len();
+    if n == 0 || type_path.is_empty() {
+        return vec![Some(false); n];
+    }
+
+    let p = prefix.len();
+    // type_path must have P+1 entries (P intermediate + 1 terminal); guard
+    // by checking length.
+    if type_path.len() != p + 1 {
+        pgrx::error!(
+            "authz_check_path_batch: object_type_path length must be relation_prefix length + 1"
+        );
+    }
+
+    // frontiers[i] = current object_id for check i (None means dropped out).
+    let mut frontiers: Vec<Option<String>> = oids.into_iter().map(Some).collect();
+
+    match Spi::connect(|client| {
+        // --- Intermediate hops 0..P-1 ---
+        for k in 0..p {
+            let object_type = &type_path[k];
+            let relation = &prefix[k];
+
+            // Build (idx, obj_id) UNNEST from currently-active checks.
+            let mut h_ci: Vec<Option<i64>> = Vec::new();
+            let mut h_ois: Vec<Option<String>> = Vec::new();
+            for (i, f) in frontiers.iter().enumerate() {
+                if let Some(oid) = f {
+                    h_ci.push(Some(i as i64 + 1));
+                    h_ois.push(Some(oid.clone()));
+                }
+            }
+
+            if h_ci.is_empty() {
+                break;
+            }
+
+            let hop_rows: Vec<(Option<i64>, Option<String>)> = client
+                .select(
+                    "SELECT f.idx, r.subject_id AS next_obj \
+                     FROM unnest($1::bigint[], $2::text[]) AS f(idx, obj_id) \
+                     JOIN auth.authz_relations r \
+                       ON r.object_type      = $3 \
+                      AND r.object_id        = f.obj_id \
+                      AND r.relation         = $4 \
+                      AND r.subject_set_type IS NULL",
+                    None,
+                    &[
+                        h_ci.into(),
+                        h_ois.into(),
+                        object_type.clone().into(),
+                        relation.clone().into(),
+                    ],
+                )?
+                .into_iter()
+                .map(|row| -> Result<_, spi::Error> {
+                    Ok((row.get::<i64>(1)?, row.get::<String>(2)?))
+                })
+                .collect::<Result<_, _>>()?;
+
+            // Build next frontiers: any check without a matching row drops out.
+            let mut next: Vec<Option<String>> = vec![None; n];
+            for (idx_opt, next_obj) in hop_rows {
+                let idx = (idx_opt.unwrap_or(1) - 1) as usize;
+                if let Some(obj) = next_obj {
+                    // If multiple rows match for the same check, the last one
+                    // wins; this matches the "single hop" assumption of the
+                    // hierarchy path and is sufficient for the batched form.
+                    next[idx] = Some(obj);
+                }
+            }
+            frontiers = next;
+        }
+
+        // --- Terminal hop ---
+        let terminal_type = &type_path[p];
+
+        let mut t_ci: Vec<Option<i64>> = Vec::new();
+        let mut t_ois: Vec<Option<String>> = Vec::new();
+        let mut t_sids: Vec<Option<String>> = Vec::new();
+        for (i, f) in frontiers.iter().enumerate() {
+            if let Some(oid) = f {
+                t_ci.push(Some(i as i64 + 1));
+                t_ois.push(Some(oid.clone()));
+                t_sids.push(Some(sids[i].clone()));
+            }
+        }
+
+        let mut results: Vec<Option<bool>> = vec![Some(false); n];
+
+        if !t_ci.is_empty() {
+            let term_rels_param: Vec<Option<String>> =
+                term_rels.iter().map(|r| Some(r.clone())).collect();
+
+            let term_rows: Vec<Option<i64>> = client
+                .select(
+                    "SELECT f.idx \
+                     FROM unnest($1::bigint[], $2::text[], $3::text[]) \
+                          AS f(idx, obj_id, target_sid) \
+                     JOIN auth.authz_relations r \
+                       ON r.object_type      = $4 \
+                      AND r.object_id        = f.obj_id \
+                      AND r.relation         = ANY($5::text[]) \
+                      AND r.subject_set_type IS NULL \
+                      AND r.subject_id       = f.target_sid",
+                    None,
+                    &[
+                        t_ci.into(),
+                        t_ois.into(),
+                        t_sids.into(),
+                        terminal_type.clone().into(),
+                        term_rels_param.into(),
+                    ],
+                )?
+                .into_iter()
+                .map(|row| -> Result<_, spi::Error> { row.get::<i64>(1) })
+                .collect::<Result<_, _>>()?;
+
+            for idx_opt in term_rows {
+                let idx = (idx_opt.unwrap_or(1) - 1) as usize;
+                results[idx] = Some(true);
+            }
+        }
+
+        Ok::<_, spi::Error>(results)
+    }) {
+        Ok(r) => r,
+        Err(e) => pgrx::error!("authz_check_path_batch: {e}"),
+    }
+}

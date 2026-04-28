@@ -131,6 +131,79 @@ only direct subjects are matched. Use authz_check if you need group expansion.
 Example: check if user U owns folder F that document D links to —
   authz_check_path(U, ARRAY[''folder'', ''owner''], ARRAY[''document'', ''folder''], D)';
 
+CREATE FUNCTION auth.authz_check_path(
+    p_subject_id         text,
+    p_relation_prefix    text[],
+    p_object_type_path   text[],
+    p_terminal_relations text[],
+    p_object_id          text
+) RETURNS boolean
+    LANGUAGE sql PARALLEL SAFE STABLE
+AS $$
+    WITH RECURSIVE path_check AS (
+        SELECT subject_id, subject_set_type, subject_set_relation, 1 AS depth
+          FROM auth.authz_relations
+         WHERE object_type      = p_object_type_path[1]
+           AND object_id        = p_object_id
+           AND relation         = p_relation_prefix[1]
+           AND subject_set_type IS NULL
+        UNION ALL
+        SELECT rt.subject_id, rt.subject_set_type, rt.subject_set_relation, pc.depth + 1
+          FROM auth.authz_relations rt
+          JOIN path_check pc ON rt.object_id = pc.subject_id
+         WHERE rt.object_type      = p_object_type_path[pc.depth + 1]
+           AND rt.subject_set_type IS NULL
+           AND pc.depth <= array_length(p_relation_prefix, 1)
+           AND CASE
+               WHEN pc.depth < array_length(p_relation_prefix, 1)
+               THEN rt.relation = p_relation_prefix[pc.depth + 1]
+               ELSE rt.relation = ANY(p_terminal_relations)
+               END
+    )
+    CYCLE subject_id SET is_cycle USING cycle_path
+    SELECT EXISTS (
+        SELECT 1 FROM path_check
+         WHERE subject_id = p_subject_id
+           AND depth      = array_length(p_relation_prefix, 1) + 1
+           AND NOT is_cycle
+    )
+$$;
+
+COMMENT ON FUNCTION auth.authz_check_path(text, text[], text[], text[], text) IS
+'Multi-hop hierarchy check — any-of-terminal-relations variant.
+
+Same traversal as authz_check_path(text, text[], text[], text) but accepts an
+array of accepted relations at the final hop instead of embedding one relation
+per call. Use this when checking a permission that maps to multiple roles
+(e.g. read = [viewer, editor, owner]) to collapse N calls into 1.
+
+Example: check if user U holds any of owner/editor/viewer on the folder that
+document D links to —
+  authz_check_path(U, ARRAY[''folder''], ARRAY[''document'',''folder''],
+                   ARRAY[''owner'',''editor'',''viewer''], D)';
+
+CREATE FUNCTION auth.authz_check_path_batch(
+    subject_ids          text[],
+    relation_prefix      text[],
+    object_type_path     text[],
+    terminal_relations   text[],
+    object_ids           text[]
+) RETURNS boolean[]
+    LANGUAGE c STABLE STRICT
+    AS 'authz_extension', 'authz_check_path_batch_wrapper';
+
+COMMENT ON FUNCTION auth.authz_check_path_batch(text[], text[], text[], text[], text[]) IS
+'Parallel hierarchy batch check.
+
+Accepts N parallel (subject_ids, object_ids) pairs, all sharing the same path
+structure (relation_prefix, object_type_path, terminal_relations), and returns a
+boolean[] in the same order.
+
+All N checks are evaluated simultaneously — one SQL query per path hop — so
+total queries = hops + 1 regardless of N.
+
+Used by: POST /v1/authz/checks for MultiHop (hierarchy) permission checks.';
+
 CREATE FUNCTION auth.authz_check_batch(
     subject_ids  text[],
     relations    text[],
