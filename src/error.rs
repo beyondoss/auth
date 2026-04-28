@@ -229,7 +229,7 @@ impl IntoResponse for AuthError {
             AuthError::OAuthError { .. } => {
                 (StatusCode::BAD_REQUEST, "oauth_error", self.to_string())
             }
-            AuthError::MfaError { .. } => (StatusCode::BAD_REQUEST, "mfa_error", self.to_string()),
+            AuthError::MfaError { .. } => (StatusCode::UNAUTHORIZED, "mfa_error", self.to_string()),
             AuthError::AdminRequired => {
                 (StatusCode::UNAUTHORIZED, "admin_required", self.to_string())
             }

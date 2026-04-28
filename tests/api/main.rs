@@ -1,5 +1,11 @@
 mod authz;
+mod emails;
 mod healthz;
 mod helpers;
+mod identities;
+mod magic_link;
 mod orgs;
+mod password_reset;
+mod sessions;
+mod totp;
 mod users;

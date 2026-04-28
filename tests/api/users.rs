@@ -1,4 +1,4 @@
-use crate::helpers::{TestClient, db_conn, login, signup, unique_email};
+use crate::helpers::{TestClient, db_conn, signup, unique_email};
 
 /// Full-chain example: signup → authenticated request → typed response → DB verification.
 /// This test doubles as a harness smoke test — it exercises every helper in sequence.

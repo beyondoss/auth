@@ -155,7 +155,9 @@ pub async fn update(
         return Err(AuthError::NotFound);
     };
 
-    passwords::verify(&req.current_password, &current_hash)?;
+    if !passwords::verify(&req.current_password, &current_hash)? {
+        return Err(AuthError::InvalidCredentials);
+    }
     let new_hash = passwords::hash(&req.new_password)?;
 
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;

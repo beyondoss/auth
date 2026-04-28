@@ -318,3 +318,45 @@ pub async fn login(email: &str, password: &str) -> beyond_auth::AuthResponse {
         .assert_status(201)
         .json::<beyond_auth::AuthResponse>()
 }
+
+// ── TOTP helpers ──────────────────────────────────────────────────────────────
+
+/// Returned by `enroll_totp` — the fields tests actually need.
+#[derive(serde::Deserialize)]
+pub struct TotpEnrollment {
+    pub secret_b32: String,
+    pub recovery_codes: Vec<String>,
+}
+
+/// Enroll TOTP for a user: begins enrollment, generates the current code, confirms it.
+///
+/// Panics if any step fails — test setup errors should be loud.
+pub async fn enroll_totp(bearer: &str) -> TotpEnrollment {
+    let client = TestClient::new().bearer(bearer);
+
+    let enrollment = client
+        .post("/v1/totp", &serde_json::json!({}))
+        .await
+        .assert_status(200)
+        .json::<TotpEnrollment>();
+
+    let code = totp_now(&enrollment.secret_b32);
+    client
+        .post("/v1/totp/confirmations", &serde_json::json!({ "code": code }))
+        .await
+        .assert_status(204);
+
+    enrollment
+}
+
+/// Generate the current 6-digit TOTP code from a base32-encoded secret.
+pub fn totp_now(secret_b32: &str) -> String {
+    use totp_rs::{Algorithm, Secret, TOTP};
+    let bytes = Secret::Encoded(secret_b32.to_string())
+        .to_bytes()
+        .expect("valid base32 TOTP secret");
+    TOTP::new(Algorithm::SHA1, 6, 1, 30, bytes, None, String::new())
+        .expect("valid TOTP config")
+        .generate_current()
+        .expect("system time available")
+}
