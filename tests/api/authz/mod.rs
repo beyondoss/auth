@@ -86,7 +86,7 @@
 //! [x] batch_check_no_auth_with_session_check_returns_401
 //! [x] batch_check_unknown_permission_returns_422
 //!
-//! ### expansions.rs — GET /v1/authz/expansions
+//! ### subjects.rs — GET /v1/authz/subjects
 //! [x] expand_object_with_direct_subjects
 //! [x] expand_object_with_no_relations_returns_empty
 //! [x] expand_via_subject_set_one_hop
@@ -94,7 +94,7 @@
 //! [x] expand_only_requested_relation_returned          (other relations on same object not included)
 //! [x] expand_cycle_terminates_safely
 //!
-//! ### lookups.rs — GET /v1/authz/lookups
+//! ### objects.rs — GET /v1/authz/objects
 //! [x] lookup_direct_grants_returned
 //! [x] lookup_no_grants_returns_empty
 //! [x] lookup_via_subject_set
@@ -118,10 +118,10 @@
 //! [x] cache_check_true_then_delete_then_check_false
 
 pub mod decisions;
-pub mod expansions;
-pub mod lookups;
+pub mod objects;
 pub mod relations;
 pub mod schema;
+pub mod subjects;
 pub mod traces;
 
 // ── Shared fixtures ────────────────────────────────────────────────────────────
@@ -240,18 +240,18 @@ pub struct BatchDecisionResponse {
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct ExpandResponse {
-    pub subjects: Vec<ExpandSubject>,
+pub struct SubjectsResponse {
+    pub subjects: Vec<Subject>,
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct ExpandSubject {
+pub struct Subject {
     pub id: String,
     pub relation: String,
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct LookupResponse {
+pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
     pub next_cursor: Option<String>,
 }
@@ -259,7 +259,7 @@ pub struct LookupResponse {
 #[derive(serde::Deserialize, Debug)]
 pub struct TraceResponse {
     pub allowed: bool,
-    pub subjects: Vec<ExpandSubject>,
+    pub subjects: Vec<Subject>,
 }
 
 #[derive(serde::Deserialize, Debug)]

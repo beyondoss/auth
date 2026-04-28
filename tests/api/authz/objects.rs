@@ -46,22 +46,22 @@ async fn fresh_user() -> (String, String) {
     (auth.session.token, auth.user.id.to_string())
 }
 
-async fn lookup(
+async fn list_objects(
     token: &str,
     user_param: Option<&str>,
     permission: &str,
     resource_type: &str,
     extra: &str,
-) -> LookupResponse {
+) -> ObjectsResponse {
     let user_part = user_param.map(|u| format!("&user={u}")).unwrap_or_default();
     TestClient::new()
         .bearer(token)
         .get(&format!(
-            "/v1/authz/lookups?permission={permission}&resource_type={resource_type}{user_part}{extra}"
+            "/v1/authz/objects?permission={permission}&resource_type={resource_type}{user_part}{extra}"
         ))
         .await
         .assert_status(200)
-        .json::<LookupResponse>()
+        .json::<ObjectsResponse>()
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ async fn lookup_direct_grants_returned() {
     write("document", &doc_a, "viewer", &user_id).await;
     write("document", &doc_b, "editor", &user_id).await;
 
-    let res = lookup(&token, None, "read", "document", "").await;
+    let res = list_objects(&token, None, "read", "document", "").await;
     assert!(res.object_ids.contains(&doc_a));
     assert!(res.object_ids.contains(&doc_b));
 }
@@ -85,7 +85,7 @@ async fn lookup_direct_grants_returned() {
 async fn lookup_no_grants_returns_empty() {
     let _guard = with_schema().await;
     let (token, _) = fresh_user().await;
-    let res = lookup(&token, None, "read", "document", "").await;
+    let res = list_objects(&token, None, "read", "document", "").await;
     assert!(res.object_ids.is_empty());
 }
 
@@ -99,7 +99,7 @@ async fn lookup_via_subject_set() {
     write_set("document", &doc, "viewer", &group, "group", "member").await;
     write("group", &group, "member", &user_id).await;
 
-    let res = lookup(&token, None, "read", "document", "").await;
+    let res = list_objects(&token, None, "read", "document", "").await;
     assert!(res.object_ids.contains(&doc));
 }
 
@@ -115,7 +115,7 @@ async fn lookup_via_parent_hierarchy() {
     write("document", &doc, "folder", &folder).await;
     write("folder", &folder, "owner", &user_id).await;
 
-    let res = lookup(&token, None, "read", "document", "").await;
+    let res = list_objects(&token, None, "read", "document", "").await;
     assert!(res.object_ids.contains(&doc));
 }
 
@@ -129,7 +129,7 @@ async fn lookup_role_hierarchy_expands() {
     let doc = uid();
     write("document", &doc, "owner", &user_id).await;
 
-    let res = lookup(&token, None, "read", "document", "").await;
+    let res = list_objects(&token, None, "read", "document", "").await;
     assert!(res.object_ids.contains(&doc));
 }
 
@@ -143,7 +143,7 @@ async fn lookup_pagination_limit_and_cursor() {
         write("document", &uid(), "viewer", &user_id).await;
     }
 
-    let res = lookup(&token, None, "read", "document", "&limit=2").await;
+    let res = list_objects(&token, None, "read", "document", "&limit=2").await;
     assert_eq!(res.object_ids.len(), 2);
     assert!(
         res.next_cursor.is_some(),
@@ -163,11 +163,11 @@ async fn lookup_cursor_page_two() {
         write("document", doc, "viewer", &user_id).await;
     }
 
-    let page1 = lookup(&token, None, "read", "document", "&limit=2").await;
+    let page1 = list_objects(&token, None, "read", "document", "&limit=2").await;
     assert_eq!(page1.object_ids.len(), 2);
     let cursor = page1.next_cursor.expect("page 1 must have a cursor");
 
-    let page2 = lookup(
+    let page2 = list_objects(
         &token,
         None,
         "read",
@@ -205,7 +205,7 @@ async fn lookup_via_subject_set_and_parent_hierarchy() {
     write_set("folder", &folder, "owner", &group, "group", "member").await;
     write("group", &group, "member", &user_id).await;
 
-    let res = lookup(&token, None, "read", "document", "").await;
+    let res = list_objects(&token, None, "read", "document", "").await;
     assert!(res.object_ids.contains(&doc));
 }
 
@@ -216,7 +216,7 @@ async fn lookup_unknown_permission_returns_422() {
     let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
     TestClient::new()
         .bearer(&auth.session.token)
-        .get("/v1/authz/lookups?permission=fly&resource_type=document")
+        .get("/v1/authz/objects?permission=fly&resource_type=document")
         .await
         .assert_status(422);
 }
@@ -228,7 +228,7 @@ async fn lookup_unknown_resource_type_returns_422() {
     let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
     TestClient::new()
         .bearer(&auth.session.token)
-        .get("/v1/authz/lookups?permission=read&resource_type=nonexistent")
+        .get("/v1/authz/objects?permission=read&resource_type=nonexistent")
         .await
         .assert_status(422);
 }

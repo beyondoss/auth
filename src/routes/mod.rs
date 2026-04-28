@@ -109,8 +109,8 @@ impl utoipa::Modify for BearerAuth {
         authz::batch_relations,
         authz::get_schema,
         authz::put_schema,
-        authz::expand_relation,
-        authz::lookup_objects,
+        authz::list_subjects,
+        authz::list_objects,
         authz::why_check,
 
     ),
@@ -164,9 +164,9 @@ impl utoipa::Modify for BearerAuth {
         authz::RelationSubject,
         authz::BatchRequest,
         authz::BatchResponse,
-        authz::ExpandResponse,
-        authz::ExpandSubject,
-        authz::LookupResponse,
+        authz::SubjectsResponse,
+        authz::Subject,
+        authz::ObjectsResponse,
         authz::TraceResponse,
         crate::authz::schema::AuthzSchema,
         crate::authz::schema::ResourceDef,
@@ -224,7 +224,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/authz/schema",
             get(authz::get_schema).put(authz::put_schema),
         )
-        .route("/v1/authz/expansions", get(authz::expand_relation))
+        .route("/v1/authz/subjects", get(authz::list_subjects))
         .route("/v1/authz/traces", get(authz::why_check))
         .route_layer(axum_middleware::from_fn_with_state(
             state.clone(),
@@ -314,7 +314,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/passkeys/{id}",
             patch(passkeys::update_credential).delete(passkeys::delete_credential),
         )
-        .route("/v1/authz/lookups", get(authz::lookup_objects))
+        .route("/v1/authz/objects", get(authz::list_objects))
         // Org management
         .route("/v1/orgs", get(orgs::list_orgs).post(orgs::create_org))
         .route(

@@ -97,25 +97,25 @@ pub struct BatchDecisionResponse {
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct ExpandQuery {
+pub struct SubjectsQuery {
     pub object_type: String,
     pub object_id: String,
     pub relation: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct ExpandResponse {
-    pub subjects: Vec<ExpandSubject>,
+pub struct SubjectsResponse {
+    pub subjects: Vec<Subject>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct ExpandSubject {
+pub struct Subject {
     pub id: String,
     pub relation: String,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct LookupQuery {
+pub struct ObjectsQuery {
     pub user: Option<String>,
     pub permission: String,
     pub resource_type: String,
@@ -129,7 +129,7 @@ fn default_limit() -> i64 {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct LookupResponse {
+pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
     pub next_cursor: Option<String>,
 }
@@ -145,7 +145,7 @@ pub struct TraceQuery {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TraceResponse {
     pub allowed: bool,
-    pub subjects: Vec<ExpandSubject>,
+    pub subjects: Vec<Subject>,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -598,22 +598,22 @@ pub async fn put_schema(
     Ok(Json(req))
 }
 
-/// Expand a relation: return all subjects who hold the given relation on the object.
+/// List all subjects who hold the given relation on an object.
 /// Resolves subject sets recursively.
 #[utoipa::path(
     get,
-    path = "/v1/authz/expansions",
+    path = "/v1/authz/subjects",
     tag = "authz",
-    params(ExpandQuery),
+    params(SubjectsQuery),
     responses(
-        (status = 200, body = ExpandResponse),
+        (status = 200, body = SubjectsResponse),
         (status = 400, description = "Authz not enabled", body = crate::error::ErrorResponse),
     )
 )]
-pub async fn expand_relation(
+pub async fn list_subjects(
     State(state): State<AppState>,
-    Query(params): Query<ExpandQuery>,
-) -> Result<Json<ExpandResponse>, AuthError> {
+    Query(params): Query<SubjectsQuery>,
+) -> Result<Json<SubjectsResponse>, AuthError> {
     let _ = {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
@@ -627,12 +627,12 @@ pub async fn expand_relation(
     .await?;
     let subjects = rows
         .into_iter()
-        .map(|r| ExpandSubject {
+        .map(|r| Subject {
             id: r.subject_id,
             relation: r.relation,
         })
         .collect();
-    Ok(Json(ExpandResponse { subjects }))
+    Ok(Json(SubjectsResponse { subjects }))
 }
 
 /// List all objects of the given type that the current user (or an explicit user)
@@ -640,21 +640,21 @@ pub async fn expand_relation(
 /// assignments and access granted via parent hierarchy.
 #[utoipa::path(
     get,
-    path = "/v1/authz/lookups",
+    path = "/v1/authz/objects",
     tag = "authz",
     security(("BearerAuth" = [])),
-    params(LookupQuery),
+    params(ObjectsQuery),
     responses(
-        (status = 200, body = LookupResponse),
+        (status = 200, body = ObjectsResponse),
         (status = 400, description = "Authz not enabled",           body = crate::error::ErrorResponse),
         (status = 422, description = "Unknown resource/permission", body = crate::error::ErrorResponse),
     )
 )]
-pub async fn lookup_objects(
+pub async fn list_objects(
     State(state): State<AppState>,
     axum::Extension(ctx): axum::Extension<SessionContext>,
-    Query(params): Query<LookupQuery>,
-) -> Result<Json<LookupResponse>, AuthError> {
+    Query(params): Query<ObjectsQuery>,
+) -> Result<Json<ObjectsResponse>, AuthError> {
     let schema_guard = state.authz_schema.read().await;
     let schema = schema_guard_to_compiled(&schema_guard)?;
 
@@ -740,7 +740,7 @@ pub async fn lookup_objects(
         None
     };
 
-    Ok(Json(LookupResponse {
+    Ok(Json(ObjectsResponse {
         object_ids,
         next_cursor,
     }))
@@ -802,7 +802,7 @@ pub async fn why_check(
     let allowed = rows.iter().any(|r| r.subject_id == params.user);
     let subjects = rows
         .into_iter()
-        .map(|r| ExpandSubject {
+        .map(|r| Subject {
             id: r.subject_id,
             relation: r.relation,
         })
