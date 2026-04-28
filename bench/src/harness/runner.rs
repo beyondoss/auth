@@ -134,7 +134,7 @@ async fn run_level(
         let combined = combined.clone();
         let errors = errors.clone();
         let scenario = scenario.clone();
-        let worker_seed = seed.wrapping_add(worker_id as u64 * 0x9E37_79B9_7F4A_7C15);
+        let worker_seed = seed.wrapping_add((worker_id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
         handles.push(tokio::spawn(async move {
             let mut local_hist = new_histogram();
             let mut local_errs = 0u64;

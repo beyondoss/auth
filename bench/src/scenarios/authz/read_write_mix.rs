@@ -50,8 +50,8 @@ impl Scenario for ReadWriteMix {
             // ON CONFLICT no-ops blunting the trigger.
             let n: u64 = ctx.rng.r#gen();
             sqlx::query(
-                "INSERT INTO auth.relation_tuple
-                    (object_type, object_id, relation, subject_id, subject_type, subject_relation)
+                "INSERT INTO auth.authz_relations
+                    (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
                  VALUES ('rwm_doc', $1, 'viewer', $2, NULL, NULL)
                  ON CONFLICT DO NOTHING",
             )

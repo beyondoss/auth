@@ -12,6 +12,10 @@ description = "Beyond authentication and authorization service"
 name = "beyond-auth"
 path = "src/main.rs"
 
+[lib]
+name = "beyond_auth"
+path = "src/lib.rs"
+
 [dependencies]
 aes-gcm = "0.10"
 anyhow = "1"

@@ -45,7 +45,7 @@ pub struct ChainCorpus {
 /// Truncate relation tuples. Use only when a scenario genuinely needs a clean
 /// slate (scale_sweep resets its own prefixed object_type rows directly).
 pub async fn reset(pool: &PgPool) -> Result<()> {
-    sqlx::query("TRUNCATE auth.relation_tuple")
+    sqlx::query("TRUNCATE auth.authz_relations")
         .execute(pool)
         .await?;
     Ok(())
@@ -56,7 +56,7 @@ pub async fn reset(pool: &PgPool) -> Result<()> {
 /// chain corpora since chain rows use object_type `head`/`link_N`.
 pub async fn seed_flat(pool: &PgPool, c: &FlatCorpus) -> Result<()> {
     let existing: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::bigint FROM auth.relation_tuple WHERE object_type = 'document'",
+        "SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = 'document'",
     )
     .fetch_one(pool)
     .await?;
@@ -133,7 +133,7 @@ pub async fn seed_chain(pool: &PgPool, c: &ChainCorpus) -> Result<()> {
     assert!(c.depth >= 1, "depth must be >= 1");
     let prefix = format!("h{}_", c.depth);
     let existing: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::bigint FROM auth.relation_tuple WHERE object_type = 'head' AND object_id LIKE $1",
+        "SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = 'head' AND object_id LIKE $1",
     )
     .bind(format!("{prefix}%"))
     .fetch_one(pool)
@@ -213,8 +213,8 @@ struct TupleBuf {
     object_id: Vec<String>,
     relation: Vec<String>,
     subject_id: Vec<String>,
-    subject_type: Vec<Option<String>>,
-    subject_relation: Vec<Option<String>>,
+    subject_set_type: Vec<Option<String>>,
+    subject_set_relation: Vec<Option<String>>,
 }
 
 const BATCH_SIZE: usize = 5_000;
@@ -226,8 +226,8 @@ impl TupleBuf {
             object_id: Vec::new(),
             relation: Vec::new(),
             subject_id: Vec::new(),
-            subject_type: Vec::new(),
-            subject_relation: Vec::new(),
+            subject_set_type: Vec::new(),
+            subject_set_relation: Vec::new(),
         }
     }
 
@@ -237,16 +237,17 @@ impl TupleBuf {
         object_id: &str,
         relation: &str,
         subject_id: &str,
-        subject_type: Option<&str>,
-        subject_relation: Option<&str>,
+        subject_set_type: Option<&str>,
+        subject_set_relation: Option<&str>,
     ) {
         self.object_type.push(object_type.to_string());
         self.object_id.push(object_id.to_string());
         self.relation.push(relation.to_string());
         self.subject_id.push(subject_id.to_string());
-        self.subject_type.push(subject_type.map(str::to_string));
-        self.subject_relation
-            .push(subject_relation.map(str::to_string));
+        self.subject_set_type
+            .push(subject_set_type.map(str::to_string));
+        self.subject_set_relation
+            .push(subject_set_relation.map(str::to_string));
     }
 
     async fn flush(self, pool: &PgPool) -> Result<()> {
@@ -259,13 +260,13 @@ impl TupleBuf {
             let r = &self.relation[start..end];
             let si = &self.subject_id[start..end];
             // For nullable arrays, sqlx requires Vec<Option<String>>; convert slice.
-            let st: Vec<Option<String>> = self.subject_type[start..end].to_vec();
-            let sr: Vec<Option<String>> = self.subject_relation[start..end].to_vec();
+            let st: Vec<Option<String>> = self.subject_set_type[start..end].to_vec();
+            let sr: Vec<Option<String>> = self.subject_set_relation[start..end].to_vec();
 
             sqlx::query(
                 r#"
-                INSERT INTO auth.relation_tuple
-                    (object_type, object_id, relation, subject_id, subject_type, subject_relation)
+                INSERT INTO auth.authz_relations
+                    (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
                 SELECT * FROM UNNEST(
                     $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
                 )

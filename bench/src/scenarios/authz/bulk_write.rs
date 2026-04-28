@@ -32,7 +32,7 @@ impl Scenario for BulkWrite {
         // Clear only the "doc" rows written by bulk_write so each batch-size
         // variant starts against a small table. Leaves the shared flat/chain/
         // scale_sweep corpus untouched.
-        sqlx::query("DELETE FROM auth.relation_tuple WHERE object_type = 'doc'")
+        sqlx::query("DELETE FROM auth.authz_relations WHERE object_type = 'bw_doc'")
             .execute(pool)
             .await?;
         Ok(())
@@ -43,25 +43,25 @@ impl Scenario for BulkWrite {
         let mut object_id = Vec::with_capacity(self.batch_size);
         let mut relation = Vec::with_capacity(self.batch_size);
         let mut subject_id = Vec::with_capacity(self.batch_size);
-        let mut subject_type: Vec<Option<String>> = Vec::with_capacity(self.batch_size);
-        let mut subject_relation: Vec<Option<String>> = Vec::with_capacity(self.batch_size);
+        let mut subject_set_type: Vec<Option<String>> = Vec::with_capacity(self.batch_size);
+        let mut subject_set_relation: Vec<Option<String>> = Vec::with_capacity(self.batch_size);
 
         // Use unique IDs per call to avoid ON CONFLICT no-op blunting the measurement.
         // Worker-id + monotonic counter via rng yields enough uniqueness for the run.
         for _ in 0..self.batch_size {
             let n: u64 = ctx.rng.r#gen();
-            object_type.push("doc".to_string());
+            object_type.push("bw_doc".to_string());
             object_id.push(format!("w{}_{}", ctx.worker_id, n));
             relation.push("viewer".to_string());
             subject_id.push(format!("u_{}", n & 0xFFFF));
-            subject_type.push(None);
-            subject_relation.push(None);
+            subject_set_type.push(None);
+            subject_set_relation.push(None);
         }
 
         sqlx::query(
             r#"
-            INSERT INTO auth.relation_tuple
-                (object_type, object_id, relation, subject_id, subject_type, subject_relation)
+            INSERT INTO auth.authz_relations
+                (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
             SELECT * FROM UNNEST(
                 $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
             )
@@ -72,8 +72,8 @@ impl Scenario for BulkWrite {
         .bind(&object_id)
         .bind(&relation)
         .bind(&subject_id)
-        .bind(&subject_type)
-        .bind(&subject_relation)
+        .bind(&subject_set_type)
+        .bind(&subject_set_relation)
         .execute(ctx.pool)
         .await?;
         Ok(())

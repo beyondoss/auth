@@ -159,11 +159,11 @@ pub async fn check_with_session(
     let sql = format!(
         r#"
         WITH valid_token AS (
-            SELECT token.id AS token_id
+            SELECT tokens.id AS token_id
             FROM auth.tokens
-            WHERE token.id      = $1
-              AND token.secret  = $2
-              AND token.expires_at > now()
+            WHERE tokens.id      = $1
+              AND tokens.secret  = $2
+              AND tokens.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (
@@ -204,11 +204,11 @@ pub async fn resolve_session(
 ) -> Result<Option<String>, AuthError> {
     let sql = r#"
         WITH valid_token AS (
-            SELECT token.id AS token_id
+            SELECT tokens.id AS token_id
             FROM auth.tokens
-            WHERE token.id      = $1
-              AND token.secret  = $2
-              AND token.expires_at > now()
+            WHERE tokens.id      = $1
+              AND tokens.secret  = $2
+              AND tokens.expires_at > now()
             LIMIT 1
         ),
         update_attempt AS (

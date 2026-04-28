@@ -56,7 +56,7 @@ impl Scenario for ScaleSweep {
         // skip seeding entirely. Otherwise seed fresh (after wiping any partial
         // prior state for this prefix only — no global truncate).
         let existing: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*)::bigint FROM auth.relation_tuple WHERE object_type = $1",
+            "SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = $1",
         )
         .bind(&self.object_type)
         .fetch_one(pool)
@@ -64,7 +64,7 @@ impl Scenario for ScaleSweep {
         if existing.0 as usize >= self.n_tuples {
             return Ok(());
         }
-        sqlx::query("DELETE FROM auth.relation_tuple WHERE object_type = $1")
+        sqlx::query("DELETE FROM auth.authz_relations WHERE object_type = $1")
             .bind(&self.object_type)
             .execute(pool)
             .await?;
@@ -77,8 +77,8 @@ impl Scenario for ScaleSweep {
         let mut object_id: Vec<String> = Vec::with_capacity(BATCH);
         let mut subject_id: Vec<String> = Vec::with_capacity(BATCH);
         let mut relation: Vec<String> = Vec::with_capacity(BATCH);
-        let mut subject_type: Vec<Option<String>> = Vec::with_capacity(BATCH);
-        let mut subject_relation: Vec<Option<String>> = Vec::with_capacity(BATCH);
+        let mut subject_set_type: Vec<Option<String>> = Vec::with_capacity(BATCH);
+        let mut subject_set_relation: Vec<Option<String>> = Vec::with_capacity(BATCH);
         let mut object_type_v: Vec<String> = Vec::with_capacity(BATCH);
 
         // user pool sized as sqrt(n_tuples), bounded — keeps Zipf head meaningful
@@ -89,8 +89,8 @@ impl Scenario for ScaleSweep {
             object_id.clear();
             subject_id.clear();
             relation.clear();
-            subject_type.clear();
-            subject_relation.clear();
+            subject_set_type.clear();
+            subject_set_relation.clear();
             object_type_v.clear();
             let take = BATCH.min(self.n_tuples - written);
             for k in 0..take {
@@ -105,13 +105,13 @@ impl Scenario for ScaleSweep {
                 object_id.push(format!("d_{i}"));
                 relation.push(rel.to_string());
                 subject_id.push(format!("u_{u}"));
-                subject_type.push(None);
-                subject_relation.push(None);
+                subject_set_type.push(None);
+                subject_set_relation.push(None);
             }
             sqlx::query(
                 r#"
-                INSERT INTO auth.relation_tuple
-                    (object_type, object_id, relation, subject_id, subject_type, subject_relation)
+                INSERT INTO auth.authz_relations
+                    (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
                 SELECT * FROM UNNEST(
                     $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
                 )
@@ -122,8 +122,8 @@ impl Scenario for ScaleSweep {
             .bind(&object_id)
             .bind(&relation)
             .bind(&subject_id)
-            .bind(&subject_type)
-            .bind(&subject_relation)
+            .bind(&subject_set_type)
+            .bind(&subject_set_relation)
             .execute(pool)
             .await?;
             written += take;

@@ -4,6 +4,7 @@ use crate::harness::Scenario;
 
 pub mod authz;
 pub mod baseline;
+pub mod http;
 
 pub fn all() -> Vec<Arc<dyn Scenario>> {
     let mut v = Vec::new();

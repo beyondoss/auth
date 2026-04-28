@@ -232,8 +232,24 @@ async fn run_set(
         .await
         .context("failed to seed shared corpus")?;
 
+    eprintln!("[bench] starting auth service (in-process)");
+    let bench_server = beyond_auth::test_server::start(pool.clone())
+        .await
+        .context("failed to start bench server")?;
+    eprintln!("[bench] auth service at {}", bench_server.url);
+
+    let http_scenarios: Vec<std::sync::Arc<dyn bench::harness::Scenario>> = vec![
+        std::sync::Arc::new(bench::scenarios::http::warm_check::WarmCheck::new(
+            &bench_server,
+        )),
+        std::sync::Arc::new(bench::scenarios::http::cold_check::ColdCheck::new(
+            &bench_server,
+        )),
+    ];
+    let all_scenarios: Vec<_> = scenarios.iter().cloned().chain(http_scenarios).collect();
+
     let mut reports: Vec<ScenarioReport> = Vec::new();
-    for scenario in scenarios {
+    for scenario in &all_scenarios {
         let r = run_scenario(scenario.clone(), &pool, cfg).await?;
         reports.push(r);
     }

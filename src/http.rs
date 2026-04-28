@@ -76,6 +76,12 @@ pub async fn serve(bind_addr: &str, state: AppState) -> Result<()> {
     Ok(())
 }
 
+pub async fn serve_with_listener(listener: tokio::net::TcpListener, state: AppState) -> Result<()> {
+    let app = router(state);
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
 fn router(state: AppState) -> Router {
     let openapi = ApiDoc::openapi();
 
