@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -177,6 +177,21 @@ async fn main() -> Result<()> {
     }
 }
 
+// pkglibdir inside postgres:18 (`pg_config --pkglibdir`)
+const CONTAINER_LIBDIR: &str = "/usr/lib/postgresql/18/lib";
+
+/// Find a pre-built Linux `.so` for the authz_extension across common cross-compilation targets.
+/// Returns the first path that exists, or None if none are present.
+fn find_extension_so() -> Option<PathBuf> {
+    let candidates: &[&str] = &[
+        // ARM64 Linux GNU (M-series Mac → postgres:18 on ARM)
+        "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
+        // x86_64 Linux GNU (Intel Mac → postgres:18 on x86)
+        "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
+    ];
+    candidates.iter().map(PathBuf::from).find(|p| p.exists())
+}
+
 async fn run_set(
     scenarios: &[std::sync::Arc<dyn bench::harness::Scenario>],
     cfg: &RunConfig,
@@ -184,17 +199,35 @@ async fn run_set(
     shared_buffers: Option<&str>,
 ) -> Result<()> {
     let sb = shared_buffers.unwrap_or("128MB");
-    eprintln!("[bench] starting postgres testcontainer (postgres:18-alpine, shared_buffers={sb})");
-    let container = Postgres::default()
-        .with_tag("18-alpine")
-        .with_cmd([
-            "-c",
-            "fsync=off",
-            "-c",
-            &format!("shared_buffers={sb}"),
-            "-c",
-            &format!("effective_cache_size={sb}"),
-        ])
+
+    let so_path = find_extension_so();
+    if let Some(ref p) = so_path {
+        eprintln!("[bench] found extension library: {}", p.display());
+    } else {
+        eprintln!(
+            "[bench] no pre-built Linux authz_extension .so found; \
+             migration 0006 will fall back to PL/pgSQL (baseline run). \
+             Run `mise run extension:build:linux` then re-run for the treatment."
+        );
+    }
+
+    eprintln!("[bench] starting postgres testcontainer (postgres:18, shared_buffers={sb})");
+    let pg = Postgres::default().with_tag("18").with_cmd([
+        "-c",
+        "fsync=off",
+        "-c",
+        &format!("shared_buffers={sb}"),
+        "-c",
+        &format!("effective_cache_size={sb}"),
+    ]);
+    let pg = match so_path.as_deref() {
+        Some(p) => pg.with_copy_to(
+            format!("{CONTAINER_LIBDIR}/authz_extension.so"),
+            Path::new(p),
+        ),
+        None => pg,
+    };
+    let container = pg
         .start()
         .await
         .context("failed to start postgres container")?;

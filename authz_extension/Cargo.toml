@@ -1,0 +1,16 @@
+[package]
+name = "authz_extension"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["pg17"]
+pg17 = ["pgrx/pg17"]
+pg18 = ["pgrx/pg18"]
+
+[dependencies]
+pgrx = { version = "=0.18.0", default-features = false }

@@ -1,0 +1,10 @@
+FROM ghcr.io/cross-rs/aarch64-unknown-linux-musl:main
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget gnupg2 lsb-release \
+ && echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list \
+ && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
+ && apt-get update && apt-get install -y --no-install-recommends postgresql-server-dev-18 \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PGRX_PG_CONFIG_PATH=/usr/lib/postgresql/18/bin/pg_config

@@ -8,6 +8,7 @@ pub mod corpus;
 pub mod depth_sweep;
 pub mod depth_sweep_cold;
 pub mod early_exit;
+pub mod early_exit_v2;
 pub mod multi_decision_serial;
 pub mod read_write_mix;
 pub mod scale_sweep;
@@ -39,6 +40,8 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(depth_sweep_cold::DepthSweepCold::new(10)),
         Arc::new(early_exit::EarlyExit::new(5)),
         Arc::new(early_exit::EarlyExit::new(10)),
+        Arc::new(early_exit_v2::EarlyExitV2::new(5)),
+        Arc::new(early_exit_v2::EarlyExitV2::new(10)),
         Arc::new(bulk_write::BulkWrite::new(1)),
         Arc::new(bulk_write::BulkWrite::new(10)),
         Arc::new(bulk_write::BulkWrite::new(100)),
