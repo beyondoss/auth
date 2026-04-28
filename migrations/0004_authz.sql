@@ -65,11 +65,17 @@ CREATE INDEX authz_relations_subject_set_idx ON auth.authz_relations (
 
 -- PL/pgSQL BFS implementation. Returns true as soon as p_subject_id is found,
 -- without materializing the full reachable closure. Loses PARALLEL SAFE
--- (irrelevant for point checks) in exchange for early termination on deep graphs.
+-- (irrelevant for point checks; see build_batch_or_chain for the one call site
+-- where it matters, acceptable at current batch sizes) in exchange for early
+-- termination on deep graphs.
 --
--- One DB query per BFS level: the entire frontier is expanded via a single
--- UNNEST join, keeping per-level overhead constant regardless of frontier width.
--- Visited nodes are tracked as text keys ('type\x00id\x00rel') to prevent cycles.
+-- One query per BFS level expands the entire frontier via UNNEST join.
+-- Visited nodes tracked as 'type\x01id\x01rel' keys (chr(1) separator;
+-- assumes object_type/id/relation don't contain chr(1), which the schema
+-- permits but real-world IDs won't violate).
+-- Frontier deduplication via DISTINCT prevents re-expanding the same
+-- subject-set node when multiple current-frontier nodes share a successor.
+-- Visited-set construction uses a single array concat per level (O(k) not O(k²)).
 CREATE OR REPLACE FUNCTION auth.authz_check(
     p_subject_id  text,
     p_relation    text,
@@ -79,17 +85,14 @@ CREATE OR REPLACE FUNCTION auth.authz_check(
     LANGUAGE plpgsql STABLE
 AS $$
 DECLARE
-    -- BFS frontier: parallel arrays of (subject_set_type, subject_id, subject_set_relation)
-    -- for subject-set nodes queued for expansion.
-    v_ft   text[];
-    v_fi   text[];
-    v_fr   text[];
-    v_seen text[] := '{}';
+    v_ft    text[];
+    v_fi    text[];
+    v_fr    text[];
+    v_seen  text[] := '{}';
     v_found bool;
-    v_nft  text[];
-    v_nfi  text[];
-    v_nfr  text[];
-    i      int;
+    v_nft   text[];
+    v_nfi   text[];
+    v_nfr   text[];
 BEGIN
     -- Anchor: direct leaf match exits immediately; subject-set rows seed the frontier.
     SELECT
@@ -106,24 +109,32 @@ BEGIN
     IF v_found THEN RETURN true; END IF;
 
     WHILE v_ft IS NOT NULL LOOP
-        FOR i IN 1 .. cardinality(v_ft) LOOP
-            v_seen := v_seen || (v_ft[i] || chr(1) || v_fi[i] || chr(1) || v_fr[i]);
-        END LOOP;
+        v_seen := v_seen || ARRAY(
+            SELECT ft || chr(1) || fi || chr(1) || fr
+              FROM unnest(v_ft, v_fi, v_fr) AS f(ft, fi, fr)
+        );
 
+        WITH expanded AS (
+            SELECT DISTINCT
+                r.subject_set_type,
+                r.subject_id,
+                r.subject_set_relation,
+                (r.subject_id = p_subject_id AND r.subject_set_type IS NULL) AS is_match
+              FROM auth.authz_relations r
+              JOIN unnest(v_ft, v_fi, v_fr) AS f(ot, oi, rel)
+                ON r.object_type = f.ot
+               AND r.object_id   = f.oi
+               AND r.relation    = f.rel
+             WHERE r.subject_set_type IS NULL
+                OR NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))
+        )
         SELECT
-            bool_or(r.subject_id = p_subject_id AND r.subject_set_type IS NULL),
-            array_agg(r.subject_set_type)     FILTER (WHERE r.subject_set_type IS NOT NULL
-                AND NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))),
-            array_agg(r.subject_id)           FILTER (WHERE r.subject_set_type IS NOT NULL
-                AND NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))),
-            array_agg(r.subject_set_relation) FILTER (WHERE r.subject_set_type IS NOT NULL
-                AND NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen)))
+            bool_or(is_match),
+            array_agg(subject_set_type) FILTER (WHERE subject_set_type IS NOT NULL),
+            array_agg(subject_id)       FILTER (WHERE subject_set_type IS NOT NULL),
+            array_agg(subject_set_relation) FILTER (WHERE subject_set_type IS NOT NULL)
           INTO v_found, v_nft, v_nfi, v_nfr
-          FROM auth.authz_relations r
-          JOIN unnest(v_ft, v_fi, v_fr) AS f(ot, oi, rel)
-            ON r.object_type = f.ot
-           AND r.object_id   = f.oi
-           AND r.relation    = f.rel;
+          FROM expanded;
 
         IF v_found THEN RETURN true; END IF;
 
@@ -145,15 +156,14 @@ CREATE OR REPLACE FUNCTION auth.authz_check(
     LANGUAGE plpgsql STABLE
 AS $$
 DECLARE
-    v_ft   text[];
-    v_fi   text[];
-    v_fr   text[];
-    v_seen text[] := '{}';
+    v_ft    text[];
+    v_fi    text[];
+    v_fr    text[];
+    v_seen  text[] := '{}';
     v_found bool;
-    v_nft  text[];
-    v_nfi  text[];
-    v_nfr  text[];
-    i      int;
+    v_nft   text[];
+    v_nfi   text[];
+    v_nfr   text[];
 BEGIN
     SELECT
         bool_or(subject_id = p_subject_id AND subject_set_type IS NULL),
@@ -169,24 +179,32 @@ BEGIN
     IF v_found THEN RETURN true; END IF;
 
     WHILE v_ft IS NOT NULL LOOP
-        FOR i IN 1 .. cardinality(v_ft) LOOP
-            v_seen := v_seen || (v_ft[i] || chr(1) || v_fi[i] || chr(1) || v_fr[i]);
-        END LOOP;
+        v_seen := v_seen || ARRAY(
+            SELECT ft || chr(1) || fi || chr(1) || fr
+              FROM unnest(v_ft, v_fi, v_fr) AS f(ft, fi, fr)
+        );
 
+        WITH expanded AS (
+            SELECT DISTINCT
+                r.subject_set_type,
+                r.subject_id,
+                r.subject_set_relation,
+                (r.subject_id = p_subject_id AND r.subject_set_type IS NULL) AS is_match
+              FROM auth.authz_relations r
+              JOIN unnest(v_ft, v_fi, v_fr) AS f(ot, oi, rel)
+                ON r.object_type = f.ot
+               AND r.object_id   = f.oi
+               AND r.relation    = f.rel
+             WHERE r.subject_set_type IS NULL
+                OR NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))
+        )
         SELECT
-            bool_or(r.subject_id = p_subject_id AND r.subject_set_type IS NULL),
-            array_agg(r.subject_set_type)     FILTER (WHERE r.subject_set_type IS NOT NULL
-                AND NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))),
-            array_agg(r.subject_id)           FILTER (WHERE r.subject_set_type IS NOT NULL
-                AND NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))),
-            array_agg(r.subject_set_relation) FILTER (WHERE r.subject_set_type IS NOT NULL
-                AND NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen)))
+            bool_or(is_match),
+            array_agg(subject_set_type) FILTER (WHERE subject_set_type IS NOT NULL),
+            array_agg(subject_id)       FILTER (WHERE subject_set_type IS NOT NULL),
+            array_agg(subject_set_relation) FILTER (WHERE subject_set_type IS NOT NULL)
           INTO v_found, v_nft, v_nfi, v_nfr
-          FROM auth.authz_relations r
-          JOIN unnest(v_ft, v_fi, v_fr) AS f(ot, oi, rel)
-            ON r.object_type = f.ot
-           AND r.object_id   = f.oi
-           AND r.relation    = f.rel;
+          FROM expanded;
 
         IF v_found THEN RETURN true; END IF;
 
