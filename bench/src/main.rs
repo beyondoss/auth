@@ -10,8 +10,8 @@ use testcontainers_modules::postgres::Postgres;
 
 use bench::harness::{RunConfig, ScenarioReport, render_compare, render_report, run_scenario};
 use bench::scenarios;
-use bench::scenarios::authz::{CHAIN_DEPTHS, MIXED_NOISE_DEPTHS};
 use bench::scenarios::authz::corpus::{FlatCorpus, seed_all};
+use bench::scenarios::authz::{CHAIN_DEPTHS, MIXED_NOISE_DEPTHS};
 
 #[derive(Parser)]
 #[command(name = "bench", about = "generic benchmark harness")]
@@ -228,9 +228,14 @@ async fn run_set(
     // setups are no-ops or near no-ops; scale_sweep and bulk_write manage
     // their own prefixed data inside their own setups.
     eprintln!("[bench] seeding shared corpus (flat + chain depths + mixed-depth)");
-    seed_all(&pool, &FlatCorpus::default(), CHAIN_DEPTHS, MIXED_NOISE_DEPTHS)
-        .await
-        .context("failed to seed shared corpus")?;
+    seed_all(
+        &pool,
+        &FlatCorpus::default(),
+        CHAIN_DEPTHS,
+        MIXED_NOISE_DEPTHS,
+    )
+    .await
+    .context("failed to seed shared corpus")?;
 
     eprintln!("[bench] starting auth service (in-process)");
     let bench_server = beyond_auth::test_server::start(pool.clone())

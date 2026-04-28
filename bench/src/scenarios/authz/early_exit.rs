@@ -34,9 +34,7 @@ impl EarlyExit {
 #[async_trait]
 impl Scenario for EarlyExit {
     fn name(&self) -> &str {
-        Box::leak(
-            format!("authz::early_exit::noise_{}", self.noise_depth).into_boxed_str(),
-        )
+        Box::leak(format!("authz::early_exit::noise_{}", self.noise_depth).into_boxed_str())
     }
 
     fn question(&self) -> &str {
@@ -50,14 +48,13 @@ impl Scenario for EarlyExit {
     async fn run(&self, ctx: &mut WorkerCtx<'_>) -> Result<()> {
         let i = self.sampler.sample(&mut ctx.rng);
         let d = self.noise_depth;
-        let row: (bool,) =
-            sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], $3, $4)")
-                .bind(format!("ume{d}_{i}"))
-                .bind("link")
-                .bind(format!("me{d}_head"))
-                .bind(format!("me{d}_{i}"))
-                .fetch_one(ctx.pool)
-                .await?;
+        let row: (bool,) = sqlx::query_as("SELECT auth.authz_check($1, ARRAY[$2]::text[], $3, $4)")
+            .bind(format!("ume{d}_{i}"))
+            .bind("link")
+            .bind(format!("me{d}_head"))
+            .bind(format!("me{d}_{i}"))
+            .fetch_one(ctx.pool)
+            .await?;
         let _ = row.0;
         Ok(())
     }

@@ -206,12 +206,11 @@ pub struct MixedDepthCorpus {
 pub async fn seed_mixed_depth(pool: &PgPool, c: &MixedDepthCorpus) -> Result<()> {
     assert!(c.noise_depth >= 1, "noise_depth must be >= 1");
     let head_type = format!("me{}_head", c.noise_depth);
-    let existing: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = $1",
-    )
-    .bind(&head_type)
-    .fetch_one(pool)
-    .await?;
+    let existing: (i64,) =
+        sqlx::query_as("SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = $1")
+            .bind(&head_type)
+            .fetch_one(pool)
+            .await?;
     if existing.0 as usize >= c.n_chains {
         return Ok(());
     }
