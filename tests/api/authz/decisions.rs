@@ -2,6 +2,7 @@ use crate::helpers::{TestClient, signup, unique_email};
 
 use super::*;
 
+
 // ── Local helpers ──────────────────────────────────────────────────────────────
 
 async fn write(obj_type: &str, obj_id: &str, relation: &str, subject_id: &str) {
@@ -307,6 +308,33 @@ async fn check_unknown_permission_returns_422() {
         .assert_status(422);
 }
 
+// ── Batch decisions with parent hierarchy ──────────────────────────────────────
+
+/// [x] batch_check_via_parent_hierarchy
+/// Batch decisions must resolve correctly when a check requires authz_check_path
+/// (MultiHop). This exercises the UNNEST batch path with hierarchy traversal,
+/// confirming the schema-compiler fix covers the batch code path too.
+#[tokio::test]
+async fn batch_check_via_parent_hierarchy() {
+    let _guard = with_schema().await;
+    let (doc1, doc2, folder, user) = (uid(), uid(), uid(), uid());
+    // doc1: user owns the folder (hierarchy grant)
+    write("document", &doc1, "folder", &folder).await;
+    write("folder", &folder, "owner", &user).await;
+    // doc2: no grant at all
+    let req = serde_json::json!({"checks": [
+        {"user": user, "permission": "delete", "resource_type": "document", "resource_id": doc1},
+        {"user": user, "permission": "delete", "resource_type": "document", "resource_id": doc2},
+        {"user": user, "permission": "read",   "resource_type": "document", "resource_id": doc1},
+    ]});
+    let res = TestClient::new()
+        .post("/v1/authz/decisions", &req)
+        .await
+        .assert_status(200)
+        .json::<BatchDecisionResponse>();
+    assert_eq!(res.results, vec![true, false, true]);
+}
+
 // ── Batch decisions — POST /v1/authz/decisions ─────────────────────────────────
 
 /// [x] batch_check_empty_returns_empty_results
@@ -554,5 +582,86 @@ async fn cache_check_true_then_delete_then_check_false() {
     assert!(
         !check(&user, "read", "document", &doc).await,
         "cache must be invalidated after delete"
+    );
+}
+
+// ── Subject-set BFS depth and cycles ──────────────────────────────────────────
+
+/// [x] check_via_subject_set_three_hops
+/// user ∈ team → team ∈ group → group ∈ department → department has editor on doc
+/// → user can write (3 BFS levels deep)
+#[tokio::test]
+async fn check_via_subject_set_three_hops() {
+    let _guard = with_schema().await;
+    let (doc, dept, group, team, user) = (uid(), uid(), uid(), uid(), uid());
+    write_set("document", &doc, "editor", &dept, "department", "member").await;
+    write_set("department", &dept, "member", &group, "group", "member").await;
+    write_set("group", &group, "member", &team, "team", "member").await;
+    write("team", &team, "member", &user).await;
+    assert!(check(&user, "write", "document", &doc).await);
+}
+
+/// [x] check_bfs_terminates_with_cycle
+/// A cycle in the subject-set graph (group_a ↔ group_b) must not cause an
+/// infinite loop. The BFS visited-set prevents re-expanding seen nodes.
+/// Verifies both that a reachable user is found (true) and that an unreachable
+/// user is denied (false), confirming the BFS terminates with the correct answer.
+#[tokio::test]
+async fn check_bfs_terminates_with_cycle() {
+    let _guard = with_schema().await;
+    let (doc, group_a, group_b, member, non_member) = (uid(), uid(), uid(), uid(), uid());
+
+    // doc → group_a (via subject-set)
+    write_set("document", &doc, "viewer", &group_a, "group", "member").await;
+    // Cycle: group_a contains group_b, group_b contains group_a
+    write_set("group", &group_a, "member", &group_b, "group", "member").await;
+    write_set("group", &group_b, "member", &group_a, "group", "member").await;
+    // member is a direct member of group_b (reachable through one cycle iteration)
+    write("group", &group_b, "member", &member).await;
+
+    assert!(
+        check(&member, "read", "document", &doc).await,
+        "member reachable through cycle must be allowed"
+    );
+    assert!(
+        !check(&non_member, "read", "document", &doc).await,
+        "non-member must be denied even with cycle present"
+    );
+}
+
+// ── Two-level parent hierarchy ─────────────────────────────────────────────────
+
+/// [x] check_via_two_level_parent_hierarchy
+/// With the three-level schema (document → folder → workspace):
+/// user owns workspace → inherits owner on folder → inherits owner on document
+/// → user can delete document through two levels of hierarchy traversal.
+#[tokio::test]
+async fn check_via_two_level_parent_hierarchy() {
+    let _guard = with_three_level_schema().await;
+    let (doc, folder, workspace, user) = (uid(), uid(), uid(), uid());
+    write("document", &doc, "folder", &folder).await;
+    write("folder", &folder, "workspace", &workspace).await;
+    write("workspace", &workspace, "owner", &user).await;
+
+    assert!(
+        check(&user, "delete", "document", &doc).await,
+        "owner of workspace must be able to delete document via two-level hierarchy"
+    );
+}
+
+/// [x] check_via_two_level_parent_hierarchy_missing_link_denied
+/// If the intermediate folder→workspace link is absent, the two-level path is broken
+/// and the check must return false even though the user owns the workspace.
+#[tokio::test]
+async fn check_via_two_level_parent_hierarchy_missing_link_denied() {
+    let _guard = with_three_level_schema().await;
+    let (doc, folder, workspace, user) = (uid(), uid(), uid(), uid());
+    write("document", &doc, "folder", &folder).await;
+    // Intentionally omit: write("folder", &folder, "workspace", &workspace)
+    write("workspace", &workspace, "owner", &user).await;
+
+    assert!(
+        !check(&user, "delete", "document", &doc).await,
+        "broken hierarchy chain must deny access"
     );
 }

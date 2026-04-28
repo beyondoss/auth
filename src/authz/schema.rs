@@ -52,11 +52,12 @@ pub enum AuthzCheckCall {
         relations: Vec<String>,
         object_type: String,
     },
-    /// Multi-hop: walk `relation_path[i]` on `object_type_path[i]` for each step.
-    /// Compiled to: `auth.authz_check_path(subject, ARRAY[...relation_path], ARRAY[...object_type_path], $object_id)`
+    /// Multi-hop: walk p_relation_prefix hops then check any of terminal_relations at the final type.
+    /// Compiled to: `auth.authz_check_path(subject, ARRAY[...relation_prefix], ARRAY[...object_type_path], ARRAY[...terminal_relations], $object_id)`
     MultiHop {
-        relation_path: Vec<String>,
+        relation_prefix: Vec<String>,
         object_type_path: Vec<String>,
+        terminal_relations: Vec<String>,
     },
 }
 
@@ -94,6 +95,8 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
     }
 
     let resource_names: HashSet<&str> = schema.resources.iter().map(|r| r.name.as_str()).collect();
+    let resource_map: HashMap<&str, &ResourceDef> =
+        schema.resources.iter().map(|r| (r.name.as_str(), r)).collect();
     let mut checks: HashMap<(String, String), Vec<AuthzCheckCall>> = HashMap::new();
 
     for resource in &schema.resources {
@@ -168,13 +171,31 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
                 object_type: resource.name.clone(),
             }];
 
-            // For each role, add a two-hop path through the parent resource.
-            if let Some(h) = &resource.hierarchy {
-                for role in &all_roles {
+            // Walk the full ancestor chain, generating a MultiHop check at every level.
+            // Two-element path: one hop. Three-element: two hops. And so on.
+            // A visited set stops the walk if the schema contains a hierarchy cycle.
+            if resource.hierarchy.is_some() {
+                let mut rel_prefix: Vec<String> = Vec::new();
+                let mut type_path: Vec<String> = vec![resource.name.clone()];
+                let mut current = resource;
+                let mut visited: HashSet<&str> = HashSet::new();
+                visited.insert(resource.name.as_str());
+
+                while let Some(h) = &current.hierarchy {
+                    if visited.contains(h.parent_resource.as_str()) {
+                        break;
+                    }
+                    visited.insert(h.parent_resource.as_str());
+                    rel_prefix.push(h.parent_relation.clone());
+                    type_path.push(h.parent_resource.clone());
+
                     calls.push(AuthzCheckCall::MultiHop {
-                        relation_path: vec![h.parent_relation.clone(), role.clone()],
-                        object_type_path: vec![resource.name.clone(), h.parent_resource.clone()],
+                        relation_prefix: rel_prefix.clone(),
+                        object_type_path: type_path.clone(),
+                        terminal_relations: all_roles.clone(),
                     });
+
+                    current = resource_map[h.parent_resource.as_str()];
                 }
             }
 
@@ -258,10 +279,11 @@ impl CompiledSchema {
                     )
                 }
                 AuthzCheckCall::MultiHop {
-                    relation_path,
+                    relation_prefix,
                     object_type_path,
+                    terminal_relations,
                 } => {
-                    let rels = relation_path
+                    let prefix = relation_prefix
                         .iter()
                         .map(|r| format!("'{r}'"))
                         .collect::<Vec<_>>()
@@ -271,8 +293,13 @@ impl CompiledSchema {
                         .map(|t| format!("'{t}'"))
                         .collect::<Vec<_>>()
                         .join(", ");
+                    let terms = terminal_relations
+                        .iter()
+                        .map(|r| format!("'{r}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     format!(
-                        "auth.authz_check_path(subject.subject_id, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], $3)"
+                        "auth.authz_check_path(subject.subject_id, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], $3)"
                     )
                 }
             })
@@ -301,10 +328,11 @@ impl CompiledSchema {
                     )
                 }
                 AuthzCheckCall::MultiHop {
-                    relation_path,
+                    relation_prefix,
                     object_type_path,
+                    terminal_relations,
                 } => {
-                    let rels = relation_path
+                    let prefix = relation_prefix
                         .iter()
                         .map(|r| format!("'{r}'"))
                         .collect::<Vec<_>>()
@@ -314,8 +342,13 @@ impl CompiledSchema {
                         .map(|tp| format!("'{tp}'"))
                         .collect::<Vec<_>>()
                         .join(", ");
+                    let terms = terminal_relations
+                        .iter()
+                        .map(|r| format!("'{r}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     format!(
-                        "auth.authz_check_path($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], t.object_id)"
+                        "auth.authz_check_path($1, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], t.object_id)"
                     )
                 }
             })
@@ -346,10 +379,11 @@ impl CompiledSchema {
                     format!("auth.authz_check($1, ARRAY[{arr}]::text[], '{object_type}', $2)")
                 }
                 AuthzCheckCall::MultiHop {
-                    relation_path,
+                    relation_prefix,
                     object_type_path,
+                    terminal_relations,
                 } => {
-                    let rels = relation_path
+                    let prefix = relation_prefix
                         .iter()
                         .map(|r| format!("'{r}'"))
                         .collect::<Vec<_>>()
@@ -359,8 +393,13 @@ impl CompiledSchema {
                         .map(|t| format!("'{t}'"))
                         .collect::<Vec<_>>()
                         .join(", ");
+                    let terms = terminal_relations
+                        .iter()
+                        .map(|r| format!("'{r}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     format!(
-                        "auth.authz_check_path($1, ARRAY[{rels}]::text[], ARRAY[{types}]::text[], $2)"
+                        "auth.authz_check_path($1, ARRAY[{prefix}]::text[], ARRAY[{types}]::text[], ARRAY[{terms}]::text[], $2)"
                     )
                 }
             })
@@ -438,19 +477,22 @@ mod tests {
             .filter(|c| matches!(c, AuthzCheckCall::MultiHop { .. }))
             .collect();
 
-        // One multi-hop per role (editor, owner) via folder parent.
-        assert_eq!(multi_hops.len(), 2);
+        // One multi-hop per hierarchy level (folder), with all roles in terminal_relations.
+        assert_eq!(multi_hops.len(), 1);
         for hop in &multi_hops {
             let AuthzCheckCall::MultiHop {
-                relation_path,
+                relation_prefix,
                 object_type_path,
+                terminal_relations,
             } = hop
             else {
                 panic!()
             };
-            assert_eq!(relation_path[0], "folder");
+            assert_eq!(relation_prefix[0], "folder");
             assert_eq!(object_type_path[0], "document");
             assert_eq!(object_type_path[1], "folder");
+            assert!(terminal_relations.contains(&"editor".to_owned()));
+            assert!(terminal_relations.contains(&"owner".to_owned()));
         }
     }
 

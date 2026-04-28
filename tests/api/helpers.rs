@@ -2,6 +2,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use testcontainers::ImageExt;
+use testcontainers::CopyTargetOptions;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
@@ -40,11 +41,37 @@ pub fn test_env() -> &'static TestEnv {
                 .expect("failed to build integration test runtime");
 
             rt.block_on(async move {
-                let container = Postgres::default()
-                    .with_tag("18-alpine")
-                    .start()
-                    .await
-                    .expect("failed to start postgres testcontainer");
+                // Mount the pre-built authz_extension .so into the container so the
+                // migration's LANGUAGE C function declarations can resolve the library.
+                // The .so is built by `mise run extension:build:linux` (ARM64) or
+                // `extension:build:linux:x86` (x86_64) and lives under target/.
+                let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+                let so_path = [
+                    "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
+                    "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
+                ]
+                .iter()
+                .map(|p| manifest_dir.join(p))
+                .find(|p| p.exists());
+
+                let pg = Postgres::default().with_tag("18");
+                let container = match so_path {
+                    Some(path) => pg
+                        .with_copy_to(
+                            CopyTargetOptions::new(
+                                "/usr/lib/postgresql/18/lib/authz_extension.so",
+                            )
+                            .with_mode(0o755),
+                            path,
+                        )
+                        .start()
+                        .await
+                        .expect("failed to start postgres testcontainer"),
+                    None => pg
+                        .start()
+                        .await
+                        .expect("failed to start postgres testcontainer"),
+                };
 
                 let port = container
                     .get_host_port_ipv4(5432)

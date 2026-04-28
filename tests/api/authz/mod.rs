@@ -79,6 +79,7 @@
 //! [x] check_unknown_permission_returns_422
 //!
 //! ### decisions.rs — POST /v1/authz/decisions (batch check)
+//! [x] batch_check_via_parent_hierarchy                 (MultiHop in batch path; confirms schema-compiler fix)
 //! [x] batch_check_empty_returns_empty_results
 //! [x] batch_check_all_allowed
 //! [x] batch_check_all_denied

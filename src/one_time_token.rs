@@ -20,6 +20,18 @@ pub async fn create(
     context: Option<serde_json::Value>,
 ) -> Result<CreatedToken, AuthError> {
     let token = Token::new(prefix);
+
+    // Invalidate any outstanding tokens of the same kind for this user before issuing a new one.
+    // A re-request (e.g. "resend magic link") must not leave the previous token redeemable.
+    sqlx::query!(
+        "DELETE FROM auth.one_time_tokens WHERE user_id = $1 AND kind = $2",
+        user_id,
+        token.prefix.as_str(),
+    )
+    .execute(pool)
+    .await
+    .map_err(AuthError::from)?;
+
     let expires_at = sqlx::query_scalar!(
         "INSERT INTO auth.one_time_tokens (id, user_id, kind, secret, expires_at, context)
          VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5::int4), $6)
