@@ -182,6 +182,85 @@ pub async fn seed_chain(pool: &PgPool, c: &ChainCorpus) -> Result<()> {
     Ok(())
 }
 
+/// Mixed-depth corpus for measuring early-termination benefit.
+///
+/// Each chain seeds the same head object with two paths to the same user:
+/// 1. A direct grant (depth 1) — the answer is always one hop away.
+/// 2. A "noise" subject-set chain of `noise_depth` hops — also resolves to
+///    the same user, but only after full traversal.
+///
+/// A recursive CTE materializes both branches before EXISTS evaluates.
+/// A BFS implementation finds the direct grant first and returns immediately.
+/// The deeper `noise_depth` is, the larger the gap between the two.
+#[derive(Debug, Clone)]
+pub struct MixedDepthCorpus {
+    pub n_chains: usize,
+    pub noise_depth: usize,
+    pub seed: u64,
+}
+
+/// Seeds `n_chains` mixed-depth chains. Idempotent: skips if rows already exist.
+///
+/// Object types are prefixed `me{noise_depth}_` to avoid collisions with other
+/// corpus types.
+pub async fn seed_mixed_depth(pool: &PgPool, c: &MixedDepthCorpus) -> Result<()> {
+    assert!(c.noise_depth >= 1, "noise_depth must be >= 1");
+    let head_type = format!("me{}_head", c.noise_depth);
+    let existing: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = $1",
+    )
+    .bind(&head_type)
+    .fetch_one(pool)
+    .await?;
+    if existing.0 as usize >= c.n_chains {
+        return Ok(());
+    }
+
+    let d = c.noise_depth;
+    let team_type = format!("me{d}_team");
+    let prefix = format!("me{d}_");
+    let mut rows = TupleBuf::new();
+
+    for chain_id in 0..c.n_chains {
+        let head_id = format!("{prefix}{chain_id}");
+        let user_id = format!("ume{d}_{chain_id}");
+        let team_id = format!("mset{d}_{chain_id}");
+
+        // Path 1: direct grant — depth 1.
+        rows.push(&head_type, &head_id, "link", &user_id, None, None);
+
+        // Path 2: noise chain — head -> team (subject set) -> ... -> user.
+        rows.push(
+            &head_type,
+            &head_id,
+            "link",
+            &team_id,
+            Some(&team_type),
+            Some("link"),
+        );
+        let mut prev_type = team_type.clone();
+        let mut prev_id = team_id.clone();
+        for i in 1..c.noise_depth {
+            let next_type = format!("me{d}_link_{i}");
+            let next_id = format!("ml{d}_{i}_{chain_id}");
+            rows.push(
+                &prev_type,
+                &prev_id,
+                "link",
+                &next_id,
+                Some(&next_type),
+                Some("link"),
+            );
+            prev_type = next_type;
+            prev_id = next_id;
+        }
+        rows.push(&prev_type, &prev_id, "link", &user_id, None, None);
+    }
+
+    rows.flush(pool).await?;
+    Ok(())
+}
+
 /// Seed flat corpus and all requested chain depths in one pass. Called once
 /// from the harness before any scenarios run, so individual scenario `setup()`
 /// methods are no-ops and the testcontainer is shared across the full run.
@@ -189,6 +268,7 @@ pub async fn seed_all(
     pool: &PgPool,
     flat: &FlatCorpus,
     chain_depths: &[(usize, usize)],
+    mixed_noise_depths: &[(usize, usize)],
 ) -> Result<()> {
     seed_flat(pool, flat).await?;
     for &(depth, n_chains) in chain_depths {
@@ -198,6 +278,17 @@ pub async fn seed_all(
                 n_chains,
                 depth,
                 seed: 0xC0_FFEE + depth as u64,
+            },
+        )
+        .await?;
+    }
+    for &(noise_depth, n_chains) in mixed_noise_depths {
+        seed_mixed_depth(
+            pool,
+            &MixedDepthCorpus {
+                n_chains,
+                noise_depth,
+                seed: 0xBEEF + noise_depth as u64,
             },
         )
         .await?;

@@ -122,7 +122,7 @@ impl PgStatSnapshot {
         let cache_hit_ratio = if d_hit + d_read > 0 {
             d_hit as f64 / (d_hit + d_read) as f64
         } else {
-            f64::NAN
+            0.0
         };
         vec![
             Metric::new("xact_commit", d_commit as f64, "txns"),

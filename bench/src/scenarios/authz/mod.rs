@@ -7,6 +7,7 @@ pub mod bulk_write;
 pub mod corpus;
 pub mod depth_sweep;
 pub mod depth_sweep_cold;
+pub mod early_exit;
 pub mod multi_decision_serial;
 pub mod read_write_mix;
 pub mod scale_sweep;
@@ -16,6 +17,10 @@ pub mod single_check;
 /// values used by `depth_sweep` and `depth_sweep_cold` so a single seed pass
 /// covers both.
 pub const CHAIN_DEPTHS: &[(usize, usize)] = &[(1, 50_000), (3, 50_000), (5, 50_000), (10, 50_000)];
+
+/// Noise depths for the mixed-depth early-exit corpus. Kept in sync with the
+/// noise values used by `early_exit` scenarios.
+pub const MIXED_NOISE_DEPTHS: &[(usize, usize)] = &[(5, 50_000), (10, 50_000)];
 
 pub fn all() -> Vec<Arc<dyn Scenario>> {
     vec![
@@ -32,6 +37,8 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(depth_sweep_cold::DepthSweepCold::new(3)),
         Arc::new(depth_sweep_cold::DepthSweepCold::new(5)),
         Arc::new(depth_sweep_cold::DepthSweepCold::new(10)),
+        Arc::new(early_exit::EarlyExit::new(5)),
+        Arc::new(early_exit::EarlyExit::new(10)),
         Arc::new(bulk_write::BulkWrite::new(1)),
         Arc::new(bulk_write::BulkWrite::new(10)),
         Arc::new(bulk_write::BulkWrite::new(100)),
