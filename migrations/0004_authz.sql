@@ -216,17 +216,22 @@ CREATE FUNCTION auth.authz_check_multi(
     AS 'authz_extension', 'authz_check_multi_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check_multi(text, text[], text[], text[], text[], text) IS
-'Combined direct BFS + hierarchy walk in a single call.
+'Ask: does subject_id hold any of direct_relations on (object_type_path[1], object_id),
+or hold any of terminal_relations on an ancestor reached by following relation_prefix?
 
-Equivalent to:
-  authz_check(subject_id, direct_relations, object_type_path[1], object_id)
-  OR authz_check_path(subject_id, relation_prefix, object_type_path, terminal_relations, object_id)
+Returns true if the subject has direct access to the object OR has access via any
+level of the parent hierarchy. Subject-set expansion (group membership) is performed
+for the direct check; hierarchy hops use direct subjects only.
 
-but evaluated inside one SPI session instead of two, saving the per-call connection
-overhead. The schema compiler emits this function whenever a permission has both
-direct-grant roles and a parent hierarchy.
-
-Used by: GET /v1/authz/decisions, POST /v1/authz/decisions.';
+Example: check if user U can read document D, where read is granted by
+owner/editor/viewer directly on the document or inherited from its parent folder —
+  authz_check_multi(U,
+    ARRAY[''owner'',''editor'',''viewer''],
+    ARRAY[''folder''],
+    ARRAY[''document'',''folder''],
+    ARRAY[''owner'',''editor'',''viewer''],
+    D
+  )';
 
 CREATE FUNCTION auth.authz_check_batch(
     subject_ids  text[],
