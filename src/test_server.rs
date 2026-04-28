@@ -48,6 +48,8 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
     let encryptor: Arc<dyn crate::crypto::KeyEncryptor> = Arc::new(enc_key);
     let authz_cache = Arc::new(AuthzCache::new(100_000, 50_000, Duration::from_secs(1800)));
 
+    let parallel_batch_available = crate::authz::engine::probe_parallel_batch(&pool).await;
+
     let state = AppState {
         pool: pool.clone(),
         jwks: Arc::new(bytes::Bytes::from(jwks)),
@@ -64,6 +66,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         public_url: None,
         authz_cache,
         partition_cache: Arc::new(RwLock::new(std::collections::HashSet::new())),
+        parallel_batch_available,
     };
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;

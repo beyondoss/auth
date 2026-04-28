@@ -286,6 +286,45 @@ pub async fn check_standalone(
         .map_err(AuthError::from)
 }
 
+/// Probe whether auth.authz_check_parallel_batch exists (migration 0006 + extension loaded).
+pub async fn probe_parallel_batch(pool: &PgPool) -> bool {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM pg_proc p \
+         JOIN pg_namespace n ON n.oid = p.pronamespace \
+         WHERE n.nspname = 'auth' AND p.proname = 'authz_check_parallel_batch')",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false)
+}
+
+/// Call authz_check_parallel_batch with fully-expanded atomic checks.
+/// Returns one bool per input row in the same order.
+/// Non-macro sqlx: function is a pgrx extension not known at compile time.
+pub async fn parallel_batch_check(
+    pool: &PgPool,
+    rows: &[(String, String, String, String)], // (subject_id, relation, object_type, object_id)
+) -> Result<Vec<bool>, AuthError> {
+    if rows.is_empty() {
+        return Ok(vec![]);
+    }
+    let subject_ids: Vec<String> = rows.iter().map(|(s, _, _, _)| s.clone()).collect();
+    let relations: Vec<String> = rows.iter().map(|(_, r, _, _)| r.clone()).collect();
+    let object_types: Vec<String> = rows.iter().map(|(_, _, t, _)| t.clone()).collect();
+    let object_ids: Vec<String> = rows.iter().map(|(_, _, _, o)| o.clone()).collect();
+    let (bools,): (Vec<bool>,) = sqlx::query_as(
+        "SELECT auth.authz_check_parallel_batch($1::text[], $2::text[], $3::text[], $4::text[])",
+    )
+    .bind(&subject_ids)
+    .bind(&relations)
+    .bind(&object_types)
+    .bind(&object_ids)
+    .fetch_one(pool)
+    .await
+    .map_err(AuthError::from)?;
+    Ok(bools)
+}
+
 // ── Expand ────────────────────────────────────────────────────────────────────
 
 #[derive(Debug)]

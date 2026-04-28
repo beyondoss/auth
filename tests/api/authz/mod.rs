@@ -60,12 +60,16 @@
 //! Subject-set (BFS) expansion:
 //! [x] check_via_subject_set_one_hop                    (user ∈ group → group has role → allowed)
 //! [x] check_via_subject_set_two_hops                   (user ∈ team ∈ group → group has role → allowed)
+//! [x] check_via_subject_set_three_hops                 (user ∈ team ∈ group ∈ department → allowed)
+//! [x] check_bfs_terminates_with_cycle                  (cyclic group membership; BFS must not loop)
 //!
 //! Multi-hop parent hierarchy:
 //! [x] check_via_parent_hierarchy_direct_role           (doc → folder; user owns folder → allowed)
 //! [x] check_via_parent_hierarchy_subject_set_on_parent_not_expanded
 //!         (authz_check_path is direct-entity only; subject-set on parent → denied; expected behaviour)
 //! [x] check_via_parent_hierarchy_no_parent_link_denied
+//! [x] check_via_two_level_parent_hierarchy             (doc → folder → workspace; user owns workspace → allowed)
+//! [x] check_via_two_level_parent_hierarchy_missing_link_denied
 //!
 //! Auth / error paths:
 //! [x] check_with_explicit_user_param                   (standalone path, no session needed)
@@ -113,10 +117,25 @@
 //! [x] trace_multi_hop_hierarchy_not_reflected          (known limitation; allowed via check but not in subjects)
 //! [x] trace_unknown_permission_returns_422
 //!
+//! ### checks.rs — POST /v1/authz/checks (parallel BFS batch)
+//! [x] checks_empty_returns_empty
+//! [x] checks_all_allowed
+//! [x] checks_all_denied
+//! [x] checks_preserves_input_order
+//! [x] checks_role_inheritance
+//! [x] checks_via_subject_set
+//! [x] checks_via_parent_hierarchy_falls_back_correctly
+//! [x] checks_mixed_parallel_and_fallback
+//! [x] checks_session_bearer
+//! [x] checks_no_auth_with_session_check_returns_401
+//! [x] checks_unknown_permission_returns_422
+//! [x] checks_unknown_resource_type_returns_422
+//!
 //! ### decisions.rs — cache invalidation
 //! [x] cache_check_false_then_write_then_check_true
 //! [x] cache_check_true_then_delete_then_check_false
 
+pub mod checks;
 pub mod decisions;
 pub mod objects;
 pub mod relations;
@@ -186,6 +205,76 @@ pub async fn with_schema() -> tokio::sync::MutexGuard<'static, ()> {
     TestClient::new()
         .admin()
         .put("/v1/authz/schema", &doc_folder_schema())
+        .await
+        .assert_status(200);
+    guard
+}
+
+/// Three-level hierarchy schema: document → folder → workspace.
+///
+/// Same roles and permissions as `doc_folder_schema`, but folder now has a
+/// parent hierarchy pointing at workspace. Used to verify that the schema
+/// compiler generates path checks for each ancestor level, not just one hop.
+pub fn three_level_schema() -> serde_json::Value {
+    serde_json::json!({
+        "version": 1,
+        "resources": [
+            {
+                "name": "document",
+                "roles": ["owner", "editor", "viewer"],
+                "role_hierarchy": [
+                    {"superior": "owner",  "inferior": "editor"},
+                    {"superior": "editor", "inferior": "viewer"}
+                ],
+                "permissions": {
+                    "read":   ["viewer"],
+                    "write":  ["editor"],
+                    "delete": ["owner"]
+                },
+                "hierarchy": {
+                    "parent_relation": "folder",
+                    "parent_resource": "folder"
+                }
+            },
+            {
+                "name": "folder",
+                "roles": ["owner", "editor", "viewer"],
+                "role_hierarchy": [
+                    {"superior": "owner",  "inferior": "editor"},
+                    {"superior": "editor", "inferior": "viewer"}
+                ],
+                "permissions": {
+                    "read":  ["viewer"],
+                    "write": ["editor"]
+                },
+                "hierarchy": {
+                    "parent_relation": "workspace",
+                    "parent_resource": "workspace"
+                }
+            },
+            {
+                "name": "workspace",
+                "roles": ["owner", "editor", "viewer"],
+                "role_hierarchy": [
+                    {"superior": "owner",  "inferior": "editor"},
+                    {"superior": "editor", "inferior": "viewer"}
+                ],
+                "permissions": {
+                    "read":  ["viewer"],
+                    "write": ["editor"]
+                }
+            }
+        ]
+    })
+}
+
+/// Acquire the exclusive lock and install the three-level hierarchy schema.
+/// Hold the returned guard for the duration of the test.
+pub async fn with_three_level_schema() -> tokio::sync::MutexGuard<'static, ()> {
+    let guard = crate::helpers::exclusive().await;
+    TestClient::new()
+        .admin()
+        .put("/v1/authz/schema", &three_level_schema())
         .await
         .assert_status(200);
     guard

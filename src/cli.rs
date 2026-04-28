@@ -131,6 +131,8 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         std::time::Duration::from_secs(cfg.authz_cache_ttl_secs),
     ));
 
+    let parallel_batch_available = crate::authz::engine::probe_parallel_batch(&pool).await;
+
     let state = http::AppState {
         pool,
         jwks: Arc::new(bytes::Bytes::from(jwks)),
@@ -147,6 +149,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         public_url: cfg.public_url.clone(),
         authz_cache,
         partition_cache: Arc::new(RwLock::new(std::collections::HashSet::new())),
+        parallel_batch_available,
     };
 
     let result = http::serve(&cfg.address, state).await;

@@ -104,6 +104,7 @@ impl utoipa::Modify for BearerAuth {
         invitations::decline_invitation,
         admin::impersonations::create,
         authz::check_permission,
+        authz::post_checks,
         authz::write_relation,
         authz::delete_relation,
         authz::batch_relations,
@@ -159,6 +160,9 @@ impl utoipa::Modify for BearerAuth {
         passkeys::UpdateCredentialRequest,
         crate::mfa::passkeys::CredentialRecord,
         authz::CheckResponse,
+        authz::ChecksRequest,
+        authz::ChecksItem,
+        authz::ChecksResponse,
         authz::RelationRequest,
         authz::RelationObject,
         authz::RelationSubject,
@@ -236,6 +240,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/authz/decisions",
             get(authz::check_permission).post(authz::batch_check_permissions),
         )
+        .route("/v1/authz/checks", post(authz::post_checks))
         .route("/healthz", get(healthz::handler))
         .route("/v1/jwks.json", get(jwks::handler))
         .route("/v1/users", post(users::signup))

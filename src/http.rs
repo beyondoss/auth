@@ -53,6 +53,7 @@ pub struct AppState {
     pub public_url: Option<String>,
     pub authz_cache: Arc<AuthzCache>,
     pub partition_cache: Arc<RwLock<HashSet<String>>>,
+    pub parallel_batch_available: bool,
 }
 
 #[derive(Clone)]

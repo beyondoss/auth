@@ -96,6 +96,26 @@ pub struct BatchDecisionResponse {
     pub results: Vec<bool>,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ChecksRequest {
+    pub checks: Vec<ChecksItem>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ChecksItem {
+    /// Explicit subject to check as. Defaults to the current session user.
+    pub user: Option<String>,
+    pub permission: String,
+    pub resource_type: String,
+    pub resource_id: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ChecksResponse {
+    /// Results in the same order as the input checks.
+    pub results: Vec<bool>,
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct SubjectsQuery {
     pub object_type: String,
@@ -422,6 +442,190 @@ pub async fn batch_check_permissions(
     }
 
     Ok(Json(BatchDecisionResponse { results }))
+}
+
+/// Check multiple permissions in a single request. When the parallel-batch pgrx extension
+/// is loaded, single-hop checks are expanded into atomic (subject, relation, object_type,
+/// object_id) tuples and evaluated in one BFS issuing D+1 SQL queries — independent of N.
+/// Multi-hop permissions and deployments without the extension fall back to UNNEST grouping
+/// (same path as POST /v1/authz/decisions).
+#[utoipa::path(
+    post,
+    path = "/v1/authz/checks",
+    tag = "authz",
+    request_body = ChecksRequest,
+    responses(
+        (status = 200, body = ChecksResponse),
+        (status = 400, description = "Authz not enabled",           body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized",                body = crate::error::ErrorResponse),
+        (status = 422, description = "Unknown resource/permission", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn post_checks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<ChecksRequest>,
+) -> Result<Json<ChecksResponse>, AuthError> {
+    if req.checks.is_empty() {
+        return Ok(Json(ChecksResponse { results: vec![] }));
+    }
+
+    let schema_guard = state.authz_schema.read().await;
+    let schema = schema_guard_to_compiled(&schema_guard)?;
+
+    let session_subject: Option<Arc<str>> = if req.checks.iter().any(|c| c.user.is_none()) {
+        let bearer = headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .map(|s| s.to_owned())
+            .ok_or(AuthError::Unauthorized)?;
+        let parsed = tokens::parse(&bearer).ok_or(AuthError::Unauthorized)?;
+        let subject_id = if let Some(cached) = state.authz_cache.get_session(parsed.id) {
+            cached
+        } else {
+            let resolved = engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash)
+                .await?
+                .ok_or(AuthError::Unauthorized)?;
+            let arc: Arc<str> = Arc::from(resolved.as_str());
+            state.authz_cache.insert_session(parsed.id, arc.clone());
+            arc
+        };
+        Some(subject_id)
+    } else {
+        None
+    };
+
+    let n = req.checks.len();
+    let mut results = vec![false; n];
+
+    // Atomic rows for the parallel-batch path; index_map[k] is the original check index
+    // each atomic row contributes to (OR-aggregated).
+    let mut parallel_rows: Vec<(String, String, String, String)> = Vec::new();
+    let mut parallel_origin: Vec<usize> = Vec::new();
+    // Subject per original index, kept for caching after the parallel batch.
+    let mut subjects: Vec<Option<Arc<str>>> = vec![None; n];
+    // Track which original indices contributed any atomic rows (so we can default-cache false).
+    let mut has_parallel: Vec<bool> = vec![false; n];
+
+    // Fallback grouping (same shape as batch_check_permissions).
+    let mut fallback_groups: HashMap<(Arc<str>, String), Vec<(usize, String)>> = HashMap::new();
+
+    for (i, check) in req.checks.iter().enumerate() {
+        let subject_id: Arc<str> = match &check.user {
+            Some(u) => Arc::from(u.as_str()),
+            None => session_subject.clone().unwrap(),
+        };
+        subjects[i] = Some(subject_id.clone());
+
+        let cache_key = CheckKey {
+            subject_id: subject_id.clone(),
+            resource_type: Arc::from(check.resource_type.as_str()),
+            resource_id: Arc::from(check.resource_id.as_str()),
+            permission: Arc::from(check.permission.as_str()),
+        };
+        if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
+            results[i] = allowed;
+            continue;
+        }
+
+        let calls = schema
+            .get_checks(&check.resource_type, &check.permission)
+            .ok_or_else(|| {
+                if schema.resource_exists(&check.resource_type) {
+                    AuthError::AuthzUnknownPermission {
+                        permission: check.permission.clone(),
+                    }
+                } else {
+                    AuthError::AuthzUnknownResource {
+                        resource_type: check.resource_type.clone(),
+                    }
+                }
+            })?;
+
+        let all_single_hop = calls
+            .iter()
+            .all(|c| matches!(c, AuthzCheckCall::SingleHop { .. }));
+
+        if state.parallel_batch_available && all_single_hop {
+            for c in calls {
+                if let AuthzCheckCall::SingleHop {
+                    relations,
+                    object_type,
+                } = c
+                {
+                    for relation in relations {
+                        parallel_rows.push((
+                            subject_id.to_string(),
+                            relation.clone(),
+                            object_type.clone(),
+                            check.resource_id.clone(),
+                        ));
+                        parallel_origin.push(i);
+                        has_parallel[i] = true;
+                    }
+                }
+            }
+        } else {
+            let or_chain =
+                resolve_batch_or_chain(schema, &check.resource_type, &check.permission)?;
+            match fallback_groups.entry((subject_id, or_chain)) {
+                Entry::Occupied(mut e) => e.get_mut().push((i, check.resource_id.clone())),
+                Entry::Vacant(e) => {
+                    e.insert(vec![(i, check.resource_id.clone())]);
+                }
+            }
+        }
+    }
+
+    if !parallel_rows.is_empty() {
+        let atomic_results = engine::parallel_batch_check(&state.pool, &parallel_rows).await?;
+        // OR-aggregate per original index.
+        let mut aggregated = vec![false; n];
+        for (k, allowed) in atomic_results.iter().enumerate() {
+            if *allowed {
+                aggregated[parallel_origin[k]] = true;
+            }
+        }
+        for i in 0..n {
+            if has_parallel[i] {
+                results[i] = aggregated[i];
+                let check = &req.checks[i];
+                let subject_id = subjects[i].clone().unwrap();
+                state.authz_cache.insert_check(
+                    CheckKey {
+                        subject_id,
+                        resource_type: Arc::from(check.resource_type.as_str()),
+                        resource_id: Arc::from(check.resource_id.as_str()),
+                        permission: Arc::from(check.permission.as_str()),
+                    },
+                    aggregated[i],
+                );
+            }
+        }
+    }
+
+    for ((subject_id, or_chain), items) in fallback_groups {
+        let object_ids: Vec<String> = items.iter().map(|(_, oid)| oid.clone()).collect();
+        let bools =
+            engine::batch_check_standalone(&state.pool, &subject_id, &object_ids, &or_chain)
+                .await?;
+        for ((idx, oid), allowed) in items.iter().zip(bools) {
+            results[*idx] = allowed;
+            let check = &req.checks[*idx];
+            state.authz_cache.insert_check(
+                CheckKey {
+                    subject_id: subject_id.clone(),
+                    resource_type: Arc::from(check.resource_type.as_str()),
+                    resource_id: Arc::from(oid.as_str()),
+                    permission: Arc::from(check.permission.as_str()),
+                },
+                allowed,
+            );
+        }
+    }
+
+    Ok(Json(ChecksResponse { results }))
 }
 
 /// Write a single relation tuple. Idempotent — duplicate writes are silently ignored.
