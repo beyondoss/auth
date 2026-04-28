@@ -118,6 +118,29 @@ pub async fn consume(
     .ok_or(AuthError::InvitationNotFound)
 }
 
+/// Refresh an invitation's token and extend its expiry by 7 days. Returns NotFound if missing.
+pub async fn refresh_token(
+    pool: &PgPool,
+    inv_id: Uuid,
+    org_id: Uuid,
+    new_hash: &[u8],
+) -> Result<Invitation, AuthError> {
+    sqlx::query_as!(
+        Invitation,
+        r#"UPDATE auth.org_invitations
+           SET token_hash = $3, expires_at = now() + interval '7 days'
+           WHERE id = $1 AND org_id = $2
+           RETURNING id, org_id, invited_by, email, role, created_at, expires_at"#,
+        inv_id,
+        org_id,
+        new_hash,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)?
+    .ok_or(AuthError::InvitationNotFound)
+}
+
 /// Revoke an invitation without a token (owner action). Returns NotFound if missing.
 pub async fn revoke(pool: &PgPool, inv_id: Uuid, org_id: Uuid) -> Result<(), AuthError> {
     let rows = sqlx::query!(

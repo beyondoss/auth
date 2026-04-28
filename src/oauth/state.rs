@@ -2,15 +2,23 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use ed25519_dalek::{Signature, Signer, Verifier};
 use serde_json::{Value, json};
+use uuid::Uuid;
 
 use crate::{error::AuthError, keys::LoadedKey};
 
 pub struct StateClaims {
     pub pkce_verifier: String,
     pub redirect_url: String,
+    /// Set when an authenticated user is linking an additional provider to their account.
+    pub link_user_id: Option<Uuid>,
 }
 
-pub fn issue(pkce_verifier: &str, redirect_url: &str, key: &LoadedKey) -> String {
+pub fn issue(
+    pkce_verifier: &str,
+    redirect_url: &str,
+    link_user_id: Option<Uuid>,
+    key: &LoadedKey,
+) -> String {
     let now = Utc::now().timestamp();
     let exp = now + 300;
 
@@ -23,14 +31,18 @@ pub fn issue(pkce_verifier: &str, redirect_url: &str, key: &LoadedKey) -> String
         .expect("oauth state header serialization is infallible"),
     );
 
+    let mut claims_map = serde_json::Map::new();
+    claims_map.insert("pkce_verifier".into(), json!(pkce_verifier));
+    claims_map.insert("redirect_url".into(), json!(redirect_url));
+    claims_map.insert("iat".into(), json!(now));
+    claims_map.insert("exp".into(), json!(exp));
+    if let Some(uid) = link_user_id {
+        claims_map.insert("link_user_id".into(), json!(uid.to_string()));
+    }
+
     let claims = URL_SAFE_NO_PAD.encode(
-        serde_json::to_string(&json!({
-            "pkce_verifier": pkce_verifier,
-            "redirect_url": redirect_url,
-            "iat": now,
-            "exp": exp,
-        }))
-        .expect("oauth state claims serialization is infallible"),
+        serde_json::to_string(&Value::Object(claims_map))
+            .expect("oauth state claims serialization is infallible"),
     );
 
     let signing_input = format!("{header}.{claims}");
@@ -94,9 +106,14 @@ pub fn verify(token: &str, key: &LoadedKey) -> Result<StateClaims, AuthError> {
         .and_then(Value::as_str)
         .ok_or(AuthError::TokenInvalid)?
         .to_string();
+    let link_user_id = claims
+        .get("link_user_id")
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse::<Uuid>().ok());
 
     Ok(StateClaims {
         pkce_verifier,
         redirect_url,
+        link_user_id,
     })
 }

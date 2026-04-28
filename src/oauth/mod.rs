@@ -188,6 +188,41 @@ fn is_identity_conflict(e: &AuthError) -> bool {
     matches!(e, AuthError::Db { message, .. } if message.contains("identities_provider_subject_idx"))
 }
 
+/// Link an OAuth identity to an existing user. Idempotent if already linked to the same user.
+/// Returns `Err(Conflict)` if the identity is already claimed by a different user.
+pub async fn link_identity(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    provider_slug: &str,
+    external_id: &str,
+) -> Result<(), AuthError> {
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
+
+    match identities::create(&mut tx, user_id, provider_slug, external_id, b"").await {
+        Ok(_) => {
+            tx.commit().await.map_err(AuthError::from)?;
+            Ok(())
+        }
+        Err(e) if is_identity_conflict(&e) => {
+            // Identity already exists — check if it belongs to this user (idempotent) or another (conflict).
+            let existing = sqlx::query!(
+                "SELECT user_id FROM auth.identities WHERE provider = $1 AND subject = $2 LIMIT 1",
+                provider_slug,
+                external_id,
+            )
+            .fetch_optional(tx.as_mut())
+            .await
+            .map_err(AuthError::from)?;
+
+            match existing {
+                Some(row) if row.user_id == user_id => Ok(()),
+                _ => Err(AuthError::Conflict),
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
 pub async fn find_or_create_oauth_user(
     pool: &sqlx::PgPool,
     profile: &OAuthProfile,

@@ -90,6 +90,9 @@ pub enum AuthError {
     #[error("cannot remove or demote the last owner")]
     LastOwner,
 
+    #[error("cannot remove the last authentication method")]
+    LastIdentity,
+
     #[error("personal orgs cannot be deleted")]
     PersonalOrg,
 
@@ -179,6 +182,7 @@ impl IntoResponse for AuthError {
             AuthError::NotMember => (StatusCode::FORBIDDEN, "not_member", self.to_string()),
             AuthError::AlreadyMember => (StatusCode::CONFLICT, "already_member", self.to_string()),
             AuthError::LastOwner => (StatusCode::CONFLICT, "last_owner", self.to_string()),
+            AuthError::LastIdentity => (StatusCode::CONFLICT, "last_identity", self.to_string()),
             AuthError::PersonalOrg => (StatusCode::CONFLICT, "personal_org", self.to_string()),
             AuthError::SlugConflict => (StatusCode::CONFLICT, "slug_conflict", self.to_string()),
             AuthError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),

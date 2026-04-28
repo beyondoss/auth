@@ -3,7 +3,8 @@ use axum::{
     extract::{Extension, State},
     http::StatusCode,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{error::AuthError, http::AppState, mfa::totp, sessions::SessionContext};
@@ -82,4 +83,34 @@ pub async fn disable(
 ) -> Result<StatusCode, AuthError> {
     totp::disable(&state.pool, ctx.user.id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── POST /v1/totp/recovery-codes ─────────────────────────────────────────────
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct RecoveryCodesResponse {
+    pub recovery_codes: Vec<String>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/totp/recovery-codes",
+    tag = "totp",
+    security(("BearerAuth" = [])),
+    request_body = ConfirmRequest,
+    responses(
+        (status = 200, body = RecoveryCodesResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+        (status = 404, description = "No enrolled TOTP factor", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn regenerate_recovery_codes(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<SessionContext>,
+    Json(req): Json<ConfirmRequest>,
+) -> Result<Json<RecoveryCodesResponse>, AuthError> {
+    let codes = totp::regenerate_recovery_codes(&state.pool, ctx.user.id, &req.code).await?;
+    Ok(Json(RecoveryCodesResponse {
+        recovery_codes: codes,
+    }))
 }

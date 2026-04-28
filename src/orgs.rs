@@ -158,6 +158,8 @@ pub async fn update(
 }
 
 pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
+
     let is_personal: bool = sqlx::query_scalar!(
         r#"SELECT EXISTS(
                SELECT 1 FROM auth.users
@@ -165,7 +167,7 @@ pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
            ) as "exists!""#,
         org_id,
     )
-    .fetch_one(pool)
+    .fetch_one(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
 
@@ -178,7 +180,7 @@ pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
          WHERE id = $1 AND deleted_at IS NULL",
         org_id,
     )
-    .execute(pool)
+    .execute(tx.as_mut())
     .await
     .map_err(AuthError::from)?
     .rows_affected();
@@ -187,6 +189,7 @@ pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
         return Err(AuthError::OrgNotFound);
     }
 
+    tx.commit().await.map_err(AuthError::from)?;
     Ok(())
 }
 
@@ -287,7 +290,14 @@ pub async fn add_member(
     )
     .execute(tx.as_mut())
     .await
-    .map_err(AuthError::from)?;
+    .map_err(|e| {
+        if let sqlx::Error::Database(ref db) = e {
+            if db.constraint().is_some() {
+                return AuthError::AlreadyMember;
+            }
+        }
+        AuthError::from(e)
+    })?;
 
     Ok(())
 }

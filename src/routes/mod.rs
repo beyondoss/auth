@@ -2,6 +2,7 @@ pub mod admin;
 pub mod authz;
 pub mod emails;
 pub mod healthz;
+pub mod identities;
 pub mod invitations;
 pub mod jwks;
 pub mod magic_link;
@@ -51,6 +52,7 @@ impl utoipa::Modify for BearerAuth {
     paths(
         healthz::handler,
         jwks::handler,
+        users::delete_me,
         users::signup,
         users::get_me,
         users::update_me,
@@ -71,6 +73,7 @@ impl utoipa::Modify for BearerAuth {
         totp::begin_enrollment,
         totp::confirm_enrollment,
         totp::disable,
+        totp::regenerate_recovery_codes,
         oauth::authorize,
         oauth::callback,
         oauth::apple_callback,
@@ -90,7 +93,12 @@ impl utoipa::Modify for BearerAuth {
         orgs::remove_member,
         orgs::create_invitation,
         orgs::list_invitations,
+        orgs::resend_invitation,
         orgs::revoke_invitation,
+        identities::list,
+        identities::add_password,
+        identities::update,
+        identities::unlink,
         invitations::view_invitation,
         invitations::accept_invitation,
         invitations::decline_invitation,
@@ -138,6 +146,14 @@ impl utoipa::Modify for BearerAuth {
         password_reset::CreateResponse,
         totp::EnrollmentResponse,
         totp::ConfirmRequest,
+        totp::RecoveryCodesResponse,
+        identities::IdentitiesResponse,
+        identities::IdentityItem,
+        identities::AddPasswordRequest,
+        identities::UpdateIdentityRequest,
+        oauth::AuthorizeResponse,
+        oauth::CallbackResponse,
+        oauth::LinkCallbackResponse,
         passkeys::BeginResponse,
         passkeys::RegisteredCredential,
         passkeys::FinishRegistrationRequest,
@@ -181,6 +197,7 @@ impl utoipa::Modify for BearerAuth {
         (name = "totp", description = "TOTP enrollment and management"),
         (name = "oauth", description = "OAuth 2.0 provider login"),
         (name = "passkeys", description = "Passkey registration and authentication"),
+        (name = "identities", description = "Auth method management — list, add password, update, unlink"),
         (name = "orgs", description = "Org management, membership, and invitations"),
         (name = "invitations", description = "Invitation accept and decline"),
         (name = "admin", description = "Admin operations"),
@@ -250,7 +267,12 @@ pub fn router(state: AppState) -> Router<AppState> {
         );
 
     let authenticated = Router::new()
-        .route("/v1/users/me", get(users::get_me).patch(users::update_me))
+        .route(
+            "/v1/users/me",
+            get(users::get_me)
+                .patch(users::update_me)
+                .delete(users::delete_me),
+        )
         .route("/v1/sessions", get(sessions::list))
         .route(
             "/v1/sessions/current",
@@ -273,6 +295,18 @@ pub fn router(state: AppState) -> Router<AppState> {
             post(totp::begin_enrollment).delete(totp::disable),
         )
         .route("/v1/totp/confirmations", post(totp::confirm_enrollment))
+        .route(
+            "/v1/totp/recovery-codes",
+            post(totp::regenerate_recovery_codes),
+        )
+        .route(
+            "/v1/identities",
+            get(identities::list).post(identities::add_password),
+        )
+        .route(
+            "/v1/identities/{id}",
+            patch(identities::update).delete(identities::unlink),
+        )
         .route(
             "/v1/passkey-registrations",
             post(passkeys::begin_registration),
@@ -306,6 +340,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/v1/orgs/{id}/invitations/{inv_id}",
             delete(orgs::revoke_invitation),
+        )
+        .route(
+            "/v1/orgs/{id}/invitations/{inv_id}/resends",
+            post(orgs::resend_invitation),
         )
         // Authenticated invitation acceptance
         .route(

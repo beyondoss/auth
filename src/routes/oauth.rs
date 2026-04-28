@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::{HeaderMap, header},
-    response::{IntoResponse, Redirect, Response},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -13,6 +13,8 @@ use crate::{
     sessions::{self, RequestContext},
     tokens::{Token, TokenPrefix},
 };
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct AuthorizeParams {
@@ -30,6 +32,23 @@ pub struct AppleCallbackForm {
     pub code: String,
     pub state: String,
     pub user: Option<String>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct AuthorizeResponse {
+    /// Full OAuth authorization URL — navigate the browser here to start the flow.
+    pub url: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CallbackResponse {
+    pub token: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LinkCallbackResponse {
+    pub linked: bool,
 }
 
 fn callback_uri(headers: &HeaderMap, provider: &str, public_url: Option<&str>) -> String {
@@ -50,21 +69,20 @@ fn callback_uri(headers: &HeaderMap, provider: &str, public_url: Option<&str>) -
     format!("{proto}://{host}/v1/oauth/{provider}/callback")
 }
 
-fn validate_redirect_url(url: &str, allowlist: &[String]) -> Result<(), crate::error::AuthError> {
+fn validate_redirect_url(url: &str, allowlist: &[String]) -> Result<(), AuthError> {
     if allowlist.is_empty() {
         return Ok(());
     }
-    let parsed =
-        reqwest::Url::parse(url).map_err(|_| crate::error::AuthError::OAuthRedirectNotAllowed)?;
+    let parsed = reqwest::Url::parse(url).map_err(|_| AuthError::OAuthRedirectNotAllowed)?;
     match parsed.scheme() {
         "http" | "https" => {}
-        _ => return Err(crate::error::AuthError::OAuthRedirectNotAllowed),
+        _ => return Err(AuthError::OAuthRedirectNotAllowed),
     }
     let origin = parsed.origin().ascii_serialization();
     if allowlist.iter().any(|o| o == &origin) {
         Ok(())
     } else {
-        Err(crate::error::AuthError::OAuthRedirectNotAllowed)
+        Err(AuthError::OAuthRedirectNotAllowed)
     }
 }
 
@@ -87,34 +105,23 @@ fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
     }
 }
 
-async fn complete_oauth_login(
-    state: &AppState,
-    headers: &HeaderMap,
-    user_id: Uuid,
-    redirect_url: &str,
-) -> Result<Response, AuthError> {
-    let ttl = {
-        let cfg = state.app_config.read().await;
-        cfg.session_ttl_seconds
-    };
+/// Extract a user_id from an optional `Authorization: Bearer` session token.
+/// Returns `None` if no token is present or the token is invalid/expired —
+/// never returns an error, so unauthenticated callers fall through to the normal login flow.
+async fn try_session_user_id(state: &AppState, headers: &HeaderMap) -> Option<Uuid> {
+    let bearer = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))?;
 
-    let session_token = Token::new(TokenPrefix::Session);
-    let ctx = request_context(headers);
-
-    let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
-    let (_session_id, expires_at) =
-        sessions::create(&mut tx, &session_token, user_id, ttl, &ctx).await?;
-    tx.commit().await.map_err(AuthError::from)?;
-
-    let final_url = format!(
-        "{}?token={}&expires_at={}",
-        redirect_url,
-        session_token,
-        expires_at.to_rfc3339(),
-    );
-
-    Ok(Redirect::temporary(&final_url).into_response())
+    let parsed = crate::tokens::parse(bearer)?;
+    let ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash)
+        .await
+        .ok()??;
+    Some(ctx.user.id)
 }
+
+// ── GET /v1/oauth/{provider} ──────────────────────────────────────────────────
 
 #[utoipa::path(
     get,
@@ -125,7 +132,7 @@ async fn complete_oauth_login(
         ("redirect_url" = String, Query, description = "URL to redirect to after authentication"),
     ),
     responses(
-        (status = 302, description = "Redirect to OAuth provider"),
+        (status = 200, body = AuthorizeResponse),
         (status = 400, description = "Provider not configured", body = crate::error::ErrorResponse),
     )
 )]
@@ -134,7 +141,7 @@ pub async fn authorize(
     Path(provider): Path<String>,
     Query(params): Query<AuthorizeParams>,
     headers: HeaderMap,
-) -> Result<Response, AuthError> {
+) -> Result<Json<AuthorizeResponse>, AuthError> {
     let client = {
         let providers = state.oauth.read().await;
         providers
@@ -145,16 +152,24 @@ pub async fn authorize(
 
     validate_redirect_url(&params.redirect_url, &state.oauth_redirect_allowlist)?;
 
+    let link_user_id = try_session_user_id(&state, &headers).await;
+
     let verifier = PkceVerifier::new();
     let challenge = verifier.challenge();
     let redirect_uri = callback_uri(&headers, &provider, state.public_url.as_deref());
 
-    let state_jwt =
-        oauth::state::issue(verifier.as_str(), &params.redirect_url, &state.signing_key);
+    let state_jwt = oauth::state::issue(
+        verifier.as_str(),
+        &params.redirect_url,
+        link_user_id,
+        &state.signing_key,
+    );
     let auth_url = client.auth_url(&state_jwt, challenge.as_str(), &redirect_uri);
 
-    Ok(Redirect::temporary(&auth_url).into_response())
+    Ok(Json(AuthorizeResponse { url: auth_url }))
 }
+
+// ── GET /v1/oauth/{provider}/callback ─────────────────────────────────────────
 
 #[utoipa::path(
     get,
@@ -166,8 +181,10 @@ pub async fn authorize(
         ("state" = String, Query, description = "PKCE state JWT"),
     ),
     responses(
-        (status = 302, description = "Redirect to redirect_url with token and expires_at query params"),
+        (status = 200, body = CallbackResponse, description = "Login — returns session token"),
+        (status = 200, body = LinkCallbackResponse, description = "Link — identity added to existing account"),
         (status = 400, description = "Invalid state or provider error", body = crate::error::ErrorResponse),
+        (status = 409, description = "OAuth identity already claimed by another user", body = crate::error::ErrorResponse),
     )
 )]
 pub async fn callback(
@@ -175,7 +192,7 @@ pub async fn callback(
     Path(provider): Path<String>,
     Query(params): Query<CallbackParams>,
     headers: HeaderMap,
-) -> Result<Response, AuthError> {
+) -> Result<Json<serde_json::Value>, AuthError> {
     let claims = oauth::state::verify(&params.state, &state.signing_key)?;
 
     let client = {
@@ -192,6 +209,17 @@ pub async fn callback(
         .exchange_and_profile(&params.code, &claims.pkce_verifier, &redirect_uri)
         .await?;
 
+    if let Some(link_user_id) = claims.link_user_id {
+        oauth::link_identity(
+            &state.pool,
+            link_user_id,
+            client.provider_slug(),
+            &profile.external_id,
+        )
+        .await?;
+        return Ok(Json(serde_json::json!({ "linked": true })));
+    }
+
     let email_link_enabled = {
         let cfg = state.app_config.read().await;
         cfg.oauth_email_link
@@ -205,15 +233,22 @@ pub async fn callback(
     )
     .await?;
 
-    complete_oauth_login(&state, &headers, user_id, &claims.redirect_url).await
+    let (token, expires_at) = create_session(&state, &headers, user_id).await?;
+    Ok(Json(serde_json::json!({
+        "token": token.to_string(),
+        "expires_at": expires_at.to_rfc3339(),
+    })))
 }
+
+// ── POST /v1/oauth/apple/callback ─────────────────────────────────────────────
 
 #[utoipa::path(
     post,
     path = "/v1/oauth/apple/callback",
     tag = "oauth",
     responses(
-        (status = 302, description = "Redirect to redirect_url with token and expires_at query params"),
+        (status = 200, body = CallbackResponse, description = "Login — returns session token"),
+        (status = 200, body = LinkCallbackResponse, description = "Link — identity added to existing account"),
         (status = 400, description = "Invalid state or Apple error", body = crate::error::ErrorResponse),
     )
 )]
@@ -221,7 +256,7 @@ pub async fn apple_callback(
     State(state): State<AppState>,
     headers: HeaderMap,
     axum::extract::Form(params): axum::extract::Form<AppleCallbackForm>,
-) -> Result<Response, AuthError> {
+) -> Result<Json<serde_json::Value>, AuthError> {
     let claims = oauth::state::verify(&params.state, &state.signing_key)?;
 
     let client = {
@@ -261,6 +296,17 @@ pub async fn apple_callback(
         }
     }
 
+    if let Some(link_user_id) = claims.link_user_id {
+        oauth::link_identity(
+            &state.pool,
+            link_user_id,
+            client.provider_slug(),
+            &profile.external_id,
+        )
+        .await?;
+        return Ok(Json(serde_json::json!({ "linked": true })));
+    }
+
     let email_link_enabled = {
         let cfg = state.app_config.read().await;
         cfg.oauth_email_link
@@ -274,5 +320,30 @@ pub async fn apple_callback(
     )
     .await?;
 
-    complete_oauth_login(&state, &headers, user_id, &claims.redirect_url).await
+    let (token, expires_at) = create_session(&state, &headers, user_id).await?;
+    Ok(Json(serde_json::json!({
+        "token": token.to_string(),
+        "expires_at": expires_at.to_rfc3339(),
+    })))
+}
+
+async fn create_session(
+    state: &AppState,
+    headers: &HeaderMap,
+    user_id: Uuid,
+) -> Result<(Token, chrono::DateTime<chrono::Utc>), AuthError> {
+    let ttl = {
+        let cfg = state.app_config.read().await;
+        cfg.session_ttl_seconds
+    };
+
+    let session_token = Token::new(TokenPrefix::Session);
+    let ctx = request_context(headers);
+
+    let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
+    let (_session_id, expires_at) =
+        sessions::create(&mut tx, &session_token, user_id, ttl, &ctx).await?;
+    tx.commit().await.map_err(AuthError::from)?;
+
+    Ok((session_token, expires_at))
 }

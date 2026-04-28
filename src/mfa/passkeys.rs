@@ -341,11 +341,26 @@ pub async fn verify_authentication(
     credential: &webauthn_rs::prelude::PublicKeyCredential,
 ) -> Result<Uuid, crate::error::AuthError> {
     let auth_state = unpack_auth_state(state_token, signing_key)?;
-
     let cred_id_bytes: &[u8] = credential.raw_id.as_ref();
-    let (row_id, user_id, mut passkey) = find_credential(pool, cred_id_bytes)
-        .await?
-        .ok_or(crate::error::AuthError::InvalidCredentials)?;
+
+    let mut tx = pool.begin().await.map_err(crate::error::AuthError::from)?;
+
+    let row = sqlx::query!(
+        r#"SELECT id, user_id, credential_data AS "credential_data: serde_json::Value"
+           FROM auth.passkey_credentials
+           WHERE credential_id = $1 AND deleted_at IS NULL
+           FOR UPDATE"#,
+        cred_id_bytes,
+    )
+    .fetch_optional(tx.as_mut())
+    .await
+    .map_err(crate::error::AuthError::from)?
+    .ok_or(crate::error::AuthError::InvalidCredentials)?;
+
+    let row_id = row.id;
+    let user_id = row.user_id;
+    let mut passkey: Passkey = serde_json::from_value(row.credential_data)
+        .map_err(|e| crate::error::AuthError::internal_with("deserialize passkey", e))?;
 
     let dkey: webauthn_rs::prelude::DiscoverableKey = (&passkey).into();
     let creds: &[webauthn_rs::prelude::DiscoverableKey] = &[dkey];
@@ -354,8 +369,22 @@ pub async fn verify_authentication(
         .map_err(|e| crate::error::AuthError::internal_with("webauthn finish auth", e))?;
 
     passkey.update_credential(&auth_result);
-    update_credential(pool, row_id, &passkey).await?;
 
+    let data = serde_json::to_value(&passkey)
+        .map_err(|e| crate::error::AuthError::internal_with("serialize passkey", e))?;
+
+    sqlx::query!(
+        r#"UPDATE auth.passkey_credentials
+           SET credential_data = $1, last_used_at = now()
+           WHERE id = $2"#,
+        data,
+        row_id,
+    )
+    .execute(tx.as_mut())
+    .await
+    .map_err(crate::error::AuthError::from)?;
+
+    tx.commit().await.map_err(crate::error::AuthError::from)?;
     Ok(user_id)
 }
 

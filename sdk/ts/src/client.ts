@@ -90,6 +90,21 @@ export function createAuthClient<
   return {
     ...raw,
 
+    identities: {
+      list: () => raw.GET("/v1/identities", {}),
+
+      addPassword: (body: components["schemas"]["AddPasswordRequest"]) =>
+        raw.POST("/v1/identities", { body }),
+
+      update: (
+        id: string,
+        body: components["schemas"]["UpdateIdentityRequest"],
+      ) => raw.PATCH("/v1/identities/{id}", { params: { path: { id } }, body }),
+
+      unlink: (id: string) =>
+        raw.DELETE("/v1/identities/{id}", { params: { path: { id } } }),
+    },
+
     orgs: {
       list: () => raw.GET("/v1/orgs", {}),
 

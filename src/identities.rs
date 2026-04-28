@@ -36,6 +36,84 @@ pub async fn create(
     .map_err(AuthError::from)
 }
 
+pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<Identity>, AuthError> {
+    sqlx::query_as!(
+        Identity,
+        "SELECT id, user_id, provider, subject, created_at
+         FROM auth.identities
+         WHERE user_id = $1
+         ORDER BY created_at ASC",
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AuthError::from)
+}
+
+pub async fn count(pool: &PgPool, user_id: Uuid) -> Result<i64, AuthError> {
+    let row = sqlx::query!(
+        "SELECT COUNT(*) as count FROM auth.identities WHERE user_id = $1",
+        user_id,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AuthError::from)?;
+    Ok(row.count.unwrap_or(0))
+}
+
+pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<bool, AuthError> {
+    let result = sqlx::query!(
+        "DELETE FROM auth.identities WHERE id = $1 AND user_id = $2",
+        id,
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(AuthError::from)?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn find_password_secret_by_user(
+    pool: &PgPool,
+    id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<(String, String)>, AuthError> {
+    let row = sqlx::query!(
+        "SELECT subject, secret
+         FROM auth.identities
+         WHERE id = $1 AND user_id = $2 AND provider = 'password'
+         LIMIT 1",
+        id,
+        user_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)?;
+
+    match row {
+        None => Ok(None),
+        Some(r) => match r.secret {
+            None => Ok(None),
+            Some(s) => {
+                let hash = String::from_utf8(s)
+                    .map_err(|_| AuthError::internal("corrupted password hash"))?;
+                Ok(Some((r.subject, hash)))
+            }
+        },
+    }
+}
+
+pub async fn has_password(pool: &PgPool, user_id: Uuid) -> Result<bool, AuthError> {
+    let row = sqlx::query!(
+        "SELECT id FROM auth.identities WHERE user_id = $1 AND provider = 'password' LIMIT 1",
+        user_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)?;
+    Ok(row.is_some())
+}
+
 /// Look up a password identity's user_id and PHC hash string.
 pub async fn find_password_secret(
     pool: &PgPool,

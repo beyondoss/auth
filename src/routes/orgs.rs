@@ -439,6 +439,50 @@ pub async fn list_invitations(
     }))
 }
 
+// ── POST /v1/orgs/{id}/invitations/{inv_id}/resends ──────────────────────────
+
+#[utoipa::path(
+    post,
+    path = "/v1/orgs/{id}/invitations/{inv_id}/resends",
+    tag = "orgs",
+    security(("BearerAuth" = [])),
+    params(
+        ("id" = Uuid, Path, description = "Org ID"),
+        ("inv_id" = Uuid, Path, description = "Invitation ID"),
+    ),
+    responses(
+        (status = 201, body = InvitationResponse),
+        (status = 403, body = crate::error::ErrorResponse),
+        (status = 404, body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn resend_invitation(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<SessionContext>,
+    Path((org_id, inv_id)): Path<(Uuid, Uuid)>,
+) -> Result<(StatusCode, Json<InvitationResponse>), AuthError> {
+    orgs::require_owner(&state.pool, org_id, ctx.user.id).await?;
+
+    let token = Token::new(TokenPrefix::Invitation);
+    let hash = token.secret_hash();
+    let token_str = token.to_string();
+
+    let inv = invitations::refresh_token(&state.pool, inv_id, org_id, &hash).await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(InvitationResponse {
+            id: inv.id,
+            org_id: inv.org_id,
+            email: inv.email,
+            role: inv.role,
+            created_at: inv.created_at,
+            expires_at: inv.expires_at,
+            token: Some(token_str),
+        }),
+    ))
+}
+
 // ── DELETE /v1/orgs/{id}/invitations/{inv_id} ────────────────────────────────
 
 #[utoipa::path(

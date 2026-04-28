@@ -133,6 +133,56 @@ pub fn make_auth_response(
     }
 }
 
+// ── DELETE /v1/users/me ───────────────────────────────────────────────────────
+
+#[utoipa::path(
+    delete,
+    path = "/v1/users/me",
+    tag = "users",
+    security(("BearerAuth" = [])),
+    responses(
+        (status = 204),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn delete_me(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<SessionContext>,
+) -> Result<StatusCode, AuthError> {
+    let user_id = ctx.user.id;
+    let org_id = ctx.user.primary_org_id;
+
+    let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
+
+    // Remove all session tokens first (sessions.user_id has ON DELETE RESTRICT).
+    sqlx::query!(
+        "DELETE FROM auth.tokens WHERE id IN (SELECT token_id FROM auth.sessions WHERE user_id = $1)",
+        user_id,
+    )
+    .execute(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?;
+
+    sqlx::query!(
+        "UPDATE auth.users SET deleted_at = now() WHERE id = $1",
+        user_id,
+    )
+    .execute(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?;
+
+    sqlx::query!(
+        "UPDATE auth.orgs SET deleted_at = now() WHERE id = $1",
+        org_id,
+    )
+    .execute(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?;
+
+    tx.commit().await.map_err(AuthError::from)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ── POST /v1/users ────────────────────────────────────────────────────────────
 
 #[utoipa::path(

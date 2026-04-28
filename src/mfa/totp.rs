@@ -103,11 +103,13 @@ pub async fn enroll(
     email: &str,
     issuer: &str,
 ) -> Result<EnrollResponse, AuthError> {
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
+
     sqlx::query!(
         "DELETE FROM auth.totp_factors WHERE user_id = $1 AND enrolled_at IS NULL",
         user_id,
     )
-    .execute(pool)
+    .execute(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
 
@@ -120,7 +122,7 @@ pub async fn enroll(
         user_id,
         &secret_bytes as &[u8],
     )
-    .execute(pool)
+    .execute(tx.as_mut())
     .await
     .map_err(|e: sqlx::Error| {
         if let sqlx::Error::Database(ref db) = e
@@ -143,10 +145,12 @@ pub async fn enroll(
             factor_id,
             &hash as &[u8],
         )
-        .execute(pool)
+        .execute(tx.as_mut())
         .await
         .map_err(AuthError::from)?;
     }
+
+    tx.commit().await.map_err(AuthError::from)?;
 
     let uri = make_totp_labeled(&secret_bytes, email, issuer)?.get_url();
     let qr = qr_data_url(&uri);
@@ -251,22 +255,26 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
 }
 
 pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), AuthError> {
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
+
     let factor = sqlx::query!(
         "SELECT id FROM auth.totp_factors
-         WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL",
+         WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL
+         FOR UPDATE",
         user_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(tx.as_mut())
     .await
     .map_err(AuthError::from)?
     .ok_or(AuthError::NotFound)?;
 
     let rows = sqlx::query!(
         "SELECT id, code_hash FROM auth.totp_recovery_codes
-         WHERE factor_id = $1 AND used_at IS NULL",
+         WHERE factor_id = $1 AND used_at IS NULL
+         FOR UPDATE",
         factor.id,
     )
-    .fetch_all(pool)
+    .fetch_all(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
 
@@ -288,11 +296,63 @@ pub async fn use_recovery_code(pool: &PgPool, user_id: Uuid, code: &str) -> Resu
         "UPDATE auth.totp_recovery_codes SET used_at = now() WHERE id = $1",
         id,
     )
-    .execute(pool)
+    .execute(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
 
+    tx.commit().await.map_err(AuthError::from)?;
     Ok(())
+}
+
+pub async fn regenerate_recovery_codes(
+    pool: &PgPool,
+    user_id: Uuid,
+    totp_code: &str,
+) -> Result<Vec<String>, AuthError> {
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
+
+    let row = sqlx::query!(
+        "SELECT id, secret FROM auth.totp_factors
+         WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL
+         FOR UPDATE",
+        user_id,
+    )
+    .fetch_optional(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?
+    .ok_or(AuthError::NotFound)?;
+
+    if !verify_code(&row.secret, totp_code) {
+        return Err(AuthError::MfaError {
+            message: "invalid code".into(),
+        });
+    }
+
+    sqlx::query!(
+        "DELETE FROM auth.totp_recovery_codes WHERE factor_id = $1",
+        row.id,
+    )
+    .execute(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?;
+
+    let codes = generate_recovery_codes();
+    for code in &codes {
+        let hash = sha256(code.as_bytes());
+        let code_id = Uuid::now_v7();
+        sqlx::query!(
+            "INSERT INTO auth.totp_recovery_codes (id, factor_id, code_hash) VALUES ($1, $2, $3)",
+            code_id,
+            row.id,
+            &hash as &[u8],
+        )
+        .execute(tx.as_mut())
+        .await
+        .map_err(AuthError::from)?;
+    }
+
+    tx.commit().await.map_err(AuthError::from)?;
+    Ok(codes.to_vec())
 }
 
 pub async fn disable(pool: &PgPool, user_id: Uuid) -> Result<(), AuthError> {
