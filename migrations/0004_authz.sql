@@ -149,7 +149,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION auth.authz_check(
     p_subject_id  text,
-    p_relation    text[],
+    p_relations   text[],
     p_object_type text,
     p_object_id   text
 ) RETURNS boolean
@@ -165,6 +165,7 @@ DECLARE
     v_nfi   text[];
     v_nfr   text[];
 BEGIN
+    -- Anchor: direct leaf match exits immediately; subject-set rows seed the frontier.
     SELECT
         bool_or(subject_id = p_subject_id AND subject_set_type IS NULL),
         array_agg(subject_set_type)     FILTER (WHERE subject_set_type IS NOT NULL),
@@ -174,7 +175,7 @@ BEGIN
       FROM auth.authz_relations
      WHERE object_type = p_object_type
        AND object_id   = p_object_id
-       AND relation    = ANY(p_relation);
+       AND relation    = ANY(p_relations);
 
     IF v_found THEN RETURN true; END IF;
 

@@ -254,6 +254,16 @@ impl TestClient {
             .expect("DELETE request failed");
         TestResponse::from_response(res).await
     }
+
+    pub async fn delete_json<B: serde::Serialize>(&self, path: &str, body: &B) -> TestResponse {
+        let res = self
+            .request(reqwest::Method::DELETE, path)
+            .json(body)
+            .send()
+            .await
+            .expect("DELETE request failed");
+        TestResponse::from_response(res).await
+    }
 }
 
 // ── DB access ─────────────────────────────────────────────────────────────────
