@@ -23,7 +23,8 @@ BEGIN
 
     DROP FUNCTION IF EXISTS auth.authz_check(text, text, text, text);
     DROP FUNCTION IF EXISTS auth.authz_check(text, text[], text, text);
-    DROP FUNCTION IF EXISTS auth.authz_check_v2(text, text, text, text);
+    DROP FUNCTION IF EXISTS auth.authz_check_batch(text[], text[], text[], text[]);
+    DROP FUNCTION IF EXISTS auth.authz_check_parallel_batch(text[], text[], text[], text[]);
 
     CREATE FUNCTION auth.authz_check(
         subject_id  text,
@@ -31,8 +32,7 @@ BEGIN
         object_type text,
         object_id   text
     ) RETURNS boolean
-        LANGUAGE c
-        STABLE
+        LANGUAGE c STABLE
         AS 'authz_extension', 'authz_check_single_wrapper';
 
     CREATE FUNCTION auth.authz_check(
@@ -41,9 +41,28 @@ BEGIN
         object_type text,
         object_id   text
     ) RETURNS boolean
-        LANGUAGE c
-        STABLE
+        LANGUAGE c STABLE
         AS 'authz_extension', 'authz_check_array_wrapper';
 
-    RAISE NOTICE 'authz_extension: replaced authz_check with Rust/pgrx BFS implementation';
+    -- Theory 2A: N BFS traversals in one SPI connect (amortises connect cost).
+    CREATE FUNCTION auth.authz_check_batch(
+        subject_ids  text[],
+        relations    text[],
+        object_types text[],
+        object_ids   text[]
+    ) RETURNS boolean[]
+        LANGUAGE c STABLE
+        AS 'authz_extension', 'authz_check_batch_wrapper';
+
+    -- Theory 2B: parallel BFS — one SQL query per level covers all N checks.
+    CREATE FUNCTION auth.authz_check_parallel_batch(
+        subject_ids  text[],
+        relations    text[],
+        object_types text[],
+        object_ids   text[]
+    ) RETURNS boolean[]
+        LANGUAGE c STABLE
+        AS 'authz_extension', 'authz_check_parallel_batch_wrapper';
+
+    RAISE NOTICE 'authz_extension: registered authz_check + authz_check_batch + authz_check_parallel_batch';
 END $$;

@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use sqlx::PgPool;
 use testcontainers::ImageExt;
+use testcontainers::CopyTargetOptions;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
@@ -222,7 +223,8 @@ async fn run_set(
     ]);
     let pg = match so_path.as_deref() {
         Some(p) => pg.with_copy_to(
-            format!("{CONTAINER_LIBDIR}/authz_extension.so"),
+            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/authz_extension.so"))
+                .with_mode(0o755),
             Path::new(p),
         ),
         None => pg,

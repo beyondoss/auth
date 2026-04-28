@@ -4,6 +4,7 @@ use crate::harness::Scenario;
 
 pub mod batch_check;
 pub mod bulk_write;
+pub mod native_batch_check;
 pub mod corpus;
 pub mod depth_sweep;
 pub mod depth_sweep_cold;
@@ -30,6 +31,8 @@ pub fn all() -> Vec<Arc<dyn Scenario>> {
         Arc::new(batch_check::BatchCheck::new(4)),
         Arc::new(batch_check::BatchCheck::new(16)),
         Arc::new(batch_check::BatchCheck::new(64)),
+        Arc::new(native_batch_check::NativeBatchCheck::new(64, false)),
+        Arc::new(native_batch_check::NativeBatchCheck::new(64, true)),
         Arc::new(depth_sweep::DepthSweep::new(1)),
         Arc::new(depth_sweep::DepthSweep::new(3)),
         Arc::new(depth_sweep::DepthSweep::new(5)),

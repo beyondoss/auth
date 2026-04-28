@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, bail};
+use testcontainers::CopyTargetOptions;
 use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
@@ -25,7 +26,8 @@ async fn main() -> anyhow::Result<()> {
     let pg = Postgres::default().with_tag("18");
     let pg = match so_path.as_deref() {
         Some(p) => pg.with_copy_to(
-            format!("{CONTAINER_LIBDIR}/authz_extension.so"),
+            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/authz_extension.so"))
+                .with_mode(0o755),
             Path::new(p),
         ),
         None => pg,
