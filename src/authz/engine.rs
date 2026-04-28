@@ -1,5 +1,8 @@
+use std::collections::HashSet;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::error::AuthError;
@@ -8,6 +11,7 @@ use crate::error::AuthError;
 
 pub async fn write_relation(
     pool: &PgPool,
+    partition_cache: &RwLock<HashSet<String>>,
     object_type: &str,
     object_id: &str,
     relation: &str,
@@ -15,6 +19,7 @@ pub async fn write_relation(
     subject_set_type: Option<&str>,
     subject_set_relation: Option<&str>,
 ) -> Result<(), AuthError> {
+    ensure_partition(pool, object_type, partition_cache).await?;
     sqlx::query!(
         r#"
         INSERT INTO auth.authz_relations
@@ -83,9 +88,20 @@ pub struct BatchResult {
 
 pub async fn batch_relations(
     pool: &PgPool,
+    partition_cache: &RwLock<HashSet<String>>,
     writes: Vec<BatchOp>,
     deletes: Vec<BatchOp>,
 ) -> Result<BatchResult, AuthError> {
+    // Ensure partitions for every distinct write object_type before opening the tx.
+    // DDL inside a tx would conflict with auto-commit semantics; we want the partition
+    // table to exist independently of the write succeeding.
+    let mut seen: HashSet<&str> = HashSet::new();
+    for op in &writes {
+        if seen.insert(op.object_type.as_str()) {
+            ensure_partition(pool, &op.object_type, partition_cache).await?;
+        }
+    }
+
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
     let mut written = 0u64;
     let mut deleted = 0u64;
@@ -386,19 +402,29 @@ pub async fn enumerate_via_parent(
 
 // ── Partition management ──────────────────────────────────────────────────────
 
-/// Ensure a dedicated partition exists for each resource type in the schema.
-/// Called after schema PUT — DDL is auto-committed so this runs outside the
-/// config UPDATE's implicit transaction. IF NOT EXISTS makes it idempotent.
-pub async fn ensure_partitions(pool: &PgPool, resource_names: &[&str]) -> Result<(), AuthError> {
-    for name in resource_names {
-        let sql = format!(
-            "CREATE TABLE IF NOT EXISTS auth.authz_relations_{name} \
-             PARTITION OF auth.authz_relations FOR VALUES IN ('{name}')"
-        );
-        sqlx::query(&sql)
-            .execute(pool)
-            .await
-            .map_err(AuthError::from)?;
+/// Ensure a dedicated LIST partition exists for `object_type`.
+///
+/// Called JIT from the write path: first write of a type pays the DDL cost
+/// (one CREATE TABLE IF NOT EXISTS), all subsequent writes hit the in-memory
+/// `HashSet` cache and skip the round-trip entirely. `object_type` must be
+/// validated by `validate_ident` (a-z, 0-9, _) — that invariant is what makes
+/// the format-string interpolation safe.
+pub async fn ensure_partition(
+    pool: &PgPool,
+    object_type: &str,
+    cache: &RwLock<HashSet<String>>,
+) -> Result<(), AuthError> {
+    if cache.read().await.contains(object_type) {
+        return Ok(());
     }
+    let sql = format!(
+        "CREATE TABLE IF NOT EXISTS auth.authz_relations_{object_type} \
+         PARTITION OF auth.authz_relations FOR VALUES IN ('{object_type}')"
+    );
+    sqlx::query(&sql)
+        .execute(pool)
+        .await
+        .map_err(AuthError::from)?;
+    cache.write().await.insert(object_type.to_string());
     Ok(())
 }

@@ -251,6 +251,18 @@ impl TupleBuf {
     }
 
     async fn flush(self, pool: &PgPool) -> Result<()> {
+        // Ensure a dedicated partition exists for each distinct object_type before
+        // bulk-inserting. No default partition exists; without this the inserts fail.
+        let distinct: std::collections::HashSet<&str> =
+            self.object_type.iter().map(|s| s.as_str()).collect();
+        for ot in distinct {
+            let sql = format!(
+                "CREATE TABLE IF NOT EXISTS auth.authz_relations_{ot} \
+                 PARTITION OF auth.authz_relations FOR VALUES IN ('{ot}')"
+            );
+            sqlx::query(&sql).execute(pool).await?;
+        }
+
         let total = self.object_type.len();
         let mut start = 0;
         while start < total {

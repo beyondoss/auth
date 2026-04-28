@@ -54,19 +54,27 @@ impl Scenario for ColdCheck {
         let session = create_session(pool).await?;
         let user_id = session.user_id.to_string();
 
-        // Bulk-insert N relations directly in DB
-        let mut qb = sqlx::QueryBuilder::new(
-            "INSERT INTO auth.authz_relations \
-             (object_type, object_id, relation, subject_id) ",
-        );
-        qb.push_values(0..N_OBJECTS, |mut b, i| {
-            b.push_bind("doc")
-                .push_bind(format!("bench-cold-{i:06}"))
-                .push_bind("viewer")
-                .push_bind(user_id.clone());
-        });
-        qb.push(" ON CONFLICT DO NOTHING");
-        qb.build().execute(pool).await?;
+        // Bulk-insert N relations via the HTTP batch API in chunks to stay under
+        // the server's body size limit.
+        for chunk in (0..N_OBJECTS).collect::<Vec<_>>().chunks(500) {
+            let writes: Vec<serde_json::Value> = chunk
+                .iter()
+                .map(|&i| {
+                    serde_json::json!({
+                        "object": {"type": "doc", "id": format!("bench-cold-{i:06}")},
+                        "relation": "viewer",
+                        "subject": {"id": user_id}
+                    })
+                })
+                .collect();
+            self.client
+                .patch(format!("{}/v1/authz/relations", self.url))
+                .header("Authorization", format!("Bearer {}", self.admin_secret))
+                .json(&serde_json::json!({"writes": writes}))
+                .send()
+                .await?
+                .error_for_status()?;
+        }
 
         self.bearer.set(session.bearer).ok();
         Ok(())

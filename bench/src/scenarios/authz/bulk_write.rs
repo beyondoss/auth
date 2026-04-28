@@ -29,9 +29,12 @@ impl Scenario for BulkWrite {
     }
 
     async fn setup(&self, pool: &PgPool) -> Result<()> {
-        // Clear only the "doc" rows written by bulk_write so each batch-size
-        // variant starts against a small table. Leaves the shared flat/chain/
-        // scale_sweep corpus untouched.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS auth.authz_relations_bw_doc \
+             PARTITION OF auth.authz_relations FOR VALUES IN ('bw_doc')",
+        )
+        .execute(pool)
+        .await?;
         sqlx::query("DELETE FROM auth.authz_relations WHERE object_type = 'bw_doc'")
             .execute(pool)
             .await?;

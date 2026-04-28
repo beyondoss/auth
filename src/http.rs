@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -51,6 +52,7 @@ pub struct AppState {
     /// OAuth callback URIs. When None, derived from the incoming request Host header.
     pub public_url: Option<String>,
     pub authz_cache: Arc<AuthzCache>,
+    pub partition_cache: Arc<RwLock<HashSet<String>>>,
 }
 
 #[derive(Clone)]

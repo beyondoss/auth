@@ -29,10 +29,6 @@ CREATE TABLE auth.authz_relations (
     CONSTRAINT authz_relations_pkey PRIMARY KEY (id, object_type)
 ) PARTITION BY LIST (object_type);
 
--- Default partition catches all object types not yet given a dedicated partition.
-CREATE TABLE auth.authz_relations_default
-    PARTITION OF auth.authz_relations DEFAULT;
-
 -- Unique constraint on the logical tuple identity.
 -- NULLS NOT DISTINCT treats NULLs as equal so (obj, rel, subj, NULL, NULL) is one row.
 CREATE UNIQUE INDEX authz_relations_key ON auth.authz_relations (
@@ -135,6 +131,8 @@ $$;
 
 -- Path variant: walks a sequence of (relation, object_type) hops.
 -- Used for multi-hop hierarchy checks, e.g. document→folder→owner.
+-- Strictly direct-entity traversal: subject-set expansion is not performed.
+-- If a hop lands on a subject-set row the path is not followed further.
 CREATE OR REPLACE FUNCTION auth.authz_check_path(
     p_subject_id       text,
     p_relation_path    text[],
@@ -146,22 +144,23 @@ AS $$
     WITH RECURSIVE path_check AS (
         SELECT subject_id, subject_set_type, subject_set_relation, 1 AS depth
           FROM auth.authz_relations
-         WHERE object_type = p_object_type_path[1]
-           AND object_id   = p_object_id
-           AND relation    = p_relation_path[1]
+         WHERE object_type      = p_object_type_path[1]
+           AND object_id        = p_object_id
+           AND relation         = p_relation_path[1]
+           AND subject_set_type IS NULL
         UNION ALL
         SELECT rt.subject_id, rt.subject_set_type, rt.subject_set_relation, pc.depth + 1
           FROM auth.authz_relations rt
           JOIN path_check pc ON rt.object_id = pc.subject_id
-         WHERE rt.object_type = p_object_type_path[pc.depth + 1]
-           AND rt.relation    = p_relation_path[pc.depth + 1]
+         WHERE rt.object_type      = p_object_type_path[pc.depth + 1]
+           AND rt.relation         = p_relation_path[pc.depth + 1]
+           AND rt.subject_set_type IS NULL
            AND pc.depth < array_length(p_relation_path, 1)
     )
     CYCLE subject_id SET is_cycle USING cycle_path
     SELECT EXISTS (
         SELECT 1 FROM path_check
          WHERE subject_id = p_subject_id
-           AND (subject_set_type IS NULL OR subject_set_relation IS NULL)
            AND NOT is_cycle
     )
 $$;
@@ -306,11 +305,14 @@ AS $$
     WITH RECURSIVE object_access AS (
         SELECT object_type, object_id, relation, subject_id
           FROM auth.authz_relations
-         WHERE subject_id = p_subject_id
+         WHERE subject_id       = p_subject_id
+           AND subject_set_type IS NULL
         UNION ALL
         SELECT rt.object_type, rt.object_id, rt.relation, oa.subject_id
           FROM auth.authz_relations rt
-          JOIN object_access oa ON rt.subject_id = oa.object_id
+          JOIN object_access oa ON rt.subject_id           = oa.object_id
+                                AND rt.subject_set_type     = oa.object_type
+                                AND rt.subject_set_relation = oa.relation
     )
     CYCLE object_id, object_type, relation SET is_cycle USING cycle_path
     SELECT object_type, object_id, relation, subject_id
@@ -335,11 +337,14 @@ AS $$
     WITH RECURSIVE object_access AS (
         SELECT object_type, object_id, relation, subject_id
           FROM auth.authz_relations
-         WHERE subject_id = p_subject_id
+         WHERE subject_id       = p_subject_id
+           AND subject_set_type IS NULL
         UNION ALL
         SELECT rt.object_type, rt.object_id, rt.relation, oa.subject_id
           FROM auth.authz_relations rt
-          JOIN object_access oa ON rt.subject_id = oa.object_id
+          JOIN object_access oa ON rt.subject_id           = oa.object_id
+                                AND rt.subject_set_type     = oa.object_type
+                                AND rt.subject_set_relation = oa.relation
     )
     CYCLE object_id, object_type, relation SET is_cycle USING cycle_path
     SELECT object_type, object_id, relation, subject_id

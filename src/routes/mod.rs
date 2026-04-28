@@ -17,7 +17,7 @@ pub mod users;
 
 use axum::{
     Router, middleware as axum_middleware,
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, patch, post},
 };
 use utoipa::OpenApi;
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
@@ -103,7 +103,6 @@ impl utoipa::Modify for BearerAuth {
         invitations::accept_invitation,
         invitations::decline_invitation,
         admin::impersonations::create,
-        admin::partitions::ensure_partition,
         authz::check_permission,
         authz::write_relation,
         authz::delete_relation,
@@ -214,10 +213,6 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/v1/admin/oauth-providers",
             get(admin::oauth::get).put(admin::oauth::put),
-        )
-        .route(
-            "/v1/admin/relation-partitions/{object_type}",
-            put(admin::partitions::ensure_partition),
         )
         .route(
             "/v1/authz/relations",

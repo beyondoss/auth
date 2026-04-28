@@ -445,6 +445,7 @@ pub async fn write_relation(
     };
     engine::write_relation(
         &state.pool,
+        &state.partition_cache,
         &req.object.object_type,
         &req.object.id,
         &req.relation,
@@ -529,7 +530,8 @@ pub async fn batch_relations(
             .authz_cache
             .invalidate_for_write(&op.object_type, &op.object_id, &op.subject_id);
     }
-    let result = engine::batch_relations(&state.pool, write_ops, delete_ops).await?;
+    let result =
+        engine::batch_relations(&state.pool, &state.partition_cache, write_ops, delete_ops).await?;
     Ok(Json(BatchResponse {
         written: result.written,
         deleted: result.deleted,
@@ -589,9 +591,6 @@ pub async fn put_schema(
     .execute(&state.pool)
     .await
     .map_err(AuthError::from)?;
-
-    let resource_names: Vec<&str> = req.resources.iter().map(|r| r.name.as_str()).collect();
-    engine::ensure_partitions(&state.pool, &resource_names).await?;
 
     state.app_config.write().await.authz_schema = Some(raw);
     *state.authz_schema.write().await = Some(compiled);

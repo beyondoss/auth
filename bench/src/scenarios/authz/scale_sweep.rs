@@ -52,6 +52,13 @@ impl Scenario for ScaleSweep {
     }
 
     async fn setup(&self, pool: &PgPool) -> Result<()> {
+        let sql = format!(
+            "CREATE TABLE IF NOT EXISTS auth.authz_relations_{} \
+             PARTITION OF auth.authz_relations FOR VALUES IN ('{}')",
+            self.object_type, self.object_type
+        );
+        sqlx::query(&sql).execute(pool).await?;
+
         // Idempotent: if at least n_tuples rows for this prefix already exist,
         // skip seeding entirely. Otherwise seed fresh (after wiping any partial
         // prior state for this prefix only — no global truncate).

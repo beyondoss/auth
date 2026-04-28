@@ -56,16 +56,19 @@ impl Scenario for WarmCheck {
         let session = create_session(pool).await?;
         let user_id = session.user_id.to_string();
 
-        // Write one relation directly in DB
-        sqlx::query(
-            "INSERT INTO auth.authz_relations \
-             (object_type, object_id, relation, subject_id) \
-             VALUES ('doc', $1, 'viewer', $2) ON CONFLICT DO NOTHING",
-        )
-        .bind(RESOURCE_ID)
-        .bind(&user_id)
-        .execute(pool)
-        .await?;
+        // Write one relation via the HTTP API so the service's JIT partition
+        // creation runs (the bench DB has no pre-existing partitions).
+        self.client
+            .post(format!("{}/v1/authz/relations", self.url))
+            .header("Authorization", format!("Bearer {}", self.admin_secret))
+            .json(&serde_json::json!({
+                "object": {"type": "doc", "id": RESOURCE_ID},
+                "relation": "viewer",
+                "subject": {"id": user_id}
+            }))
+            .send()
+            .await?
+            .error_for_status()?;
 
         self.bearer.set(session.bearer).ok();
         self.user_id.set(user_id).ok();

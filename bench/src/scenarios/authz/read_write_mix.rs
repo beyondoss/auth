@@ -40,7 +40,13 @@ impl Scenario for ReadWriteMix {
         "Does p99 read latency spike under concurrent write pressure? Validates the invalidation trigger under production-like conditions."
     }
 
-    async fn setup(&self, _pool: &PgPool) -> Result<()> {
+    async fn setup(&self, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS auth.authz_relations_rwm_doc \
+             PARTITION OF auth.authz_relations FOR VALUES IN ('rwm_doc')",
+        )
+        .execute(pool)
+        .await?;
         Ok(())
     }
 

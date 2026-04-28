@@ -63,6 +63,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         oauth_redirect_allowlist: vec![],
         public_url: None,
         authz_cache,
+        partition_cache: Arc::new(RwLock::new(std::collections::HashSet::new())),
     };
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;

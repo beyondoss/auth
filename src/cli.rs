@@ -6,7 +6,6 @@ use tokio::sync::RwLock;
 
 use crate::{
     app_config,
-    authz::engine,
     config::{MigrateConfig, ServeConfig},
     crypto::LocalKeyEncryptor,
     db, http, keys, routes, telemetry, token_gc,
@@ -102,12 +101,6 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     let compiled_authz = app_config::compile_authz_schema(&app_config)
         .map_err(|e| anyhow::anyhow!("failed to compile authz schema: {e}"))?;
 
-    let resource_names = app_config::authz_resource_names(&app_config);
-    let resource_name_refs: Vec<&str> = resource_names.iter().map(String::as_str).collect();
-    engine::ensure_partitions(&pool, &resource_name_refs)
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to ensure authz partitions: {e}"))?;
-
     let http_client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -153,6 +146,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         oauth_redirect_allowlist,
         public_url: cfg.public_url.clone(),
         authz_cache,
+        partition_cache: Arc::new(RwLock::new(std::collections::HashSet::new())),
     };
 
     let result = http::serve(&cfg.address, state).await;
