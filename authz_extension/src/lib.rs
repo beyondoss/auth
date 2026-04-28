@@ -19,9 +19,7 @@ fn bfs_with_client(
     object_type: &str,
     object_id: &str,
 ) -> Result<bool, spi::Error> {
-    // --- Theory 3: direct-grant fast path ---
-    // Check for a direct leaf match with a point-lookup before fetching frontier
-    // rows.  Saves iterating over subject-set rows on the common cache-hot case.
+    // Direct-grant fast path: point-lookup before fetching frontier rows.
     let direct: bool = client
         .select(
             "SELECT EXISTS ( \
@@ -177,7 +175,7 @@ fn authz_check_array(
     }
 }
 
-// ── Theory 2A: sequential batch (one SPI connect, N BFS calls) ───────────────
+// ── Sequential batch ──────────────────────────────────────────────────────────
 
 /// authz_check_batch(subject_ids, relations, object_types, object_ids) → bool[]
 ///
@@ -222,7 +220,7 @@ fn authz_check_batch(
     }
 }
 
-// ── Theory 2B: parallel BFS (one SQL query per level across all N checks) ────
+// ── Parallel BFS batch (one SQL query per level across all N checks) ─────────
 
 struct CheckState {
     subject_id: String,
