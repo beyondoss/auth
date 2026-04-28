@@ -55,173 +55,38 @@ CREATE INDEX authz_relations_subject_set_idx ON auth.authz_relations (
     subject_set_relation
 ) WHERE subject_set_type IS NOT NULL;
 
--- ──────────────────────────────────────────────────────────────────────────────
--- authz_check: recursive CTE permission check. Two overloads:
---   1. single relation
---   2. array of relations (any match)
---
--- authz_check_path: multi-hop hierarchy traversal via (relation, object_type) path.
--- ──────────────────────────────────────────────────────────────────────────────
-
--- PL/pgSQL BFS implementation. Returns true as soon as p_subject_id is found,
--- without materializing the full reachable closure. Loses PARALLEL SAFE
--- (irrelevant for point checks; see build_batch_or_chain for the one call site
--- where it matters, acceptable at current batch sizes) in exchange for early
--- termination on deep graphs.
---
--- One query per BFS level expands the entire frontier via UNNEST join.
--- Visited nodes tracked as 'type\x01id\x01rel' keys (chr(1) separator;
--- assumes object_type/id/relation don't contain chr(1), which the schema
--- permits but real-world IDs won't violate).
--- Frontier deduplication via DISTINCT prevents re-expanding the same
--- subject-set node when multiple current-frontier nodes share a successor.
--- Visited-set construction uses a single array concat per level (O(k) not O(k²)).
-CREATE OR REPLACE FUNCTION auth.authz_check(
-    p_subject_id  text,
-    p_relation    text,
-    p_object_type text,
-    p_object_id   text
+CREATE FUNCTION auth.authz_check(
+    subject_id  text,
+    relation    text,
+    object_type text,
+    object_id   text
 ) RETURNS boolean
-    LANGUAGE plpgsql STABLE
-AS $$
-DECLARE
-    v_ft    text[];
-    v_fi    text[];
-    v_fr    text[];
-    v_seen  text[] := '{}';
-    v_found bool;
-    v_nft   text[];
-    v_nfi   text[];
-    v_nfr   text[];
-BEGIN
-    -- Anchor: direct leaf match exits immediately; subject-set rows seed the frontier.
-    SELECT
-        bool_or(subject_id = p_subject_id AND subject_set_type IS NULL),
-        array_agg(subject_set_type)     FILTER (WHERE subject_set_type IS NOT NULL),
-        array_agg(subject_id)           FILTER (WHERE subject_set_type IS NOT NULL),
-        array_agg(subject_set_relation) FILTER (WHERE subject_set_type IS NOT NULL)
-      INTO v_found, v_ft, v_fi, v_fr
-      FROM auth.authz_relations
-     WHERE object_type = p_object_type
-       AND object_id   = p_object_id
-       AND relation    = p_relation;
+    LANGUAGE c STABLE STRICT
+    AS 'authz_extension', 'authz_check_single_wrapper';
 
-    IF v_found THEN RETURN true; END IF;
+COMMENT ON FUNCTION auth.authz_check(text, text, text, text) IS
+'Ask: does subject_id hold relation on (object_type, object_id)?
 
-    WHILE v_ft IS NOT NULL LOOP
-        v_seen := v_seen || ARRAY(
-            SELECT ft || chr(1) || fi || chr(1) || fr
-              FROM unnest(v_ft, v_fi, v_fr) AS f(ft, fi, fr)
-        );
+Returns true if the answer is yes — directly or through any depth of group/set
+membership (e.g. user → team → org that holds the relation). Cycles are safe.
 
-        WITH expanded AS (
-            SELECT DISTINCT
-                r.subject_set_type,
-                r.subject_id,
-                r.subject_set_relation,
-                (r.subject_id = p_subject_id AND r.subject_set_type IS NULL) AS is_match
-              FROM auth.authz_relations r
-              JOIN unnest(v_ft, v_fi, v_fr) AS f(ot, oi, rel)
-                ON r.object_type = f.ot
-               AND r.object_id   = f.oi
-               AND r.relation    = f.rel
-             WHERE r.subject_set_type IS NULL
-                OR NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))
-        )
-        SELECT
-            bool_or(is_match),
-            array_agg(subject_set_type) FILTER (WHERE subject_set_type IS NOT NULL),
-            array_agg(subject_id)       FILTER (WHERE subject_set_type IS NOT NULL),
-            array_agg(subject_set_relation) FILTER (WHERE subject_set_type IS NOT NULL)
-          INTO v_found, v_nft, v_nfi, v_nfr
-          FROM expanded;
+Use authz_check_parallel_batch when checking many tuples at once.';
 
-        IF v_found THEN RETURN true; END IF;
-
-        v_ft := v_nft;
-        v_fi := v_nfi;
-        v_fr := v_nfr;
-    END LOOP;
-
-    RETURN false;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION auth.authz_check(
-    p_subject_id  text,
-    p_relations   text[],
-    p_object_type text,
-    p_object_id   text
+CREATE FUNCTION auth.authz_check(
+    subject_id  text,
+    relations   text[],
+    object_type text,
+    object_id   text
 ) RETURNS boolean
-    LANGUAGE plpgsql STABLE
-AS $$
-DECLARE
-    v_ft    text[];
-    v_fi    text[];
-    v_fr    text[];
-    v_seen  text[] := '{}';
-    v_found bool;
-    v_nft   text[];
-    v_nfi   text[];
-    v_nfr   text[];
-BEGIN
-    -- Anchor: direct leaf match exits immediately; subject-set rows seed the frontier.
-    SELECT
-        bool_or(subject_id = p_subject_id AND subject_set_type IS NULL),
-        array_agg(subject_set_type)     FILTER (WHERE subject_set_type IS NOT NULL),
-        array_agg(subject_id)           FILTER (WHERE subject_set_type IS NOT NULL),
-        array_agg(subject_set_relation) FILTER (WHERE subject_set_type IS NOT NULL)
-      INTO v_found, v_ft, v_fi, v_fr
-      FROM auth.authz_relations
-     WHERE object_type = p_object_type
-       AND object_id   = p_object_id
-       AND relation    = ANY(p_relations);
+    LANGUAGE c STABLE STRICT
+    AS 'authz_extension', 'authz_check_array_wrapper';
 
-    IF v_found THEN RETURN true; END IF;
+COMMENT ON FUNCTION auth.authz_check(text, text[], text, text) IS
+'Ask: does subject_id hold any of the given relations on (object_type, object_id)?
 
-    WHILE v_ft IS NOT NULL LOOP
-        v_seen := v_seen || ARRAY(
-            SELECT ft || chr(1) || fi || chr(1) || fr
-              FROM unnest(v_ft, v_fi, v_fr) AS f(ft, fi, fr)
-        );
+Same as authz_check(text, text, text, text) but accepts an array of relations
+and returns true if the subject holds at least one of them.';
 
-        WITH expanded AS (
-            SELECT DISTINCT
-                r.subject_set_type,
-                r.subject_id,
-                r.subject_set_relation,
-                (r.subject_id = p_subject_id AND r.subject_set_type IS NULL) AS is_match
-              FROM auth.authz_relations r
-              JOIN unnest(v_ft, v_fi, v_fr) AS f(ot, oi, rel)
-                ON r.object_type = f.ot
-               AND r.object_id   = f.oi
-               AND r.relation    = f.rel
-             WHERE r.subject_set_type IS NULL
-                OR NOT ((r.subject_set_type || chr(1) || r.subject_id || chr(1) || r.subject_set_relation) = ANY(v_seen))
-        )
-        SELECT
-            bool_or(is_match),
-            array_agg(subject_set_type) FILTER (WHERE subject_set_type IS NOT NULL),
-            array_agg(subject_id)       FILTER (WHERE subject_set_type IS NOT NULL),
-            array_agg(subject_set_relation) FILTER (WHERE subject_set_type IS NOT NULL)
-          INTO v_found, v_nft, v_nfi, v_nfr
-          FROM expanded;
-
-        IF v_found THEN RETURN true; END IF;
-
-        v_ft := v_nft;
-        v_fi := v_nfi;
-        v_fr := v_nfr;
-    END LOOP;
-
-    RETURN false;
-END;
-$$;
-
--- Path variant: walks a sequence of (relation, object_type) hops.
--- Used for multi-hop hierarchy checks, e.g. document→folder→owner.
--- Strictly direct-entity traversal: subject-set expansion is not performed.
--- If a hop lands on a subject-set row the path is not followed further.
 CREATE OR REPLACE FUNCTION auth.authz_check_path(
     p_subject_id       text,
     p_relation_path    text[],
@@ -254,11 +119,52 @@ AS $$
     )
 $$;
 
--- ──────────────────────────────────────────────────────────────────────────────
--- authz_lookup_subjects: given an object + relation, return all direct subjects
--- (resolves subject sets recursively). Used by the /v1/authz/expand endpoint
--- and internally by the why-check trace.
--- ──────────────────────────────────────────────────────────────────────────────
+COMMENT ON FUNCTION auth.authz_check_path(text, text[], text[], text) IS
+'Multi-hop hierarchy check along a fixed (relation, object_type) path.
+
+Walks outward from (p_object_type_path[1], p_object_id) hop by hop and returns
+true if p_subject_id appears as a direct subject at any hop.
+
+Note: subject-set expansion (group membership) is NOT performed at any hop —
+only direct subjects are matched. Use authz_check if you need group expansion.
+
+Example: check if user U owns folder F that document D links to —
+  authz_check_path(U, ARRAY[''folder'', ''owner''], ARRAY[''document'', ''folder''], D)';
+
+CREATE FUNCTION auth.authz_check_batch(
+    subject_ids  text[],
+    relations    text[],
+    object_types text[],
+    object_ids   text[]
+) RETURNS boolean[]
+    LANGUAGE c STABLE STRICT
+    AS 'authz_extension', 'authz_check_batch_wrapper';
+
+COMMENT ON FUNCTION auth.authz_check_batch(text[], text[], text[], text[]) IS
+'Bulk permission check — sequential. Accepts N parallel arrays (subject_ids,
+relations, object_types, object_ids) and returns a boolean[] in the same order.
+
+For large batches, prefer authz_check_parallel_batch — it is significantly
+faster because it processes all checks at each graph depth in a single query.';
+
+CREATE FUNCTION auth.authz_check_parallel_batch(
+    subject_ids  text[],
+    relations    text[],
+    object_types text[],
+    object_ids   text[]
+) RETURNS boolean[]
+    LANGUAGE c STABLE STRICT
+    AS 'authz_extension', 'authz_check_parallel_batch_wrapper';
+
+COMMENT ON FUNCTION auth.authz_check_parallel_batch(text[], text[], text[], text[]) IS
+'Bulk permission check — parallel. The preferred function for checking many
+tuples at once. Accepts N parallel arrays (subject_ids, relations, object_types,
+object_ids) and returns a boolean[] in the same order.
+
+All checks are evaluated simultaneously at each graph depth level, making this
+significantly faster than authz_check_batch for any meaningful batch size.
+
+Used by: POST /v1/authz/checks.';
 
 CREATE OR REPLACE FUNCTION auth.authz_lookup_subjects(
     p_relation    text,
@@ -317,6 +223,16 @@ AS $$
        AND NOT is_cycle
 $$;
 
+COMMENT ON FUNCTION auth.authz_lookup_subjects(text, text, text) IS
+'Return all leaf subjects reachable from (p_object_type, p_object_id) via p_relation.
+
+Recursively expands subject-set rows (e.g. a group relation) until only direct
+user IDs remain. Handles cycles. Each returned row carries the original
+(object_type, object_id, relation) anchor plus the resolved subject_id and
+the tuple''s created_at timestamp.
+
+Used by: GET /v1/authz/subjects (expand endpoint) and the explain/trace path.';
+
 CREATE OR REPLACE FUNCTION auth.authz_lookup_subjects(
     p_relation    text[],
     p_object_type text,
@@ -374,10 +290,11 @@ AS $$
        AND NOT is_cycle
 $$;
 
--- ──────────────────────────────────────────────────────────────────────────────
--- authz_lookup_resources: given a subject, return all objects of a given type that
--- the subject can access via the specified relation(s). Used by lookup-objects.
--- ──────────────────────────────────────────────────────────────────────────────
+COMMENT ON FUNCTION auth.authz_lookup_subjects(text[], text, text) IS
+'Return all leaf subjects reachable from (p_object_type, p_object_id) via any relation in p_relation.
+
+Array-of-relations overload of authz_lookup_subjects(text, text, text).
+Returns the union of subjects across all listed relations in one query.';
 
 CREATE OR REPLACE FUNCTION auth.authz_lookup_resources(
     p_subject_id  text,
@@ -411,6 +328,15 @@ AS $$
        AND NOT is_cycle
 $$;
 
+COMMENT ON FUNCTION auth.authz_lookup_resources(text, text, text) IS
+'Return all objects of p_object_type that p_subject_id can access via p_relation.
+
+Walks the relation graph from the subject outward, following subject-set
+memberships in reverse (i.e. if subject S is a member of group G, and G holds
+a relation on object O, then O is reachable from S). Handles cycles.
+
+Used by: GET /v1/authz/objects (lookup-objects endpoint).';
+
 CREATE OR REPLACE FUNCTION auth.authz_lookup_resources(
     p_subject_id  text,
     p_relation    text[],
@@ -443,13 +369,11 @@ AS $$
        AND NOT is_cycle
 $$;
 
--- ──────────────────────────────────────────────────────────────────────────────
--- authz_schema CHECK constraint.
--- Guards against direct-DB writes that would corrupt the schema. Validates the
--- outer structure: version = 1, resources is a non-empty array, every resource
--- has name (string), roles (array), permissions (object). Identifier format and
--- cross-references are still enforced in the app layer.
--- ──────────────────────────────────────────────────────────────────────────────
+COMMENT ON FUNCTION auth.authz_lookup_resources(text, text[], text) IS
+'Return all objects of p_object_type that p_subject_id can access via any relation in p_relation.
+
+Array-of-relations overload of authz_lookup_resources(text, text, text).
+Returns the union of accessible objects across all listed relations in one query.';
 
 CREATE OR REPLACE FUNCTION auth.authz_schema_valid(schema jsonb)
     RETURNS boolean
@@ -470,6 +394,16 @@ AS $$
         )
     END
 $$;
+
+COMMENT ON FUNCTION auth.authz_schema_valid(jsonb) IS
+'Structural validator for the authz schema JSON stored in app_config.authz_schema.
+
+Checks: version = 1, resources is a non-empty array, every resource has a
+string name, an array roles, and an object permissions. Identifier format and
+cross-reference correctness are enforced in the application layer before the
+row is written; this function is the last-resort DB-level guard.
+
+Called exclusively by the authz_schema_valid CHECK constraint on app_config.';
 
 ALTER TABLE auth.app_config
     ADD CONSTRAINT authz_schema_valid
