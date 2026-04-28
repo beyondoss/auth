@@ -17,7 +17,7 @@ use crate::{
 
 // ── Shared response types ────────────────────────────────────────────────────
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgResponse {
     pub id: Uuid,
     pub name: String,
@@ -27,24 +27,24 @@ pub struct OrgResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgsResponse {
     pub orgs: Vec<OrgResponse>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MemberResponse {
     pub user_id: Uuid,
     pub role: String,
     pub joined_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MembersResponse {
     pub members: Vec<MemberResponse>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvitationResponse {
     pub id: Uuid,
     pub org_id: Uuid,
@@ -57,7 +57,7 @@ pub struct InvitationResponse {
     pub token: Option<String>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvitationsResponse {
     pub invitations: Vec<InvitationResponse>,
 }
