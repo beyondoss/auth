@@ -28,7 +28,7 @@ pub struct SignupRequest {
     pub display_name: Option<String>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AuthResponse {
     pub user: UserBody,
     pub email: EmailBody,
@@ -36,14 +36,14 @@ pub struct AuthResponse {
     pub session: SessionBody,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MeResponse {
     pub user: UserBody,
     pub email: EmailBody,
     pub org: OrgBody,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UserBody {
     pub id: Uuid,
     pub primary_org_id: Uuid,
@@ -53,14 +53,14 @@ pub struct UserBody {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EmailBody {
     pub id: Uuid,
     pub email: String,
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgBody {
     pub id: Uuid,
     pub name: String,
@@ -68,7 +68,7 @@ pub struct OrgBody {
     pub image_url: Option<String>,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SessionBody {
     pub id: Uuid,
     /// Opaque bearer token — store securely, transmit as `Authorization: Bearer <token>`.

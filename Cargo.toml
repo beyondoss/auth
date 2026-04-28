@@ -1,5 +1,5 @@
 [workspace]
-members = ["bench", "xtask"]
+members = ["authz_extension", "bench", "xtask"]
 
 [package]
 name = "beyond-auth"
@@ -61,3 +61,7 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 [dev-dependencies]
 testcontainers = "0.27"
 testcontainers-modules = { version = "0.15", features = ["postgres"] }
+
+[[test]]
+name = "api"
+path = "tests/api/main.rs"

@@ -1,10 +1,11 @@
 [tools]
 dprint = "latest"
 node = "lts"
-rust = { version = "1.92", components = "rustfmt,clippy" }
+rust = { version = "1.92", components = "rustfmt,clippy", targets = "aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu" }
 yamlfmt = "latest"
 cargo-binstall = "latest"
 "cargo:sqlx-cli" = "latest"
+"cargo:cross" = "latest"
 
 [tasks."format"]
 run = "dprint fmt"
@@ -23,6 +24,48 @@ run = "cargo run --release -p bench -- run-all --profile full"
 
 [tasks."bench:cold"]
 run = "cargo run --release -p bench -- run-all --profile quick --shared-buffers 32MB --output bench/out/report_cold.md"
+
+[tasks."test:integration:api"]
+run = "cargo test --test api"
+
+# Build the authz_extension shared library for the local OS (host PostgreSQL must be installed).
+# Used by developers on Linux or when the host PG matches the target container.
+[tasks."extension:build"]
+run = "PGRX_PG_CONFIG_PATH=/opt/homebrew/opt/postgresql@17/bin/pg_config RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup' cargo build --release -p authz_extension --features pg17"
+
+# Build the authz_extension .so for linux/arm64 (postgres:18 on Apple Silicon).
+# Runs inside the postgres:18 Docker image (has pg_config + dev headers) to produce a native ARM64 ELF.
+# Output: target/aarch64-unknown-linux-gnu/release/libauthz_extension.so
+# Required before running `mise run bench` or `mise run sqlx:prepare` with extension enabled.
+[tasks."extension:build:linux"]
+run = """
+docker run --rm --platform linux/arm64 \
+  -v "$(pwd)":/src \
+  -e DEBIAN_FRONTEND=noninteractive \
+  postgres:18 /bin/sh -c '
+    apt-get update -qq 2>/dev/null &&
+    apt-get install -y -qq curl pkg-config libssl-dev build-essential libclang-dev clang postgresql-server-dev-18 2>/dev/null &&
+    curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.92 --profile minimal --quiet 2>&1 | tail -2 &&
+    . "$HOME/.cargo/env" &&
+    PGRX_PG_CONFIG_PATH=/usr/bin/pg_config cargo build --release --no-default-features --features pg18 -p authz_extension --manifest-path /src/authz_extension/Cargo.toml --target-dir /src/target 2>&1 &&
+    mkdir -p /src/target/aarch64-unknown-linux-gnu/release &&
+    cp /src/target/release/libauthz_extension.so /src/target/aarch64-unknown-linux-gnu/release/libauthz_extension.so &&
+    echo "Built: /src/target/aarch64-unknown-linux-gnu/release/libauthz_extension.so"
+  '
+"""
+
+# Cross-compile for linux/amd64 (postgres:18 on Intel).
+[tasks."extension:build:linux:x86"]
+run = "cross build --release --target x86_64-unknown-linux-gnu -p authz_extension --features pg18"
+
+# Save a baseline bench report (no extension) and a treatment report (with extension), then diff.
+[tasks."bench:compare"]
+run = """
+mise run bench -- run-all --output bench/out/baseline.json && \
+mise run extension:build:linux && \
+mise run bench -- run-all --output bench/out/treatment.json && \
+cargo run --release -p bench -- compare bench/out/baseline.json bench/out/treatment.json
+"""
 
 [tasks."openapi:generate"]
 run = "cargo run -- generate-openapi"

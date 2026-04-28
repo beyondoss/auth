@@ -27,4 +27,5 @@ mod tokens;
 mod users;
 
 pub mod test_server;
+pub use routes::users::{AuthResponse, EmailBody, MeResponse, OrgBody, SessionBody, UserBody};
 pub use tokens::{Token, TokenPrefix};
