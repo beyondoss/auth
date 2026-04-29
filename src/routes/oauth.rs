@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::{
     error::AuthError,
     http::AppState,
+    mfa,
     oauth::{self, pkce::PkceVerifier},
     sessions,
     tokens::{Token, TokenPrefix},
@@ -215,6 +216,14 @@ pub async fn callback(
     )
     .await?;
 
+    if mfa::totp::is_enrolled(&state.pool, user_id).await? {
+        let step_up_token = mfa::step_up::issue(user_id, "totp", &state.signing_key);
+        return Ok(Json(serde_json::json!({
+            "step_up_required": "totp",
+            "step_up_token": step_up_token,
+        })));
+    }
+
     let (token, expires_at) = create_session(&state, &headers, user_id).await?;
     Ok(Json(serde_json::json!({
         "token": token.to_string(),
@@ -301,6 +310,14 @@ pub async fn apple_callback(
         email_link_enabled,
     )
     .await?;
+
+    if mfa::totp::is_enrolled(&state.pool, user_id).await? {
+        let step_up_token = mfa::step_up::issue(user_id, "totp", &state.signing_key);
+        return Ok(Json(serde_json::json!({
+            "step_up_required": "totp",
+            "step_up_token": step_up_token,
+        })));
+    }
 
     let (token, expires_at) = create_session(&state, &headers, user_id).await?;
     Ok(Json(serde_json::json!({

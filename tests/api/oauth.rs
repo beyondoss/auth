@@ -1,7 +1,9 @@
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use crate::helpers::{TestClient, exclusive, signup, unique_email};
+use crate::helpers::{
+    TestClient, TotpEnrollment, enroll_totp, exclusive, signup, totp_now, unique_email,
+};
 
 // ── Mock OIDC server helpers ───────────────────────────────────────────────────
 
@@ -83,6 +85,11 @@ struct AuthorizeResponse {
 #[derive(serde::Deserialize)]
 struct CallbackResponse {
     token: String,
+}
+
+#[derive(serde::Deserialize)]
+struct StepUpResponse {
+    step_up_token: String,
 }
 
 /// Extract the `state` query parameter from an OAuth authorization URL.
@@ -259,4 +266,122 @@ async fn callback_links_identity_to_existing_user() {
         serde_json::Value::Bool(true),
         "account-linking callback must return {{\"linked\": true}}"
     );
+}
+
+/// A user who enrolled TOTP and then signs in via OAuth receives a step-up
+/// challenge instead of a session token.
+#[tokio::test]
+async fn callback_with_totp_enrolled_returns_step_up() {
+    let _guard = exclusive().await;
+    let mock_server = MockServer::start().await;
+    let id = setup_oidc(&mock_server).await;
+
+    // First callback creates the user and returns a session.
+    let state = state_from_url(
+        &TestClient::new()
+            .get(&format!("/v1/oauth/{id}?redirect_url=http://localhost/cb"))
+            .await
+            .assert_status(200)
+            .json::<AuthorizeResponse>()
+            .url,
+    );
+    let first = TestClient::new()
+        .get(&format!(
+            "/v1/oauth/{id}/callback?code=test-code&state={state}"
+        ))
+        .await
+        .assert_status(200)
+        .json::<CallbackResponse>();
+
+    // Enroll TOTP on the account created above.
+    enroll_totp(&first.token).await;
+
+    // Second OAuth login for the same identity must return a step-up challenge.
+    let state = state_from_url(
+        &TestClient::new()
+            .get(&format!("/v1/oauth/{id}?redirect_url=http://localhost/cb"))
+            .await
+            .assert_status(200)
+            .json::<AuthorizeResponse>()
+            .url,
+    );
+    let resp: serde_json::Value = TestClient::new()
+        .get(&format!(
+            "/v1/oauth/{id}/callback?code=test-code&state={state}"
+        ))
+        .await
+        .assert_status(200)
+        .json();
+
+    assert_eq!(resp["step_up_required"], "totp");
+    assert!(
+        resp["step_up_token"]
+            .as_str()
+            .is_some_and(|t| !t.is_empty()),
+        "step_up_token must be present"
+    );
+}
+
+/// After receiving a TOTP step-up challenge from the OAuth callback, completing
+/// the step-up with a valid code creates a real session.
+#[tokio::test]
+async fn callback_with_totp_step_up_completes_to_session() {
+    let _guard = exclusive().await;
+    let mock_server = MockServer::start().await;
+    let id = setup_oidc(&mock_server).await;
+
+    // Create user via OAuth and enroll TOTP.
+    let state = state_from_url(
+        &TestClient::new()
+            .get(&format!("/v1/oauth/{id}?redirect_url=http://localhost/cb"))
+            .await
+            .assert_status(200)
+            .json::<AuthorizeResponse>()
+            .url,
+    );
+    let first = TestClient::new()
+        .get(&format!(
+            "/v1/oauth/{id}/callback?code=test-code&state={state}"
+        ))
+        .await
+        .assert_status(200)
+        .json::<CallbackResponse>();
+    let enrollment: TotpEnrollment = enroll_totp(&first.token).await;
+
+    // Second login returns a step-up token.
+    let state = state_from_url(
+        &TestClient::new()
+            .get(&format!("/v1/oauth/{id}?redirect_url=http://localhost/cb"))
+            .await
+            .assert_status(200)
+            .json::<AuthorizeResponse>()
+            .url,
+    );
+    let step_up = TestClient::new()
+        .get(&format!(
+            "/v1/oauth/{id}/callback?code=test-code&state={state}"
+        ))
+        .await
+        .assert_status(200)
+        .json::<StepUpResponse>();
+
+    // Complete the step-up — must create a full session.
+    let session = TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "totp_step_up",
+                "step_up_token": step_up.step_up_token,
+                "code": totp_now(&enrollment.secret_b32),
+            }),
+        )
+        .await
+        .assert_status(201)
+        .json::<CallbackResponse>();
+
+    TestClient::new()
+        .bearer(&session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(200);
 }
