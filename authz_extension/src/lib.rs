@@ -702,7 +702,7 @@ fn authz_check_multi(
         // Step 2: Walk hierarchy, checking terminal relations at each ancestor.
         let mut current_id = object_id.to_string();
         for k in 0..prefix.len() {
-            let next_id: Option<String> = client
+            let parent_rows: Vec<Option<String>> = client
                 .select(
                     "SELECT subject_id FROM auth.authz_relations \
                      WHERE object_type = $1 AND object_id = $2 AND relation = $3 \
@@ -714,8 +714,10 @@ fn authz_check_multi(
                         prefix[k].clone().into(),
                     ],
                 )?
-                .first()
-                .get::<String>(1)?;
+                .into_iter()
+                .map(|row| -> Result<Option<String>, spi::Error> { row.get::<String>(1) })
+                .collect::<Result<Vec<_>, _>>()?;
+            let next_id = parent_rows.into_iter().flatten().next();
 
             let Some(parent_id) = next_id else {
                 return Ok(false);
