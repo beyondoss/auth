@@ -19,7 +19,7 @@ async fn get_me_returns_signed_up_user() {
 
     // Verify the row landed in the database — demonstrates db_conn() for side-effect checks.
     let mut conn = db_conn().await;
-    let row = sqlx::query!("SELECT id FROM users WHERE id = $1", auth.user.id)
+    let row = sqlx::query!("SELECT id FROM auth.users WHERE id = $1", auth.user.id)
         .fetch_optional(&mut conn)
         .await
         .unwrap();
