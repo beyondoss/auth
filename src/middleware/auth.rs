@@ -25,7 +25,8 @@ pub async fn require_auth(
     let parsed = tokens::parse(bearer).ok_or(AuthError::Unauthorized)?;
     let is_impersonated = parsed.prefix == "impersonate";
 
-    let mut ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash)
+    let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
+    let mut ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
         .await?
         .ok_or(AuthError::Unauthorized)?;
     ctx.is_impersonated = is_impersonated;

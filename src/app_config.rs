@@ -17,6 +17,7 @@ pub struct AppConfig {
     pub oauth_providers_enc: Option<Vec<u8>>,
     pub oauth_email_link: bool,
     pub authz_schema: Option<serde_json::Value>,
+    pub session_idle_timeout_seconds: Option<i32>,
 }
 
 pub async fn load(pool: &PgPool) -> Result<AppConfig, AuthError> {
@@ -31,7 +32,8 @@ pub async fn load(pool: &PgPool) -> Result<AppConfig, AuthError> {
                jwt_audience,
                oauth_providers_enc,
                oauth_email_link,
-               authz_schema AS "authz_schema: serde_json::Value"
+               authz_schema AS "authz_schema: serde_json::Value",
+               session_idle_timeout_seconds
         FROM auth.app_config
         WHERE id = true
         "#

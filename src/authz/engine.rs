@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use quick_cache::sync::Cache;
 use sqlx::PgPool;
+use tracing;
 use uuid::Uuid;
 
 use crate::error::AuthError;
@@ -172,6 +173,7 @@ pub async fn check_with_session(
     secret_hash: &[u8],
     object_id: &str,
     or_chain: &str,
+    idle_timeout_seconds: Option<i32>,
 ) -> Result<Option<(String, bool)>, AuthError> {
     let sql = format!(
         r#"
@@ -181,6 +183,11 @@ pub async fn check_with_session(
             WHERE tokens.id      = $1
               AND tokens.secret  = $2
               AND tokens.expires_at > now()
+              AND (
+                  $4::int4 IS NULL
+                  OR tokens.last_used_at IS NULL
+                  OR tokens.last_used_at > now() - make_interval(secs => $4::float8)
+              )
             LIMIT 1
         ),
         update_attempt AS (
@@ -207,6 +214,7 @@ pub async fn check_with_session(
         .bind(token_id)
         .bind(secret_hash)
         .bind(object_id)
+        .bind(idle_timeout_seconds)
         .fetch_optional(pool)
         .await
         .map_err(AuthError::from)
@@ -218,6 +226,7 @@ pub async fn resolve_session(
     pool: &PgPool,
     token_id: Uuid,
     secret_hash: &[u8],
+    idle_timeout_seconds: Option<i32>,
 ) -> Result<Option<String>, AuthError> {
     let sql = r#"
         WITH valid_token AS (
@@ -226,6 +235,11 @@ pub async fn resolve_session(
             WHERE tokens.id      = $1
               AND tokens.secret  = $2
               AND tokens.expires_at > now()
+              AND (
+                  $3::int4 IS NULL
+                  OR tokens.last_used_at IS NULL
+                  OR tokens.last_used_at > now() - make_interval(secs => $3::float8)
+              )
             LIMIT 1
         ),
         update_attempt AS (
@@ -244,6 +258,7 @@ pub async fn resolve_session(
     sqlx::query_scalar::<_, String>(sql)
         .bind(token_id)
         .bind(secret_hash)
+        .bind(idle_timeout_seconds)
         .fetch_optional(pool)
         .await
         .map_err(AuthError::from)
@@ -289,14 +304,31 @@ pub async fn check_standalone(
 
 /// Probe whether auth.authz_check_parallel_batch exists (migration 0006 + extension loaded).
 pub async fn probe_parallel_batch(pool: &PgPool) -> bool {
-    sqlx::query_scalar::<_, bool>(
+    match sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS (SELECT 1 FROM pg_proc p \
          JOIN pg_namespace n ON n.oid = p.pronamespace \
          WHERE n.nspname = 'auth' AND p.proname = 'authz_check_parallel_batch')",
     )
     .fetch_one(pool)
     .await
-    .unwrap_or(false)
+    {
+        Ok(true) => true,
+        Ok(false) => {
+            tracing::info!(
+                "authz_check_parallel_batch not found; using serial authz fallback \
+                 (install the pgrx extension and run migration 0006 to enable parallel mode)"
+            );
+            false
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "probe_parallel_batch query failed; falling back to serial authz checks for \
+                 the lifetime of this process"
+            );
+            false
+        }
+    }
 }
 
 /// Call authz_check_parallel_batch with fully-expanded atomic checks.

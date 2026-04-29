@@ -66,6 +66,7 @@ pub async fn validate(
     pool: &PgPool,
     token_id: Uuid,
     secret_hash: &[u8],
+    idle_timeout_seconds: Option<i32>,
 ) -> Result<Option<SessionContext>, AuthError> {
     let row = sqlx::query!(
         r#"
@@ -75,6 +76,11 @@ pub async fn validate(
             WHERE tokens.id         = $1
               AND tokens.secret     = $2
               AND tokens.expires_at > now()
+              AND (
+                  $3::int4 IS NULL
+                  OR tokens.last_used_at IS NULL
+                  OR tokens.last_used_at > now() - make_interval(secs => $3::float8)
+              )
             LIMIT 1
         ),
         update_attempt AS (
@@ -111,6 +117,7 @@ pub async fn validate(
         "#,
         token_id,
         secret_hash,
+        idle_timeout_seconds,
     )
     .fetch_optional(pool)
     .await

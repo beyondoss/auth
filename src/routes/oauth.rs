@@ -96,7 +96,8 @@ async fn try_session_user_id(state: &AppState, headers: &HeaderMap) -> Option<Uu
         .and_then(|v| v.strip_prefix("Bearer "))?;
 
     let parsed = crate::tokens::parse(bearer)?;
-    let ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash)
+    let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
+    let ctx = sessions::validate(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
         .await
         .ok()??;
     Some(ctx.user.id)

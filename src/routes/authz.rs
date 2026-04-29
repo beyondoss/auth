@@ -15,7 +15,7 @@ use crate::{
     authz::{
         cache::CheckKey,
         engine::{self, BatchOp},
-        schema::{AuthzCheckCall, AuthzSchema, CompiledSchema, compile},
+        schema::{AuthzCheckCall, AuthzSchema, CompiledSchema, compile, validate_ident},
     },
     error::AuthError,
     http::AppState,
@@ -320,12 +320,14 @@ pub async fn check_permission(
     }
 
     // Full miss: bundled session-validate + authz check in one DB round-trip.
+    let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
     let (subject_id, allowed) = engine::check_with_session(
         &state.pool,
         parsed.id,
         &parsed.secret_hash,
         &params.resource_id,
         &or_chain,
+        idle_timeout,
     )
     .await?
     .ok_or(AuthError::Unauthorized)?;
@@ -386,12 +388,14 @@ pub async fn batch_check_permissions(
             .map(|s| s.to_owned())
             .ok_or(AuthError::Unauthorized)?;
         let parsed = tokens::parse(&bearer).ok_or(AuthError::Unauthorized)?;
+        let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
         let subject_id = if let Some(cached) = state.authz_cache.get_session(parsed.id) {
             cached
         } else {
-            let resolved = engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash)
-                .await?
-                .ok_or(AuthError::Unauthorized)?;
+            let resolved =
+                engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
+                    .await?
+                    .ok_or(AuthError::Unauthorized)?;
             let arc: Arc<str> = Arc::from(resolved.as_str());
             state.authz_cache.insert_session(parsed.id, arc.clone());
             arc
@@ -494,12 +498,14 @@ pub async fn post_checks(
             .map(|s| s.to_owned())
             .ok_or(AuthError::Unauthorized)?;
         let parsed = tokens::parse(&bearer).ok_or(AuthError::Unauthorized)?;
+        let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
         let subject_id = if let Some(cached) = state.authz_cache.get_session(parsed.id) {
             cached
         } else {
-            let resolved = engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash)
-                .await?
-                .ok_or(AuthError::Unauthorized)?;
+            let resolved =
+                engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
+                    .await?
+                    .ok_or(AuthError::Unauthorized)?;
             let arc: Arc<str> = Arc::from(resolved.as_str());
             state.authz_cache.insert_session(parsed.id, arc.clone());
             arc
@@ -571,8 +577,8 @@ pub async fn post_checks(
                         for relation in relations {
                             parallel_rows.push((
                                 subject_id.to_string(),
-                                relation.clone(),
-                                object_type.clone(),
+                                relation.to_string(),
+                                object_type.to_string(),
                                 check.resource_id.clone(),
                             ));
                             parallel_origin.push(i);
@@ -584,21 +590,33 @@ pub async fn post_checks(
                         object_type_path,
                         terminal_relations,
                     } => {
-                        // \x00/\x01 are safe delimiters: validate_ident guarantees
+                        // \x00/\x01 are safe delimiters: ValidIdent guarantees
                         // identifiers match [a-z][a-z0-9_]* and cannot contain them.
                         let key = format!(
                             "{}\x00{}\x00{}",
-                            relation_prefix.join("\x01"),
-                            object_type_path.join("\x01"),
-                            terminal_relations.join("\x01"),
+                            relation_prefix
+                                .iter()
+                                .map(|r| r.as_str())
+                                .collect::<Vec<_>>()
+                                .join("\x01"),
+                            object_type_path
+                                .iter()
+                                .map(|r| r.as_str())
+                                .collect::<Vec<_>>()
+                                .join("\x01"),
+                            terminal_relations
+                                .iter()
+                                .map(|r| r.as_str())
+                                .collect::<Vec<_>>()
+                                .join("\x01"),
                         );
                         path_batches
                             .entry(key)
                             .or_insert_with(|| {
                                 (
-                                    relation_prefix.clone(),
-                                    object_type_path.clone(),
-                                    terminal_relations.clone(),
+                                    relation_prefix.iter().map(|r| r.to_string()).collect(),
+                                    object_type_path.iter().map(|r| r.to_string()).collect(),
+                                    terminal_relations.iter().map(|r| r.to_string()).collect(),
                                     Vec::new(),
                                 )
                             })
@@ -707,6 +725,9 @@ pub async fn write_relation(
     State(state): State<AppState>,
     Json(req): Json<RelationRequest>,
 ) -> Result<StatusCode, AuthError> {
+    validate_ident(&req.object.object_type).map_err(|e| AuthError::AuthzSchemaInvalid {
+        message: e.to_string(),
+    })?;
     {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
@@ -787,6 +808,11 @@ pub async fn batch_relations(
     State(state): State<AppState>,
     Json(req): Json<BatchRequest>,
 ) -> Result<Json<BatchResponse>, AuthError> {
+    for r in req.writes.iter().chain(req.deletes.iter()) {
+        validate_ident(&r.object.object_type).map_err(|e| AuthError::AuthzSchemaInvalid {
+            message: e.to_string(),
+        })?;
+    }
     {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
@@ -952,7 +978,7 @@ pub async fn list_objects(
     for c in checks {
         match c {
             AuthzCheckCall::SingleHop { relations, .. } => {
-                direct_relations.extend(relations.iter().cloned());
+                direct_relations.extend(relations.iter().map(|r| r.to_string()));
             }
             AuthzCheckCall::MultiHop {
                 relation_prefix,
@@ -960,9 +986,12 @@ pub async fn list_objects(
                 terminal_relations,
             } => {
                 multi_hop
-                    .entry((relation_prefix[0].clone(), object_type_path[1].clone()))
+                    .entry((
+                        relation_prefix[0].to_string(),
+                        object_type_path[1].to_string(),
+                    ))
                     .or_default()
-                    .extend(terminal_relations.iter().cloned());
+                    .extend(terminal_relations.iter().map(|r| r.to_string()));
             }
         }
     }
@@ -1051,7 +1080,9 @@ pub async fn why_check(
         })?
         .iter()
         .flat_map(|c| match c {
-            AuthzCheckCall::SingleHop { relations, .. } => relations.clone(),
+            AuthzCheckCall::SingleHop { relations, .. } => {
+                relations.iter().map(|r| r.to_string()).collect::<Vec<_>>()
+            }
             // Multi-hop hierarchy traversal can't be traced via expand; only direct
             // role assignments appear in the subject list.
             AuthzCheckCall::MultiHop { .. } => vec![],

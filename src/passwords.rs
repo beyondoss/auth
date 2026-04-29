@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::sync::LazyLock;
+
 use argon2::{
     Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version,
     password_hash::{SaltString, rand_core::OsRng},
@@ -5,10 +8,12 @@ use argon2::{
 
 use crate::error::AuthError;
 
-const MIN_LENGTH: usize = 8;
+const MIN_LENGTH: usize = 12;
 const MAX_LENGTH: usize = 128;
 
 static COMMON_PASSWORDS: &str = include_str!("../tests/fixtures/common_passwords.txt");
+static COMMON_PASSWORDS_SET: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| COMMON_PASSWORDS.lines().collect());
 
 /// Hash a password using Argon2id with OWASP 2024 recommended parameters.
 /// Returns an error if the password is too short or too common.
@@ -53,7 +58,7 @@ fn argon2id() -> Argon2<'static> {
 
 fn is_common(password: &str) -> bool {
     let lower = password.to_lowercase();
-    COMMON_PASSWORDS.lines().any(|line| line == lower)
+    COMMON_PASSWORDS_SET.contains(lower.as_str())
 }
 
 #[cfg(test)]
@@ -84,8 +89,11 @@ mod tests {
     #[test]
     fn rejects_too_short() {
         assert!(matches!(hash("short"), Err(AuthError::PasswordTooShort)));
-        assert!(matches!(hash("sevench"), Err(AuthError::PasswordTooShort)));
-        assert!(hash("eightchr").is_ok());
+        assert!(matches!(
+            hash("elevenchars"),
+            Err(AuthError::PasswordTooShort)
+        ));
+        assert!(hash("twelvechars!").is_ok());
     }
 
     #[test]
@@ -105,18 +113,18 @@ mod tests {
 
     #[test]
     fn rejects_common_password() {
-        // "password" and "iloveyou" are both ≥ 8 chars and on the common list
+        // these are all ≥ 12 chars and on the common list
         assert!(matches!(
-            hash("password"),
+            hash("qwertyqwerty"),
             Err(AuthError::PasswordTooCommon)
         ));
         assert!(matches!(
-            hash("iloveyou"),
+            hash("123456qwerty"),
             Err(AuthError::PasswordTooCommon)
         ));
         // case-insensitive match
         assert!(matches!(
-            hash("PASSWORD"),
+            hash("QWERTYQWERTY"),
             Err(AuthError::PasswordTooCommon)
         ));
     }

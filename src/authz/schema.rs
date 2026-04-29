@@ -3,6 +3,30 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// An identifier that has passed `validate_ident`. The inner field is private so
+/// this type can only be constructed through `validate_ident`, making SQL-safety
+/// a structural guarantee rather than a call-site invariant.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ValidIdent(String);
+
+impl ValidIdent {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for ValidIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<ValidIdent> for String {
+    fn from(v: ValidIdent) -> Self {
+        v.0
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AuthzSchema {
     pub version: u32,
@@ -49,15 +73,15 @@ pub enum AuthzCheckCall {
     /// Single-hop: subject directly holds one of `relations` on `object_type`.
     /// Compiled to: `auth.authz_check(subject, ARRAY[...relations], object_type, $object_id)`
     SingleHop {
-        relations: Vec<String>,
-        object_type: String,
+        relations: Vec<ValidIdent>,
+        object_type: ValidIdent,
     },
     /// Multi-hop: walk p_relation_prefix hops then check any of terminal_relations at the final type.
     /// Compiled to: `auth.authz_check_path(subject, ARRAY[...relation_prefix], ARRAY[...object_type_path], ARRAY[...terminal_relations], $object_id)`
     MultiHop {
-        relation_prefix: Vec<String>,
-        object_type_path: Vec<String>,
-        terminal_relations: Vec<String>,
+        relation_prefix: Vec<ValidIdent>,
+        object_type_path: Vec<ValidIdent>,
+        terminal_relations: Vec<ValidIdent>,
     },
 }
 
@@ -77,7 +101,7 @@ pub enum SchemaError {
     UnsupportedVersion(u32),
 }
 
-pub fn validate_ident(s: &str) -> Result<(), SchemaError> {
+pub fn validate_ident(s: &str) -> Result<ValidIdent, SchemaError> {
     if s.is_empty() {
         return Err(SchemaError::InvalidIdentifier(s.to_owned()));
     }
@@ -90,7 +114,7 @@ pub fn validate_ident(s: &str) -> Result<(), SchemaError> {
     {
         return Err(SchemaError::InvalidIdentifier(s.to_owned()));
     }
-    Ok(())
+    Ok(ValidIdent(s.to_owned()))
 }
 
 pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
@@ -107,12 +131,14 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
     let mut checks: HashMap<(String, String), Vec<AuthzCheckCall>> = HashMap::new();
 
     for resource in &schema.resources {
-        validate_ident(&resource.name)?;
-        for role in &resource.roles {
-            validate_ident(role)?;
-        }
+        let res_name = validate_ident(&resource.name)?;
 
-        let role_set: HashSet<&str> = resource.roles.iter().map(|r| r.as_str()).collect();
+        let valid_roles: Vec<ValidIdent> = resource
+            .roles
+            .iter()
+            .map(|r| validate_ident(r))
+            .collect::<Result<Vec<_>, _>>()?;
+        let role_set: HashSet<&str> = valid_roles.iter().map(|r| r.as_str()).collect();
 
         for edge in &resource.role_hierarchy {
             if !role_set.contains(edge.superior.as_str()) {
@@ -144,6 +170,7 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
         for (permission, direct_roles) in &resource.permissions {
             validate_ident(permission)?;
 
+            let direct_set: HashSet<&str> = direct_roles.iter().map(String::as_str).collect();
             for role in direct_roles {
                 if !role_set.contains(role.as_str()) {
                     return Err(SchemaError::UnknownPermissionRole(
@@ -156,15 +183,13 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
 
             // All roles granting this permission: explicitly listed + any superior role
             // that inherits (is transitively above) a listed role.
-            let all_roles: Vec<String> = resource
-                .roles
+            let all_roles: Vec<ValidIdent> = valid_roles
                 .iter()
                 .filter(|r| {
-                    direct_roles.contains(*r)
-                        || inherited.get(r.as_str()).is_some_and(|inf| {
-                            inf.iter()
-                                .any(|i| direct_roles.iter().any(|d| d.as_str() == *i))
-                        })
+                    direct_set.contains(r.as_str())
+                        || inherited
+                            .get(r.as_str())
+                            .is_some_and(|inf| inf.iter().any(|i| direct_set.contains(i)))
                 })
                 .cloned()
                 .collect();
@@ -175,15 +200,15 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
 
             let mut calls = vec![AuthzCheckCall::SingleHop {
                 relations: all_roles.clone(),
-                object_type: resource.name.clone(),
+                object_type: res_name.clone(),
             }];
 
             // Walk the full ancestor chain, generating a MultiHop check at every level.
             // Two-element path: one hop. Three-element: two hops. And so on.
             // A visited set stops the walk if the schema contains a hierarchy cycle.
             if resource.hierarchy.is_some() {
-                let mut rel_prefix: Vec<String> = Vec::new();
-                let mut type_path: Vec<String> = vec![resource.name.clone()];
+                let mut rel_prefix: Vec<ValidIdent> = Vec::new();
+                let mut type_path: Vec<ValidIdent> = vec![res_name.clone()];
                 let mut current = resource;
                 let mut visited: HashSet<&str> = HashSet::new();
                 visited.insert(resource.name.as_str());
@@ -193,8 +218,11 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
                         break;
                     }
                     visited.insert(h.parent_resource.as_str());
-                    rel_prefix.push(h.parent_relation.clone());
-                    type_path.push(h.parent_resource.clone());
+                    // Both h.parent_relation and h.parent_resource are already validated
+                    // (each resource's hierarchy fields are validated in its own outer-loop
+                    // iteration), so these validate_ident calls are infallible in practice.
+                    rel_prefix.push(validate_ident(&h.parent_relation)?);
+                    type_path.push(validate_ident(&h.parent_resource)?);
 
                     calls.push(AuthzCheckCall::MultiHop {
                         relation_prefix: rel_prefix.clone(),
@@ -459,9 +487,9 @@ mod tests {
         let AuthzCheckCall::SingleHop { relations, .. } = single_hop else {
             panic!()
         };
-        assert!(relations.contains(&"editor".to_owned()));
-        assert!(relations.contains(&"owner".to_owned()));
-        assert!(!relations.contains(&"viewer".to_owned()));
+        assert!(relations.iter().any(|r| r.as_str() == "editor"));
+        assert!(relations.iter().any(|r| r.as_str() == "owner"));
+        assert!(!relations.iter().any(|r| r.as_str() == "viewer"));
     }
 
     #[test]
@@ -486,11 +514,11 @@ mod tests {
             else {
                 panic!()
             };
-            assert_eq!(relation_prefix[0], "folder");
-            assert_eq!(object_type_path[0], "document");
-            assert_eq!(object_type_path[1], "folder");
-            assert!(terminal_relations.contains(&"editor".to_owned()));
-            assert!(terminal_relations.contains(&"owner".to_owned()));
+            assert_eq!(relation_prefix[0].as_str(), "folder");
+            assert_eq!(object_type_path[0].as_str(), "document");
+            assert_eq!(object_type_path[1].as_str(), "folder");
+            assert!(terminal_relations.iter().any(|r| r.as_str() == "editor"));
+            assert!(terminal_relations.iter().any(|r| r.as_str() == "owner"));
         }
     }
 
@@ -503,7 +531,10 @@ mod tests {
         let AuthzCheckCall::SingleHop { relations, .. } = &calls[0] else {
             panic!()
         };
-        assert_eq!(relations, &["owner"]);
+        assert_eq!(
+            relations.iter().map(|r| r.as_str()).collect::<Vec<_>>(),
+            &["owner"]
+        );
     }
 
     #[test]

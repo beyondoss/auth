@@ -411,10 +411,15 @@ async fn concurrent_first_write_creates_partition_exactly_once() {
     let custom_type = format!("t{}", &uid()[..16]);
     let body = direct_rel(&custom_type, &uid(), "owner", &uid());
 
+    let (c1, c2, c3) = (
+        TestClient::new().admin(),
+        TestClient::new().admin(),
+        TestClient::new().admin(),
+    );
     let (r1, r2, r3) = tokio::join!(
-        TestClient::new().admin().post("/v1/authz/relations", &body),
-        TestClient::new().admin().post("/v1/authz/relations", &body),
-        TestClient::new().admin().post("/v1/authz/relations", &body),
+        c1.post("/v1/authz/relations", &body),
+        c2.post("/v1/authz/relations", &body),
+        c3.post("/v1/authz/relations", &body),
     );
 
     assert_eq!(r1.status(), 201);
