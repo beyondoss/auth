@@ -46,6 +46,7 @@ CREATE TABLE auth.app_config (
     refresh_token_ttl_seconds   int         NOT NULL DEFAULT 2592000,
     -- Sessions
     session_ttl_seconds         int         NOT NULL DEFAULT 2592000,
+    session_idle_timeout_seconds int                 DEFAULT NULL,
     -- Timestamps
     created_at                  timestamptz NOT NULL DEFAULT now(),
     updated_at                  timestamptz NOT NULL DEFAULT now()
