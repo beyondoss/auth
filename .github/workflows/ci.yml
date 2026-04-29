@@ -6,7 +6,7 @@ on:
     branches: [main]
 env:
   CARGO_TERM_COLOR: always
-  SQLX_OFFLINE: "false"
+  SQLX_OFFLINE: "true"
   DATABASE_URL: postgres://beyond:password@localhost:5432/beyond-auth
 jobs:
   ci:
@@ -46,6 +46,10 @@ jobs:
             "${POSTGRES_CONTAINER}:${PGLIB}/authz_extension.so"
       - name: migrate
         run: cargo sqlx migrate run
+      - name: verify sqlx query cache
+        env:
+          SQLX_OFFLINE: "false"
+        run: cargo sqlx prepare --check
       - name: install rust components
         run: rustup component add rustfmt clippy
       - name: fmt

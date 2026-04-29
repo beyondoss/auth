@@ -37,8 +37,8 @@ pub async fn create(
     sqlx::query_as!(
         Invitation,
         r#"INSERT INTO auth.org_invitations (org_id, invited_by, email, role, token_hash)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id, org_id, invited_by, email, role, created_at, expires_at"#,
+           VALUES ($1, $2, $3::auth.citext, $4, $5)
+           RETURNING id, org_id, invited_by, email::text, role, created_at, expires_at"#,
         org_id,
         invited_by,
         email,
@@ -60,7 +60,7 @@ pub async fn create(
 pub async fn list(pool: &PgPool, org_id: Uuid) -> Result<Vec<Invitation>, AuthError> {
     sqlx::query_as!(
         Invitation,
-        r#"SELECT id, org_id, invited_by, email, role, created_at, expires_at
+        r#"SELECT id, org_id, invited_by, email::text, role, created_at, expires_at
            FROM auth.org_invitations
            WHERE org_id = $1 AND expires_at > now()
            ORDER BY created_at DESC"#,
@@ -108,7 +108,7 @@ pub async fn consume(
            WHERE id = $1
              AND token_hash = $2
              AND expires_at > now()
-           RETURNING id, org_id, invited_by, email, role, created_at, expires_at"#,
+           RETURNING id, org_id, invited_by, email::text, role, created_at, expires_at"#,
         inv_id,
         token_hash,
     )
@@ -130,7 +130,7 @@ pub async fn refresh_token(
         r#"UPDATE auth.org_invitations
            SET token_hash = $3, expires_at = now() + interval '7 days'
            WHERE id = $1 AND org_id = $2
-           RETURNING id, org_id, invited_by, email, role, created_at, expires_at"#,
+           RETURNING id, org_id, invited_by, email::text, role, created_at, expires_at"#,
         inv_id,
         org_id,
         new_hash,
