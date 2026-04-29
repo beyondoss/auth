@@ -124,6 +124,30 @@ describe("check", () => {
   });
 });
 
+// ── network errors ────────────────────────────────────────────────────────────
+
+describe("network error propagation", () => {
+  it("propagates fetch TypeError from check without wrapping", async () => {
+    const networkErr = new TypeError("fetch failed");
+    await expect(
+      withFetch(
+        vi.fn().mockRejectedValue(networkErr),
+        (authz) => authz.check("document", "edit", "doc1", "alice"),
+      ),
+    ).rejects.toBe(networkErr);
+  });
+
+  it("propagates fetch TypeError from createRelation without wrapping", async () => {
+    const networkErr = new TypeError("fetch failed");
+    await expect(
+      withFetch(
+        vi.fn().mockRejectedValue(networkErr),
+        (authz) => authz.createRelation(docRelation),
+      ),
+    ).rejects.toBe(networkErr);
+  });
+});
+
 // ── checkSession ──────────────────────────────────────────────────────────────
 
 describe("checkSession", () => {
@@ -326,30 +350,41 @@ describe("trace", () => {
 // ── lookup ────────────────────────────────────────────────────────────────────
 
 describe("lookup", () => {
-  it("returns objectIds and nextCursor", async () => {
+  it("returns objectIds, hasMore, and nextCursor", async () => {
     const fetch = mockFetch(200, {
       object_ids: ["doc1", "doc2"],
-      next_cursor: "cursor123",
+      has_more: true,
+      next_page: "cursor123",
     });
     const page = await withFetch(
       fetch,
       (authz) => authz.lookup("session_tok", "document", "view"),
     );
     expect(page.objectIds).toEqual(["doc1", "doc2"]);
+    expect(page.hasMore).toBe(true);
     expect(page.nextCursor).toBe("cursor123");
   });
 
-  it("returns undefined nextCursor when null", async () => {
-    const fetch = mockFetch(200, { object_ids: ["doc1"], next_cursor: null });
+  it("returns hasMore=false and undefined nextCursor on last page", async () => {
+    const fetch = mockFetch(200, {
+      object_ids: ["doc1"],
+      has_more: false,
+      next_page: null,
+    });
     const page = await withFetch(
       fetch,
       (authz) => authz.lookup("session_tok", "document", "view"),
     );
+    expect(page.hasMore).toBe(false);
     expect(page.nextCursor).toBeUndefined();
   });
 
   it("sends session Bearer token (not admin secret)", async () => {
-    const fetch = mockFetch(200, { object_ids: [], next_cursor: null });
+    const fetch = mockFetch(200, {
+      object_ids: [],
+      has_more: false,
+      next_page: null,
+    });
     await withFetch(
       fetch,
       (authz) => authz.lookup("session_tok", "document", "view"),
@@ -362,7 +397,11 @@ describe("lookup", () => {
   });
 
   it("passes subject override, limit, and cursor as query params", async () => {
-    const fetch = mockFetch(200, { object_ids: [], next_cursor: null });
+    const fetch = mockFetch(200, {
+      object_ids: [],
+      has_more: false,
+      next_page: null,
+    });
     await withFetch(
       fetch,
       (authz) =>
@@ -378,7 +417,52 @@ describe("lookup", () => {
     const url = new URL(req.url);
     expect(url.searchParams.get("user")).toBe("bob");
     expect(url.searchParams.get("limit")).toBe("50");
-    expect(url.searchParams.get("cursor")).toBe("cur_xyz");
+    expect(url.searchParams.get("after")).toBe("cur_xyz");
+  });
+});
+
+// ── lookup cursor chaining ────────────────────────────────────────────────────
+
+describe("lookup cursor chaining", () => {
+  it("passes nextCursor from page 1 as cursor param on page 2", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            object_ids: ["doc1"],
+            has_more: true,
+            next_page: "cur_page2",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            object_ids: ["doc2"],
+            has_more: false,
+            next_page: null,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+    await withFetch(fetch, async (authz) => {
+      const page1 = await authz.lookup("session_tok", "document", "view");
+      expect(page1.objectIds).toEqual(["doc1"]);
+      expect(page1.nextCursor).toBe("cur_page2");
+
+      const page2 = await authz.lookup("session_tok", "document", "view", {
+        cursor: "cur_page2",
+      });
+      expect(page2.objectIds).toEqual(["doc2"]);
+      expect(page2.nextCursor).toBeUndefined();
+
+      const [req2] = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [
+        Request,
+      ];
+      expect(new URL(req2.url).searchParams.get("after")).toBe("cur_page2");
+    });
   });
 });
 

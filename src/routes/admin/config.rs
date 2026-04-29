@@ -3,6 +3,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::AuthError, http::AppState};
 
+#[utoipa::path(
+    get,
+    operation_id = "get_admin_config",
+    path = "/v1/admin/config",
+    tag = "admin",
+    security(("BearerAuth" = [])),
+    responses(
+        (status = 200, body = ConfigResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn get(State(state): State<AppState>) -> Result<Json<ConfigResponse>, AuthError> {
+    let timeout = state.app_config.read().await.session_idle_timeout_seconds;
+    Ok(Json(ConfigResponse {
+        session_idle_timeout_seconds: timeout,
+    }))
+}
+
 /// Partial config update. Only fields explicitly set are updated.
 /// Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
 #[derive(Deserialize, utoipa::ToSchema)]

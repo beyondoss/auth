@@ -20,7 +20,44 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/admin/relation-partitions/{object_type}": {
+  "/v1/admin/authz/subjects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List all subjects who hold the given relation on an object.
+     *     Resolves subject sets recursively. Admin-only — use GET /v1/authz/subjects
+     *     for the permission-scoped view available to authenticated users.
+     */
+    get: operations["list_subjects_expand"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/config": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["get_admin_config"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["patch"];
+    trace?: never;
+  };
+  "/v1/admin/impersonations": {
     parameters: {
       query?: never;
       header?: never;
@@ -28,13 +65,83 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /**
-     * Ensure a dedicated LIST partition exists for `object_type`.
-     * @description Idempotent — safe to call multiple times. Existing rows in the default
-     *     partition are moved to the new partition atomically.
-     */
-    put: operations["ensure_partition"];
+    put?: never;
+    post: operations["create_impersonation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["search"];
+    put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/users/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["get_by_id"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/users/{id}/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Revoke all active sessions for a user. Idempotent — safe to call when the user
+     *     has no sessions.
+     */
+    delete: operations["delete_sessions"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/checks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Check multiple permissions in a single request. When the parallel-batch pgrx extension
+     *     is loaded, single-hop checks are expanded into atomic (subject, relation, object_type,
+     *     object_id) tuples and evaluated in one BFS issuing D+1 SQL queries — independent of N.
+     *     Multi-hop permissions and deployments without the extension fall back to UNNEST grouping
+     *     (same path as POST /v1/authz/decisions).
+     */
+    post: operations["post_checks"];
     delete?: never;
     options?: never;
     head?: never;
@@ -62,27 +169,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/authz/expansions": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Expand a relation: return all subjects who hold the given relation on the object.
-     *     Resolves subject sets recursively.
-     */
-    get: operations["expand_relation"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v1/authz/lookups": {
+  "/v1/authz/objects": {
     parameters: {
       query?: never;
       header?: never;
@@ -91,9 +178,10 @@ export interface paths {
     };
     /**
      * List all objects of the given type that the current user (or an explicit user)
-     *     can access via the resolved roles for a permission.
+     *     can access via the resolved roles for a permission. Includes both direct role
+     *     assignments and access granted via parent hierarchy.
      */
-    get: operations["lookup_objects"];
+    get: operations["list_objects"];
     put?: never;
     post?: never;
     delete?: never;
@@ -142,6 +230,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/authz/subjects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List all subjects with a given permission on a resource. Resolves through the
+     *     schema's role hierarchy to return every subject who can exercise the permission.
+     *     Only direct role assignments are expanded; access via parent hierarchy is not
+     *     included (use GET /v1/authz/objects from the subject's perspective for that).
+     */
+    get: operations["list_subjects"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/authz/traces": {
     parameters: {
       query?: never;
@@ -150,8 +260,9 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Explain why a permission check returned its result. Runs expand on all relevant
-     *     relations and reports which subjects appear, letting you trace a grant or denial.
+     * Explain why a permission check returned its result. Runs expand on all direct
+     *     role relations and reports which subjects appear, letting you trace a grant or
+     *     denial. Note: access granted purely via parent hierarchy is not reflected here.
      */
     get: operations["why_check"];
     put?: never;
@@ -226,6 +337,86 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/identities": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["list_identities"];
+    put?: never;
+    post: operations["add_password"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/identities/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["unlink"];
+    options?: never;
+    head?: never;
+    patch: operations["update"];
+    trace?: never;
+  };
+  "/v1/invitations/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["view_invitation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/{id}/acceptances": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["accept_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/{id}/declinations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["decline_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/jwks.json": {
     parameters: {
       query?: never;
@@ -237,6 +428,38 @@ export interface paths {
     put?: never;
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/keys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["list_keys"];
+    put?: never;
+    post: operations["create_key"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/keys/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["get_key"];
+    put?: never;
+    post?: never;
+    delete: operations["delete"];
     options?: never;
     head?: never;
     patch?: never;
@@ -304,6 +527,118 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["list_orgs"];
+    put?: never;
+    post: operations["create_org"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["get_org"];
+    put?: never;
+    post?: never;
+    delete: operations["delete_org"];
+    options?: never;
+    head?: never;
+    patch: operations["update_org"];
+    trace?: never;
+  };
+  "/v1/orgs/{id}/invitations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["list_invitations"];
+    put?: never;
+    post: operations["create_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/invitations/{inv_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["revoke_invitation"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/invitations/{inv_id}/resends": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["resend_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["list_members"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/members/{member_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["remove_member"];
+    options?: never;
+    head?: never;
+    patch: operations["update_member"];
     trace?: never;
   };
   "/v1/passkey-authentications": {
@@ -396,7 +731,7 @@ export interface paths {
     get: operations["list_sessions"];
     put?: never;
     post: operations["login"];
-    delete?: never;
+    delete: operations["delete_all_sessions"];
     options?: never;
     head?: never;
     patch?: never;
@@ -445,7 +780,14 @@ export interface paths {
     put?: never;
     /**
      * POST /v1/tokens — issue a short-lived JWT access token.
+     * @description Accepts any valid bearer credential in `Authorization`:
+     *     - **Session token** (`session_…`) — issues JWT + a fresh refresh token.
+     *     - **Refresh token** (`rt_…`) — rotates the refresh token and issues a new JWT.
+     *     - **API key** (`key_…`) — issues JWT only (no refresh token).
+     *
      *     Requires `jwt_enabled = true` in app_config; returns 400 otherwise.
+     *     An optional JSON body may carry `claims` — a flat object of key/value pairs
+     *     merged into the JWT payload after all reserved claims are set.
      */
     post: operations["issue"];
     delete?: never;
@@ -486,6 +828,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/totp/recovery-codes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["regenerate_recovery_codes"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/users": {
     parameters: {
       query?: never;
@@ -512,7 +870,7 @@ export interface paths {
     get: operations["get_me"];
     put?: never;
     post?: never;
-    delete?: never;
+    delete: operations["delete_me"];
     options?: never;
     head?: never;
     patch: operations["update_me"];
@@ -522,8 +880,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AddPasswordRequest: {
+      password: string;
+    };
     AddRequest: {
       email: string;
+    };
+    AdminUserResponse: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      deleted_at?: string | null;
+      email?: string | null;
+      /** Format: date-time */
+      email_verified_at?: string | null;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      primary_email_id: string;
+      /** Format: uuid */
+      primary_org_id: string;
     };
     AppleCallbackForm: {
       code: string;
@@ -532,9 +908,13 @@ export interface components {
     };
     AuthResponse: {
       email: components["schemas"]["EmailBody"];
-      session: components["schemas"]["SessionBody"];
       org: components["schemas"]["OrgBody"];
+      session: components["schemas"]["SessionBody"];
       user: components["schemas"]["UserBody"];
+    };
+    AuthorizeResponse: {
+      /** @description Full OAuth authorization URL — navigate the browser here to start the flow. */
+      url: string;
     };
     AuthzSchema: {
       resources: components["schemas"]["ResourceDef"][];
@@ -558,8 +938,31 @@ export interface components {
       /** @description Opaque state token; include in the corresponding finish request. */
       state_token: string;
     };
+    CallbackResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      token: string;
+    };
     CheckResponse: {
       allowed: boolean;
+    };
+    ChecksItem: {
+      permission: string;
+      resource_id: string;
+      resource_type: string;
+      /** @description Explicit subject to check as. Defaults to the current session user. */
+      user?: string | null;
+    };
+    ChecksRequest: {
+      checks: components["schemas"]["ChecksItem"][];
+    };
+    ChecksResponse: {
+      /** @description Results in the same order as the input checks. */
+      results: boolean[];
+    };
+    ConfigResponse: {
+      /** Format: int32 */
+      session_idle_timeout_seconds?: number | null;
     };
     ConfirmRequest: {
       code: string;
@@ -570,6 +973,28 @@ export interface components {
     ConfirmVerificationResponse: {
       /** Format: date-time */
       verified_at: string;
+    };
+    CreateInvitationRequest: {
+      email?: string | null;
+      role: string;
+    };
+    CreateOrgRequest: {
+      metadata?: unknown;
+      name: string;
+      slug?: string | null;
+    };
+    CreateRequest: {
+      /**
+       * Format: date-time
+       * @description When the key expires. Defaults to 100 years from now (effectively never).
+       */
+      expires_at?: string | null;
+      name: string;
+    };
+    /** @description Returned only on creation — the `key` field is never shown again. */
+    CreateResponse: components["schemas"]["Key"] & {
+      /** @description The full bearer token. Store it now — it cannot be retrieved later. */
+      key: string;
     };
     CredentialRecord: {
       /** Format: date-time */
@@ -628,13 +1053,6 @@ export interface components {
     ErrorResponse: {
       error: components["schemas"]["ErrorBody"];
     };
-    ExpandResponse: {
-      subjects: components["schemas"]["ExpandSubject"][];
-    };
-    ExpandSubject: {
-      id: string;
-      relation: string;
-    };
     FinishRegistrationRequest: {
       /** @description WebAuthn `PublicKeyCredential` response from the browser. */
       credential: Record<string, never>;
@@ -651,6 +1069,65 @@ export interface components {
       /** @description The resource type of the parent. */
       parent_resource: string;
     };
+    IdentitiesResponse: {
+      identities: components["schemas"]["IdentityItem"][];
+    };
+    IdentityItem: {
+      /** Format: date-time */
+      created_at: string;
+      /** @description Human-readable label: email address for password identities, provider slug for OAuth. */
+      display: string;
+      /** Format: uuid */
+      id: string;
+      provider: string;
+    };
+    ImpersonateRequest: {
+      /**
+       * Format: uuid
+       * @description The ID of the user to impersonate.
+       */
+      user_id: string;
+    };
+    InvitationResponse: {
+      /** Format: date-time */
+      created_at: string;
+      email?: string | null;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      org_id: string;
+      role: string;
+      /** @description Plaintext token — only present on creation, never returned again. */
+      token?: string | null;
+    };
+    InvitationViewResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      org_id: string;
+      org_name: string;
+      role: string;
+    };
+    InvitationsResponse: {
+      has_more: boolean;
+      invitations: components["schemas"]["InvitationResponse"][];
+      next_page?: string | null;
+    };
+    IssueRequest: {
+      /**
+       * @description Arbitrary JSON object merged into the JWT payload.
+       *     Reserved keys (`sub`, `iss`, `aud`, `iat`, `nbf`, `exp`, `jti`,
+       *     `impersonated`) are always overwritten by the service and cannot be
+       *     supplied here.
+       */
+      claims?: {
+        [key: string]: unknown;
+      } | null;
+    };
     Jwk: {
       alg: string;
       crv: string;
@@ -662,50 +1139,56 @@ export interface components {
     JwkSet: {
       keys: components["schemas"]["Jwk"][];
     };
-    LoginRequest:
-      | {
-        email: string;
-        /** @enum {string} */
-        grant_type: "password";
-        password: string;
-      }
-      | {
-        /** @enum {string} */
-        grant_type: "magic_link";
-        token: string;
-      }
-      | {
-        /** @enum {string} */
-        grant_type: "password_reset";
-        new_password: string;
-        token: string;
-      }
-      | {
-        /** @enum {string} */
-        grant_type: "email_change";
-        token: string;
-      }
-      | {
-        code: string;
-        /** @enum {string} */
-        grant_type: "totp_step_up";
-        step_up_token: string;
-      }
-      | {
-        code: string;
-        /** @enum {string} */
-        grant_type: "totp_recovery";
-        step_up_token: string;
-      }
-      | {
-        credential: Record<string, never>;
-        /** @enum {string} */
-        grant_type: "passkey";
-        state_token: string;
-      };
-    LookupResponse: {
-      next_cursor?: string | null;
-      object_ids: string[];
+    Key: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      last_used_at?: string | null;
+      name: string;
+    };
+    KeysResponse: {
+      keys: components["schemas"]["Key"][];
+    };
+    LinkCallbackResponse: {
+      linked: boolean;
+    };
+    LoginRequest: {
+      email: string;
+      /** @enum {string} */
+      grant_type: "password";
+      password: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "magic_link";
+      token: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "password_reset";
+      new_password: string;
+      token: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "email_change";
+      token: string;
+    } | {
+      code: string;
+      /** @enum {string} */
+      grant_type: "totp_step_up";
+      step_up_token: string;
+    } | {
+      code: string;
+      /** @enum {string} */
+      grant_type: "totp_recovery";
+      step_up_token: string;
+    } | {
+      credential: Record<string, never>;
+      /** @enum {string} */
+      grant_type: "passkey";
+      state_token: string;
     };
     MagicLinkRequest: {
       email: string;
@@ -721,6 +1204,45 @@ export interface components {
       org: components["schemas"]["OrgBody"];
       user: components["schemas"]["UserBody"];
     };
+    MemberResponse: {
+      /** Format: date-time */
+      joined_at: string;
+      role: string;
+      /** Format: uuid */
+      user_id: string;
+    };
+    MembersResponse: {
+      has_more: boolean;
+      members: components["schemas"]["MemberResponse"][];
+      next_page?: string | null;
+    };
+    ObjectsResponse: {
+      has_more: boolean;
+      next_page?: string | null;
+      object_ids: string[];
+    };
+    OrgBody: {
+      /** Format: uuid */
+      id: string;
+      image_url?: string | null;
+      name: string;
+      slug: string;
+    };
+    OrgResponse: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: uuid */
+      id: string;
+      image_url?: string | null;
+      metadata: unknown;
+      name: string;
+      slug: string;
+    };
+    OrgsResponse: {
+      has_more: boolean;
+      next_page?: string | null;
+      orgs: components["schemas"]["OrgResponse"][];
+    };
     OttTokenResponse: {
       /** Format: date-time */
       expires_at: string;
@@ -735,6 +1257,9 @@ export interface components {
       expires_at: string;
       /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=password_reset`. */
       token: string;
+    };
+    RecoveryCodesResponse: {
+      recovery_codes: string[];
     };
     RegisteredCredential: {
       /** Format: date-time */
@@ -809,39 +1334,71 @@ export interface components {
       /** @description Short-lived signed token to present when completing the step-up. */
       step_up_token: string;
     };
-    OrgBody: {
-      /** Format: uuid */
+    Subject: {
       id: string;
-      name: string;
-      slug: string;
+      relation: string;
+    };
+    SubjectsResponse: {
+      subjects: components["schemas"]["Subject"][];
     };
     TokenResponse: {
       access_token: string;
       /**
        * Format: int32
-       * @description Lifetime in seconds.
+       * @description Access token lifetime in seconds.
        */
       expires_in: number;
+      /**
+       * @description Rotate-on-use refresh token. Present when authenticated via a session or
+       *     a prior refresh token; absent for API-key auth.
+       */
+      refresh_token?: string | null;
       token_type: string;
     };
     TraceResponse: {
       allowed: boolean;
-      subjects: components["schemas"]["ExpandSubject"][];
+      subjects: components["schemas"]["Subject"][];
+    };
+    /**
+     * @description Partial config update. Only fields explicitly set are updated.
+     *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
+     */
+    UpdateConfigRequest: {
+      /** Format: int32 */
+      session_idle_timeout_seconds?: number | null;
     };
     UpdateCredentialRequest: {
       nickname: string;
     };
-    UpdateUser: {
+    UpdateIdentityRequest: {
+      current_password: string;
+      new_password: string;
+    };
+    UpdateMeRequest: {
       image_url?: string | null;
-      display_name?: string | null;
+      metadata?: unknown;
+      name?: string | null;
+      slug?: string | null;
+    };
+    UpdateMemberRequest: {
+      role: string;
+    };
+    UpdateOrgRequest: {
+      image_url?: string | null;
+      metadata?: unknown;
+      name?: string | null;
+      slug?: string | null;
     };
     UserBody: {
-      image_url?: string | null;
       /** Format: date-time */
       created_at: string;
-      display_name?: string | null;
       /** Format: uuid */
       id: string;
+      image_url?: string | null;
+      metadata: unknown;
+      name: string;
+      /** Format: uuid */
+      primary_org_id: string;
     };
   };
   responses: never;
@@ -879,26 +1436,274 @@ export interface operations {
       };
     };
   };
-  ensure_partition: {
+  list_subjects_expand: {
+    parameters: {
+      query: {
+        object_type: string;
+        object_id: string;
+        relation: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubjectsResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_admin_config: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConfigResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateConfigRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConfigResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_impersonation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ImpersonateRequest"];
+      };
+    };
+    responses: {
+      /** @description Impersonation session created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthResponse"];
+        };
+      };
+      /** @description User not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  search: {
+    parameters: {
+      query?: {
+        /** @description Look up by primary email address (case-insensitive). */
+        email?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminUserResponse"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_by_id: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Object type to partition (e.g. "document") */
-        object_type: string;
+        /** @description User ID */
+        id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description Partition exists (created or already present) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminUserResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_sessions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description User ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description All sessions revoked */
       204: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
-      /** @description Invalid object_type identifier */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  post_checks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChecksRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChecksResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
       422: {
         headers: {
           [name: string]: unknown;
@@ -961,12 +1766,14 @@ export interface operations {
       };
     };
   };
-  expand_relation: {
+  list_objects: {
     parameters: {
       query: {
-        object_type: string;
-        object_id: string;
-        relation: string;
+        user?: string | null;
+        permission: string;
+        resource_type: string;
+        limit?: number | null;
+        after?: string | null;
       };
       header?: never;
       path?: never;
@@ -979,7 +1786,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExpandResponse"];
+          "application/json": components["schemas"]["ObjectsResponse"];
         };
       };
       /** @description Authz not enabled */
@@ -991,33 +1798,8 @@ export interface operations {
           "application/json": components["schemas"]["ErrorResponse"];
         };
       };
-    };
-  };
-  lookup_objects: {
-    parameters: {
-      query: {
-        user?: string | null;
-        permission: string;
-        resource_type: string;
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["LookupResponse"];
-        };
-      };
-      /** @description Authz not enabled */
-      400: {
+      /** @description Unknown resource/permission */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -1077,6 +1859,15 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
       };
       /** @description Relation not found */
       404: {
@@ -1172,6 +1963,47 @@ export interface operations {
       };
     };
   };
+  list_subjects: {
+    parameters: {
+      query: {
+        resource_type: string;
+        resource_id: string;
+        permission: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubjectsResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   why_check: {
     parameters: {
       query: {
@@ -1196,6 +2028,15 @@ export interface operations {
       };
       /** @description Authz not enabled */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -1436,6 +2277,282 @@ export interface operations {
       };
     };
   };
+  list_identities: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IdentitiesResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  add_password: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AddPasswordRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IdentityItem"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password identity already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  unlink: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Identity ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Cannot remove last auth method */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Identity ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateIdentityRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  view_invitation: {
+    parameters: {
+      query: {
+        /** @description Plaintext invitation token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Invitation ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationViewResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  accept_invitation: {
+    parameters: {
+      query: {
+        /** @description Plaintext invitation token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Invitation ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invitation not found or expired */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Already a member */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  decline_invitation: {
+    parameters: {
+      query: {
+        /** @description Plaintext invitation token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Invitation ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invitation not found or expired */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   jwks: {
     parameters: {
       query?: never;
@@ -1453,6 +2570,140 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["JwkSet"];
+        };
+      };
+    };
+  };
+  list_keys: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeysResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Key created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CreateResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Key ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Key"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Key ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Key revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };
@@ -1503,12 +2754,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Redirect to redirect_url with token and expires_at query params */
-      302: {
+      /** @description Link — identity added to existing account */
+      200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["LinkCallbackResponse"];
+        };
       };
       /** @description Invalid state or Apple error */
       400: {
@@ -1536,12 +2789,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Redirect to OAuth provider */
-      302: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AuthorizeResponse"];
+        };
       };
       /** @description Provider not configured */
       400: {
@@ -1571,15 +2825,507 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Redirect to redirect_url with token and expires_at query params */
-      302: {
+      /** @description Link — identity added to existing account */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LinkCallbackResponse"];
+        };
+      };
+      /** @description Invalid state or provider error */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description OAuth identity already claimed by another user */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_orgs: {
+    parameters: {
+      query?: {
+        after?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgsResponse"];
+        };
+      };
+    };
+  };
+  create_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateOrgRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgResponse"];
+        };
+      };
+      /** @description Slug already taken */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
-      /** @description Invalid state or provider error */
-      400: {
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Cannot delete personal org */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateOrgRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Slug already taken */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_invitations: {
+    parameters: {
+      query?: {
+        after?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationsResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_invitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateInvitationRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Pending invite for this email already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  revoke_invitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description Invitation ID */
+        inv_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  resend_invitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description Invitation ID */
+        inv_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_members: {
+    parameters: {
+      query?: {
+        after?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MembersResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  remove_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description User ID of the member */
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Would remove last owner */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description User ID of the member */
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateMemberRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Would remove last owner */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -1617,7 +3363,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      200: {
+      201: {
         headers: {
           [name: string]: unknown;
         };
@@ -1865,6 +3611,38 @@ export interface operations {
       };
     };
   };
+  delete_all_sessions: {
+    parameters: {
+      query?: {
+        /**
+         * @description When true, the current session is preserved; all other sessions are revoked.
+         *     Defaults to false — all sessions including the current one are revoked.
+         */
+        except_current?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Sessions revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   get_current: {
     parameters: {
       query?: never;
@@ -1970,7 +3748,11 @@ export interface operations {
       path?: never;
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IssueRequest"];
+      };
+    };
     responses: {
       200: {
         headers: {
@@ -2082,6 +3864,46 @@ export interface operations {
       };
     };
   };
+  regenerate_recovery_codes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RecoveryCodesResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description No enrolled TOTP factor */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   signup: {
     parameters: {
       query?: never;
@@ -2150,6 +3972,31 @@ export interface operations {
       };
     };
   };
+  delete_me: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   update_me: {
     parameters: {
       query?: never;
@@ -2159,7 +4006,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["UpdateUser"];
+        "application/json": components["schemas"]["UpdateMeRequest"];
       };
     };
     responses: {
@@ -2180,6 +4027,15 @@ export interface operations {
         };
       };
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Slug already taken */
+      409: {
         headers: {
           [name: string]: unknown;
         };

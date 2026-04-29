@@ -1,6 +1,6 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 
-use crate::helpers::{TestClient, login, signup, unique_email};
+use crate::helpers::{TestClient, db_conn, exclusive, login, signup, unique_email};
 
 #[derive(serde::Deserialize)]
 struct TokenResponse {
@@ -206,4 +206,169 @@ async fn impersonated_jwt_carries_impersonated_flag() {
         claims["impersonated"], true,
         "impersonated JWT must carry the impersonated flag"
     );
+}
+
+// ── DELETE /v1/admin/users/{id}/sessions ──────────────────────────────────────
+
+#[tokio::test]
+async fn admin_delete_user_sessions_requires_admin() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .delete(&format!("/v1/admin/users/{}/sessions", auth.user.id))
+        .await
+        .assert_status(401);
+}
+
+#[tokio::test]
+async fn admin_delete_user_sessions_revokes_all() {
+    let email = unique_email();
+    let first = signup(&email, "correct-horse-battery-staple").await;
+    let second = login(&email, "correct-horse-battery-staple").await;
+
+    TestClient::new()
+        .admin()
+        .delete(&format!("/v1/admin/users/{}/sessions", first.user.id))
+        .await
+        .assert_status(204);
+
+    // Both sessions must be dead.
+    for token in [&first.session.token, &second.session.token] {
+        TestClient::new()
+            .bearer(token)
+            .get("/v1/users/me")
+            .await
+            .assert_status(401);
+    }
+}
+
+#[tokio::test]
+async fn admin_delete_user_sessions_nonexistent_returns_404() {
+    TestClient::new()
+        .admin()
+        .delete(&format!(
+            "/v1/admin/users/{}/sessions",
+            uuid::Uuid::now_v7()
+        ))
+        .await
+        .assert_status(404);
+}
+
+#[tokio::test]
+async fn admin_delete_user_sessions_idempotent_when_no_sessions() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    // First revocation.
+    TestClient::new()
+        .admin()
+        .delete(&format!("/v1/admin/users/{}/sessions", auth.user.id))
+        .await
+        .assert_status(204);
+
+    // Second call: user exists but has no sessions — must still be 204.
+    TestClient::new()
+        .admin()
+        .delete(&format!("/v1/admin/users/{}/sessions", auth.user.id))
+        .await
+        .assert_status(204);
+
+    // Verify via API that the user's session list is empty.
+    let mut conn = db_conn().await;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM auth.sessions WHERE user_id = $1")
+        .bind(auth.user.id)
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+// ── GET /v1/admin/config ──────────────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct ConfigResponse {
+    session_idle_timeout_seconds: Option<i32>,
+}
+
+#[tokio::test]
+async fn admin_get_config_requires_admin() {
+    TestClient::new()
+        .get("/v1/admin/config")
+        .await
+        .assert_status(401);
+}
+
+#[tokio::test]
+async fn admin_get_config_returns_current_state() {
+    let _guard = exclusive().await;
+
+    // Set a known timeout.
+    TestClient::new()
+        .admin()
+        .patch(
+            "/v1/admin/config",
+            &serde_json::json!({ "session_idle_timeout_seconds": 3600 }),
+        )
+        .await
+        .assert_status(200);
+
+    let cfg = TestClient::new()
+        .admin()
+        .get("/v1/admin/config")
+        .await
+        .assert_status(200)
+        .json::<ConfigResponse>();
+
+    assert_eq!(cfg.session_idle_timeout_seconds, Some(3600));
+
+    // Restore.
+    TestClient::new()
+        .admin()
+        .patch(
+            "/v1/admin/config",
+            &serde_json::json!({ "session_idle_timeout_seconds": null }),
+        )
+        .await
+        .assert_status(200);
+}
+
+#[tokio::test]
+async fn admin_get_config_reflects_patch() {
+    let _guard = exclusive().await;
+
+    let before = TestClient::new()
+        .admin()
+        .get("/v1/admin/config")
+        .await
+        .assert_status(200)
+        .json::<ConfigResponse>();
+
+    // Patch and verify GET reflects the change.
+    TestClient::new()
+        .admin()
+        .patch(
+            "/v1/admin/config",
+            &serde_json::json!({ "session_idle_timeout_seconds": 7200 }),
+        )
+        .await
+        .assert_status(200);
+
+    let after = TestClient::new()
+        .admin()
+        .get("/v1/admin/config")
+        .await
+        .assert_status(200)
+        .json::<ConfigResponse>();
+
+    assert_eq!(after.session_idle_timeout_seconds, Some(7200));
+
+    // Restore to whatever was there before.
+    TestClient::new()
+        .admin()
+        .patch(
+            "/v1/admin/config",
+            &serde_json::json!({ "session_idle_timeout_seconds": before.session_idle_timeout_seconds }),
+        )
+        .await
+        .assert_status(200);
 }

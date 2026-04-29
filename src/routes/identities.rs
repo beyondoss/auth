@@ -42,6 +42,7 @@ pub struct UpdateIdentityRequest {
 
 #[utoipa::path(
     get,
+    operation_id = "list_identities",
     path = "/v1/identities",
     tag = "identities",
     security(("BearerAuth" = [])),

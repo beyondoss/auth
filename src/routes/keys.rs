@@ -38,6 +38,7 @@ pub struct KeysResponse {
 
 #[utoipa::path(
     post,
+    operation_id = "create_key",
     path = "/v1/keys",
     tag = "keys",
     security(("BearerAuth" = [])),
@@ -78,6 +79,7 @@ pub async fn create(
 
 #[utoipa::path(
     get,
+    operation_id = "list_keys",
     path = "/v1/keys",
     tag = "keys",
     security(("BearerAuth" = [])),
@@ -96,6 +98,7 @@ pub async fn list(
 
 #[utoipa::path(
     get,
+    operation_id = "get_key",
     path = "/v1/keys/{id}",
     tag = "keys",
     security(("BearerAuth" = [])),

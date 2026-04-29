@@ -154,6 +154,8 @@ export interface ResolvedSubject {
 export interface LookupPage {
   /** Object IDs the subject can reach. Sorted, stable across pages. */
   objectIds: string[];
+  /** `true` when additional pages exist. */
+  hasMore: boolean;
   /**
    * Opaque cursor for the next page. Pass as `opts.cursor` on the next call.
    * `undefined` when there are no more results.
@@ -488,7 +490,7 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
 
     async expand(objectType, objectId, relation) {
       const { data, error, response } = await client.GET(
-        "/v1/authz/expansions",
+        "/v1/admin/authz/subjects",
         {
           headers: adminHeaders,
           params: {
@@ -517,7 +519,7 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
     },
 
     async lookup(token, resourceType, permission, opts) {
-      const { data, error, response } = await client.GET("/v1/authz/lookups", {
+      const { data, error, response } = await client.GET("/v1/authz/objects", {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           query: {
@@ -525,14 +527,15 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
             permission,
             ...(opts?.subject !== undefined && { user: opts.subject }),
             ...(opts?.limit !== undefined && { limit: opts.limit }),
-            ...(opts?.cursor !== undefined && { cursor: opts.cursor }),
+            ...(opts?.cursor !== undefined && { after: opts.cursor }),
           },
         },
       });
       if (error !== undefined) parseError(error, response as Response);
       return {
         objectIds: data.object_ids,
-        ...(data.next_cursor != null && { nextCursor: data.next_cursor }),
+        hasMore: data.has_more,
+        ...(data.next_page != null && { nextCursor: data.next_page }),
       };
     },
 

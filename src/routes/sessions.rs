@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -551,6 +551,78 @@ pub async fn delete_current(
         .map_err(AuthError::from)?;
 
     state.authz_cache.invalidate_session(ctx.token_id);
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── DELETE /v1/sessions ───────────────────────────────────────────────────────
+
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct DeleteAllQuery {
+    /// When true, the current session is preserved; all other sessions are revoked.
+    /// Defaults to false — all sessions including the current one are revoked.
+    #[serde(default)]
+    pub except_current: bool,
+}
+
+#[utoipa::path(
+    delete,
+    path = "/v1/sessions",
+    operation_id = "delete_all_sessions",
+    tag = "sessions",
+    security(("BearerAuth" = [])),
+    params(DeleteAllQuery),
+    responses(
+        (status = 204, description = "Sessions revoked"),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn delete_all(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+    Query(params): Query<DeleteAllQuery>,
+) -> Result<StatusCode, AuthError> {
+    let token_ids: Vec<Uuid> = if params.except_current {
+        sqlx::query_scalar!(
+            r#"
+            WITH deleted AS (
+                DELETE FROM auth.tokens
+                WHERE id IN (
+                    SELECT token_id FROM auth.sessions
+                    WHERE user_id = $1 AND token_id != $2
+                )
+                RETURNING id
+            )
+            SELECT id AS "id: Uuid" FROM deleted
+            "#,
+            ctx.user.id,
+            ctx.token_id,
+        )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(AuthError::from)?
+    } else {
+        sqlx::query_scalar!(
+            r#"
+            WITH deleted AS (
+                DELETE FROM auth.tokens
+                WHERE id IN (
+                    SELECT token_id FROM auth.sessions WHERE user_id = $1
+                )
+                RETURNING id
+            )
+            SELECT id AS "id: Uuid" FROM deleted
+            "#,
+            ctx.user.id,
+        )
+        .fetch_all(&state.pool)
+        .await
+        .map_err(AuthError::from)?
+    };
+
+    for token_id in token_ids {
+        state.authz_cache.invalidate_session(token_id);
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }

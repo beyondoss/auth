@@ -40,11 +40,31 @@ async fn write_set(
         .assert_status(201);
 }
 
-async fn list_subjects(object_type: &str, object_id: &str, relation: &str) -> SubjectsResponse {
+async fn list_subjects_expand(
+    object_type: &str,
+    object_id: &str,
+    relation: &str,
+) -> SubjectsResponse {
     TestClient::new()
         .admin()
         .get(&format!(
-            "/v1/authz/subjects?object_type={object_type}&object_id={object_id}&relation={relation}"
+            "/v1/admin/authz/subjects?object_type={object_type}&object_id={object_id}&relation={relation}"
+        ))
+        .await
+        .assert_status(200)
+        .json::<SubjectsResponse>()
+}
+
+async fn list_subjects_by_permission(
+    resource_type: &str,
+    resource_id: &str,
+    permission: &str,
+    bearer: &str,
+) -> SubjectsResponse {
+    TestClient::new()
+        .bearer(bearer)
+        .get(&format!(
+            "/v1/authz/subjects?resource_type={resource_type}&resource_id={resource_id}&permission={permission}"
         ))
         .await
         .assert_status(200)
@@ -61,7 +81,7 @@ async fn expand_object_with_direct_subjects() {
     write("document", &doc, "viewer", &user_a).await;
     write("document", &doc, "viewer", &user_b).await;
 
-    let res = list_subjects("document", &doc, "viewer").await;
+    let res = list_subjects_expand("document", &doc, "viewer").await;
     let ids: std::collections::HashSet<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
     assert!(ids.contains(user_a.as_str()));
     assert!(ids.contains(user_b.as_str()));
@@ -71,7 +91,7 @@ async fn expand_object_with_direct_subjects() {
 #[tokio::test]
 async fn expand_object_with_no_relations_returns_empty() {
     let _guard = with_schema().await;
-    let res = list_subjects("document", &uid(), "viewer").await;
+    let res = list_subjects_expand("document", &uid(), "viewer").await;
     assert!(res.subjects.is_empty());
 }
 
@@ -86,7 +106,7 @@ async fn expand_via_subject_set_one_hop() {
     write_set("document", &doc, "viewer", &group, "group", "member").await;
     write("group", &group, "member", &user).await;
 
-    let res = list_subjects("document", &doc, "viewer").await;
+    let res = list_subjects_expand("document", &doc, "viewer").await;
     let ids: Vec<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
     assert!(
         ids.contains(&user.as_str()),
@@ -109,7 +129,7 @@ async fn expand_via_subject_set_two_hops() {
     write_set("group", &group, "member", &team, "team", "member").await;
     write("team", &team, "member", &user).await;
 
-    let res = list_subjects("document", &doc, "editor").await;
+    let res = list_subjects_expand("document", &doc, "editor").await;
     let ids: Vec<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
     assert!(ids.contains(&user.as_str()));
 }
@@ -124,7 +144,7 @@ async fn expand_only_requested_relation_returned() {
     write("document", &doc, "owner", &owner_user).await;
     write("document", &doc, "viewer", &viewer_user).await;
 
-    let res = list_subjects("document", &doc, "owner").await;
+    let res = list_subjects_expand("document", &doc, "owner").await;
     let ids: Vec<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
     assert!(ids.contains(&owner_user.as_str()));
     assert!(
@@ -150,10 +170,157 @@ async fn expand_cycle_terminates_safely() {
     let res = TestClient::new()
         .admin()
         .get(&format!(
-            "/v1/authz/subjects?object_type=document&object_id={doc}&relation=viewer"
+            "/v1/admin/authz/subjects?object_type=document&object_id={doc}&relation=viewer"
         ))
         .await
         .assert_status(200)
         .json::<SubjectsResponse>();
     assert!(res.subjects.is_empty(), "no leaf subjects in a pure cycle");
+}
+
+// ── GET /v1/authz/subjects (permission-based, authenticated) ──────────────────
+
+use crate::helpers::signup;
+
+#[tokio::test]
+async fn subjects_by_permission_requires_auth() {
+    let _guard = with_schema().await;
+    TestClient::new()
+        .get("/v1/authz/subjects?resource_type=document&resource_id=x&permission=read")
+        .await
+        .assert_status(401);
+}
+
+#[tokio::test]
+async fn subjects_by_permission_direct_viewer_returned() {
+    let _guard = with_schema().await;
+    let auth = signup(
+        &crate::helpers::unique_email(),
+        "correct-horse-battery-staple",
+    )
+    .await;
+
+    let (doc, user_a, user_b) = (uid(), uid(), uid());
+    write("document", &doc, "viewer", &user_a).await;
+    write("document", &doc, "viewer", &user_b).await;
+
+    let res = list_subjects_by_permission("document", &doc, "read", &auth.session.token).await;
+    let ids: std::collections::HashSet<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
+    assert!(
+        ids.contains(user_a.as_str()),
+        "viewer must appear for read permission"
+    );
+    assert!(
+        ids.contains(user_b.as_str()),
+        "viewer must appear for read permission"
+    );
+}
+
+/// owner > editor > viewer, so for `read` (granted to viewer) the full role chain
+/// [owner, editor, viewer] must all be expanded.
+#[tokio::test]
+async fn subjects_by_permission_role_hierarchy_included() {
+    let _guard = with_schema().await;
+    let auth = signup(
+        &crate::helpers::unique_email(),
+        "correct-horse-battery-staple",
+    )
+    .await;
+
+    let (doc, owner, editor, viewer) = (uid(), uid(), uid(), uid());
+    write("document", &doc, "owner", &owner).await;
+    write("document", &doc, "editor", &editor).await;
+    write("document", &doc, "viewer", &viewer).await;
+
+    let res = list_subjects_by_permission("document", &doc, "read", &auth.session.token).await;
+    let ids: std::collections::HashSet<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
+
+    // read = [viewer], but role hierarchy expands viewer to include editor and owner.
+    assert!(
+        ids.contains(owner.as_str()),
+        "owner must appear (granted via hierarchy)"
+    );
+    assert!(
+        ids.contains(editor.as_str()),
+        "editor must appear (granted via hierarchy)"
+    );
+    assert!(
+        ids.contains(viewer.as_str()),
+        "viewer must appear (direct grant)"
+    );
+}
+
+#[tokio::test]
+async fn subjects_by_permission_delete_only_owners() {
+    let _guard = with_schema().await;
+    let auth = signup(
+        &crate::helpers::unique_email(),
+        "correct-horse-battery-staple",
+    )
+    .await;
+
+    let (doc, owner, viewer) = (uid(), uid(), uid());
+    write("document", &doc, "owner", &owner).await;
+    write("document", &doc, "viewer", &viewer).await;
+
+    // `delete` is only granted to owners.
+    let res = list_subjects_by_permission("document", &doc, "delete", &auth.session.token).await;
+    let ids: std::collections::HashSet<_> = res.subjects.iter().map(|s| s.id.as_str()).collect();
+
+    assert!(ids.contains(owner.as_str()), "owner must appear for delete");
+    assert!(
+        !ids.contains(viewer.as_str()),
+        "viewer must not appear for delete"
+    );
+}
+
+#[tokio::test]
+async fn subjects_by_permission_empty_when_no_subjects() {
+    let _guard = with_schema().await;
+    let auth = signup(
+        &crate::helpers::unique_email(),
+        "correct-horse-battery-staple",
+    )
+    .await;
+
+    let res = list_subjects_by_permission("document", &uid(), "read", &auth.session.token).await;
+    assert!(res.subjects.is_empty());
+}
+
+#[tokio::test]
+async fn subjects_by_permission_unknown_permission_returns_422() {
+    let _guard = with_schema().await;
+    let auth = signup(
+        &crate::helpers::unique_email(),
+        "correct-horse-battery-staple",
+    )
+    .await;
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get(&format!(
+            "/v1/authz/subjects?resource_type=document&resource_id={}&permission=nonexistent",
+            uid()
+        ))
+        .await
+        .assert_status(422);
+}
+
+#[tokio::test]
+async fn subjects_by_permission_unknown_resource_returns_422() {
+    let _guard = with_schema().await;
+    let auth = signup(
+        &crate::helpers::unique_email(),
+        "correct-horse-battery-staple",
+    )
+    .await;
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get(&format!(
+            "/v1/authz/subjects?resource_type=nonexistent&resource_id={}&permission=read",
+            uid()
+        ))
+        .await
+        .assert_status(422);
 }

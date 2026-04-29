@@ -145,4 +145,36 @@ describe("createJwtVerifier", () => {
     expect(err).toBeInstanceOf(JwtVerificationError);
     expect((err as JwtVerificationError).retryable).toBe(false);
   });
+
+  // ── Audience edge cases ────────────────────────────────────────────────────
+
+  it("accepts a token that carries aud when verifier has no audience configured", async () => {
+    // jose skips audience validation when verifyOptions.audience is unset,
+    // so an extra aud claim in the token is silently ignored.
+    mockJwks();
+    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
+    const token = await new SignJWT({ sub: "usr_1" })
+      .setProtectedHeader({ alg: "RS256", kid: KID })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience("some-other-app")
+      .setExpirationTime("1h")
+      .sign(privateKey);
+    const claims = await verifier.verify(token);
+    expect(claims.sub).toBe("usr_1");
+  });
+
+  it("rejects a token with no aud when verifier expects an audience", async () => {
+    mockJwks();
+    const verifier = createJwtVerifier({
+      jwksUri: JWKS_URI,
+      issuer: ISSUER,
+      audience: "my-app",
+    });
+    // signToken() produces no aud claim
+    const token = await signToken();
+    await expect(verifier.verify(token)).rejects.toBeInstanceOf(
+      JwtVerificationError,
+    );
+  });
 });

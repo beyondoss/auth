@@ -12,7 +12,9 @@
   "paths": {
     "/healthz": {
       "get": {
-        "tags": ["system"],
+        "tags": [
+          "system"
+        ],
         "operationId": "healthz",
         "responses": {
           "200": {
@@ -38,17 +40,33 @@
         }
       }
     },
-    "/v1/admin/relation-partitions/{object_type}": {
-      "put": {
-        "tags": ["admin"],
-        "summary": "Ensure a dedicated LIST partition exists for `object_type`.",
-        "description": "Idempotent — safe to call multiple times. Existing rows in the default\npartition are moved to the new partition atomically.",
-        "operationId": "ensure_partition",
+    "/v1/admin/authz/subjects": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "List all subjects who hold the given relation on an object.\nResolves subject sets recursively. Admin-only — use GET /v1/authz/subjects\nfor the permission-scoped view available to authenticated users.",
+        "operationId": "list_subjects_expand",
         "parameters": [
           {
             "name": "object_type",
-            "in": "path",
-            "description": "Object type to partition (e.g. \"document\")",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string"
@@ -56,11 +74,339 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/config": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "get_admin_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/impersonations": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "create_impersonation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpersonateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Impersonation session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/users": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "description": "Look up by primary email address (case-insensitive).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/users/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "get_by_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/users/{id}/sessions": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Revoke all active sessions for a user. Idempotent — safe to call when the user\nhas no sessions.",
+        "operationId": "delete_sessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
           "204": {
-            "description": "Partition exists (created or already present)"
+            "description": "All sessions revoked"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/authz/checks": {
+      "post": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "Check multiple permissions in a single request. When the parallel-batch pgrx extension\nis loaded, single-hop checks are expanded into atomic (subject, relation, object_type,\nobject_id) tuples and evaluated in one BFS issuing D+1 SQL queries — independent of N.\nMulti-hop permissions and deployments without the extension fall back to UNNEST grouping\n(same path as POST /v1/authz/decisions).",
+        "operationId": "post_checks",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChecksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Invalid object_type identifier",
+            "description": "Unknown resource/permission",
             "content": {
               "application/json": {
                 "schema": {
@@ -74,7 +420,9 @@
     },
     "/v1/authz/decisions": {
       "get": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Check whether the current session user (or an explicit user) has a permission\non a resource. Uses a bundled session-validation + authz CTE for one DB round-trip\nwhen checking the current session user.",
         "operationId": "check_permission",
         "parameters": [
@@ -84,7 +432,10 @@
             "description": "Explicit subject to check as. Defaults to the current session user.",
             "required": false,
             "schema": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
@@ -156,73 +507,23 @@
         }
       }
     },
-    "/v1/authz/expansions": {
+    "/v1/authz/objects": {
       "get": {
-        "tags": ["authz"],
-        "summary": "Expand a relation: return all subjects who hold the given relation on the object.\nResolves subject sets recursively.",
-        "operationId": "expand_relation",
-        "parameters": [
-          {
-            "name": "object_type",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "object_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "relation",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
+        "tags": [
+          "authz"
         ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExpandResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Authz not enabled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/authz/lookups": {
-      "get": {
-        "tags": ["authz"],
         "summary": "List all objects of the given type that the current user (or an explicit user)\ncan access via the resolved roles for a permission. Includes both direct role\nassignments and access granted via parent hierarchy.",
-        "operationId": "lookup_objects",
+        "operationId": "list_objects",
         "parameters": [
           {
             "name": "user",
             "in": "query",
             "required": false,
             "schema": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
@@ -246,16 +547,22 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "int64"
             }
           },
           {
-            "name": "cursor",
+            "name": "after",
             "in": "query",
             "required": false,
             "schema": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -265,7 +572,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LookupResponse"
+                  "$ref": "#/components/schemas/ObjectsResponse"
                 }
               }
             }
@@ -300,7 +607,9 @@
     },
     "/v1/authz/relations": {
       "post": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Write a single relation tuple. Idempotent — duplicate writes are silently ignored.",
         "operationId": "write_relation",
         "requestBody": {
@@ -330,7 +639,9 @@
         }
       },
       "delete": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Delete a single relation tuple.",
         "operationId": "delete_relation",
         "requestBody": {
@@ -370,7 +681,9 @@
         }
       },
       "patch": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Batch write and/or delete relation tuples in a single transaction.",
         "operationId": "batch_relations",
         "requestBody": {
@@ -409,7 +722,9 @@
     },
     "/v1/authz/schema": {
       "get": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Get the current authz schema. Returns null if authz is not enabled.",
         "operationId": "get_schema",
         "responses": {
@@ -433,7 +748,9 @@
         }
       },
       "put": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Replace the authz schema. Validates and compiles before persisting.\nSetting schema to a valid document enables authz; this is the only way to enable it.",
         "operationId": "put_schema",
         "requestBody": {
@@ -470,9 +787,83 @@
         }
       }
     },
+    "/v1/authz/subjects": {
+      "get": {
+        "tags": [
+          "authz"
+        ],
+        "summary": "List all subjects with a given permission on a resource. Resolves through the\nschema's role hierarchy to return every subject who can exercise the permission.\nOnly direct role assignments are expanded; access via parent hierarchy is not\nincluded (use GET /v1/authz/objects from the subject's perspective for that).",
+        "operationId": "list_subjects",
+        "parameters": [
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "permission",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Authz not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown resource/permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/authz/traces": {
       "get": {
-        "tags": ["authz"],
+        "tags": [
+          "authz"
+        ],
         "summary": "Explain why a permission check returned its result. Runs expand on all direct\nrole relations and reports which subjects appear, letting you trace a grant or\ndenial. Note: access granted purely via parent hierarchy is not reflected here.",
         "operationId": "why_check",
         "parameters": [
@@ -545,7 +936,9 @@
     },
     "/v1/emails": {
       "get": {
-        "tags": ["emails"],
+        "tags": [
+          "emails"
+        ],
         "operationId": "list_emails",
         "responses": {
           "200": {
@@ -579,7 +972,9 @@
         ]
       },
       "post": {
-        "tags": ["emails"],
+        "tags": [
+          "emails"
+        ],
         "operationId": "add",
         "requestBody": {
           "content": {
@@ -632,7 +1027,9 @@
     },
     "/v1/emails/verifications": {
       "post": {
-        "tags": ["emails"],
+        "tags": [
+          "emails"
+        ],
         "operationId": "confirm_verification",
         "requestBody": {
           "content": {
@@ -680,7 +1077,9 @@
     },
     "/v1/emails/{id}": {
       "put": {
-        "tags": ["emails"],
+        "tags": [
+          "emails"
+        ],
         "operationId": "make_primary",
         "parameters": [
           {
@@ -726,7 +1125,9 @@
         ]
       },
       "delete": {
-        "tags": ["emails"],
+        "tags": [
+          "emails"
+        ],
         "operationId": "remove",
         "parameters": [
           {
@@ -784,7 +1185,9 @@
     },
     "/v1/emails/{id}/verifications": {
       "post": {
-        "tags": ["emails"],
+        "tags": [
+          "emails"
+        ],
         "operationId": "create_verification",
         "parameters": [
           {
@@ -837,9 +1240,237 @@
         ]
       }
     },
+    "/v1/identities": {
+      "get": {
+        "tags": [
+          "identities"
+        ],
+        "operationId": "list_identities",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitiesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "identities"
+        ],
+        "operationId": "add_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Password identity already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Password validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/identities/{id}": {
+      "delete": {
+        "tags": [
+          "identities"
+        ],
+        "operationId": "unlink",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot remove last auth method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "identities"
+        ],
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Password validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/invitations/{id}": {
       "get": {
-        "tags": ["invitations"],
+        "tags": [
+          "invitations"
+        ],
         "operationId": "view_invitation",
         "parameters": [
           {
@@ -888,7 +1519,9 @@
     },
     "/v1/invitations/{id}/acceptances": {
       "post": {
-        "tags": ["invitations"],
+        "tags": [
+          "invitations"
+        ],
         "operationId": "accept_invitation",
         "parameters": [
           {
@@ -945,7 +1578,9 @@
     },
     "/v1/invitations/{id}/declinations": {
       "post": {
-        "tags": ["invitations"],
+        "tags": [
+          "invitations"
+        ],
         "operationId": "decline_invitation",
         "parameters": [
           {
@@ -987,7 +1622,9 @@
     },
     "/v1/jwks.json": {
       "get": {
-        "tags": ["system"],
+        "tags": [
+          "system"
+        ],
         "operationId": "jwks",
         "responses": {
           "200": {
@@ -1011,9 +1648,194 @@
         }
       }
     },
+    "/v1/keys": {
+      "get": {
+        "tags": [
+          "keys"
+        ],
+        "operationId": "list_keys",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeysResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "keys"
+        ],
+        "operationId": "create_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Key created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/keys/{id}": {
+      "get": {
+        "tags": [
+          "keys"
+        ],
+        "operationId": "get_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Key ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Key"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "keys"
+        ],
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Key ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Key revoked"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/magic-links": {
       "post": {
-        "tags": ["magic-links"],
+        "tags": [
+          "magic-links"
+        ],
         "operationId": "create_magic_link",
         "requestBody": {
           "content": {
@@ -1051,7 +1873,9 @@
     },
     "/v1/oauth/apple/callback": {
       "post": {
-        "tags": ["oauth"],
+        "tags": [
+          "oauth"
+        ],
         "operationId": "apple_callback",
         "requestBody": {
           "content": {
@@ -1064,8 +1888,15 @@
           "required": true
         },
         "responses": {
-          "302": {
-            "description": "Redirect to redirect_url with token and expires_at query params"
+          "200": {
+            "description": "Link — identity added to existing account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCallbackResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid state or Apple error",
@@ -1082,7 +1913,9 @@
     },
     "/v1/oauth/{provider}": {
       "get": {
-        "tags": ["oauth"],
+        "tags": [
+          "oauth"
+        ],
         "operationId": "authorize",
         "parameters": [
           {
@@ -1105,8 +1938,15 @@
           }
         ],
         "responses": {
-          "302": {
-            "description": "Redirect to OAuth provider"
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizeResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Provider not configured",
@@ -1123,7 +1963,9 @@
     },
     "/v1/oauth/{provider}/callback": {
       "get": {
-        "tags": ["oauth"],
+        "tags": [
+          "oauth"
+        ],
         "operationId": "callback",
         "parameters": [
           {
@@ -1155,11 +1997,28 @@
           }
         ],
         "responses": {
-          "302": {
-            "description": "Redirect to redirect_url with token and expires_at query params"
+          "200": {
+            "description": "Link — identity added to existing account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCallbackResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid state or provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "OAuth identity already claimed by another user",
             "content": {
               "application/json": {
                 "schema": {
@@ -1173,8 +2032,35 @@
     },
     "/v1/orgs": {
       "get": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "list_orgs",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -1194,7 +2080,9 @@
         ]
       },
       "post": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "create_org",
         "requestBody": {
           "content": {
@@ -1237,7 +2125,9 @@
     },
     "/v1/orgs/{id}": {
       "get": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "get_org",
         "parameters": [
           {
@@ -1290,7 +2180,9 @@
         ]
       },
       "delete": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "delete_org",
         "parameters": [
           {
@@ -1346,7 +2238,9 @@
         ]
       },
       "patch": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "update_org",
         "parameters": [
           {
@@ -1421,7 +2315,9 @@
     },
     "/v1/orgs/{id}/invitations": {
       "get": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "list_invitations",
         "parameters": [
           {
@@ -1432,6 +2328,29 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
             }
           }
         ],
@@ -1464,7 +2383,9 @@
         ]
       },
       "post": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "create_invitation",
         "parameters": [
           {
@@ -1529,7 +2450,9 @@
     },
     "/v1/orgs/{id}/invitations/{inv_id}": {
       "delete": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "revoke_invitation",
         "parameters": [
           {
@@ -1585,9 +2508,78 @@
         ]
       }
     },
+    "/v1/orgs/{id}/invitations/{inv_id}/resends": {
+      "post": {
+        "tags": [
+          "orgs"
+        ],
+        "operationId": "resend_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "inv_id",
+            "in": "path",
+            "description": "Invitation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/orgs/{id}/members": {
       "get": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "list_members",
         "parameters": [
           {
@@ -1598,6 +2590,29 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
             }
           }
         ],
@@ -1642,7 +2657,9 @@
     },
     "/v1/orgs/{id}/members/{member_id}": {
       "delete": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "remove_member",
         "parameters": [
           {
@@ -1708,7 +2725,9 @@
         ]
       },
       "patch": {
-        "tags": ["orgs"],
+        "tags": [
+          "orgs"
+        ],
         "operationId": "update_member",
         "parameters": [
           {
@@ -1786,7 +2805,9 @@
     },
     "/v1/passkey-authentications": {
       "post": {
-        "tags": ["passkeys"],
+        "tags": [
+          "passkeys"
+        ],
         "operationId": "begin_passkey_authentication",
         "responses": {
           "200": {
@@ -1804,10 +2825,12 @@
     },
     "/v1/passkey-registrations": {
       "post": {
-        "tags": ["passkeys"],
+        "tags": [
+          "passkeys"
+        ],
         "operationId": "begin_passkey_registration",
         "responses": {
-          "200": {
+          "201": {
             "description": "",
             "content": {
               "application/json": {
@@ -1837,7 +2860,9 @@
     },
     "/v1/passkeys": {
       "get": {
-        "tags": ["passkey"],
+        "tags": [
+          "passkey"
+        ],
         "operationId": "list_passkeys",
         "responses": {
           "200": {
@@ -1871,7 +2896,9 @@
         ]
       },
       "post": {
-        "tags": ["passkeys"],
+        "tags": [
+          "passkeys"
+        ],
         "operationId": "create_passkey",
         "requestBody": {
           "content": {
@@ -1914,7 +2941,9 @@
     },
     "/v1/passkeys/{id}": {
       "delete": {
-        "tags": ["passkeys"],
+        "tags": [
+          "passkeys"
+        ],
         "operationId": "delete_passkey",
         "parameters": [
           {
@@ -1950,7 +2979,9 @@
         ]
       },
       "patch": {
-        "tags": ["passkeys"],
+        "tags": [
+          "passkeys"
+        ],
         "operationId": "update_passkey",
         "parameters": [
           {
@@ -1998,7 +3029,9 @@
     },
     "/v1/password-resets": {
       "post": {
-        "tags": ["password-resets"],
+        "tags": [
+          "password-resets"
+        ],
         "operationId": "create_password_reset",
         "requestBody": {
           "content": {
@@ -2036,7 +3069,9 @@
     },
     "/v1/sessions": {
       "get": {
-        "tags": ["sessions"],
+        "tags": [
+          "sessions"
+        ],
         "operationId": "list_sessions",
         "responses": {
           "200": {
@@ -2067,7 +3102,9 @@
         ]
       },
       "post": {
-        "tags": ["sessions"],
+        "tags": [
+          "sessions"
+        ],
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -2121,11 +3158,50 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "delete_all_sessions",
+        "parameters": [
+          {
+            "name": "except_current",
+            "in": "query",
+            "description": "When true, the current session is preserved; all other sessions are revoked.\nDefaults to false — all sessions including the current one are revoked.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sessions revoked"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
       }
     },
     "/v1/sessions/current": {
       "get": {
-        "tags": ["sessions"],
+        "tags": [
+          "sessions"
+        ],
         "operationId": "get_current",
         "responses": {
           "200": {
@@ -2166,7 +3242,9 @@
         ]
       },
       "delete": {
-        "tags": ["sessions"],
+        "tags": [
+          "sessions"
+        ],
         "operationId": "delete_current",
         "responses": {
           "204": {
@@ -2192,7 +3270,9 @@
     },
     "/v1/sessions/{id}": {
       "delete": {
-        "tags": ["sessions"],
+        "tags": [
+          "sessions"
+        ],
         "operationId": "delete_by_id",
         "parameters": [
           {
@@ -2240,9 +3320,22 @@
     },
     "/v1/tokens": {
       "post": {
-        "tags": ["tokens"],
-        "summary": "POST /v1/tokens — issue a short-lived JWT access token.\nRequires `jwt_enabled = true` in app_config; returns 400 otherwise.",
+        "tags": [
+          "tokens"
+        ],
+        "summary": "POST /v1/tokens — issue a short-lived JWT access token.",
+        "description": "Accepts any valid bearer credential in `Authorization`:\n- **Session token** (`session_…`) — issues JWT + a fresh refresh token.\n- **Refresh token** (`rt_…`) — rotates the refresh token and issues a new JWT.\n- **API key** (`key_…`) — issues JWT only (no refresh token).\n\nRequires `jwt_enabled = true` in app_config; returns 400 otherwise.\nAn optional JSON body may carry `claims` — a flat object of key/value pairs\nmerged into the JWT payload after all reserved claims are set.",
         "operationId": "issue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "",
@@ -2284,7 +3377,9 @@
     },
     "/v1/totp": {
       "post": {
-        "tags": ["totp"],
+        "tags": [
+          "totp"
+        ],
         "operationId": "begin_enrollment",
         "responses": {
           "200": {
@@ -2315,7 +3410,9 @@
         ]
       },
       "delete": {
-        "tags": ["totp"],
+        "tags": [
+          "totp"
+        ],
         "operationId": "disable",
         "responses": {
           "204": {
@@ -2341,7 +3438,9 @@
     },
     "/v1/totp/confirmations": {
       "post": {
-        "tags": ["totp"],
+        "tags": [
+          "totp"
+        ],
         "operationId": "confirm_enrollment",
         "requestBody": {
           "content": {
@@ -2375,9 +3474,66 @@
         ]
       }
     },
+    "/v1/totp/recovery-codes": {
+      "post": {
+        "tags": [
+          "totp"
+        ],
+        "operationId": "regenerate_recovery_codes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No enrolled TOTP factor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/users": {
       "post": {
-        "tags": ["users"],
+        "tags": [
+          "users"
+        ],
         "operationId": "signup",
         "requestBody": {
           "content": {
@@ -2425,7 +3581,9 @@
     },
     "/v1/users/me": {
       "get": {
-        "tags": ["users"],
+        "tags": [
+          "users"
+        ],
         "operationId": "get_me",
         "responses": {
           "200": {
@@ -2455,14 +3613,42 @@
           }
         ]
       },
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "delete_me",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
       "patch": {
-        "tags": ["users"],
+        "tags": [
+          "users"
+        ],
         "operationId": "update_me",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateUser"
+                "$ref": "#/components/schemas/UpdateMeRequest"
               }
             }
           },
@@ -2498,6 +3684,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Slug already taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2510,18 +3706,81 @@
   },
   "components": {
     "schemas": {
+      "AddPasswordRequest": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "AddRequest": {
         "type": "object",
-        "required": ["email"],
+        "required": [
+          "email"
+        ],
         "properties": {
           "email": {
             "type": "string"
           }
         }
       },
+      "AdminUserResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "primary_org_id",
+          "primary_email_id",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email_verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "primary_email_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "primary_org_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "AppleCallbackForm": {
         "type": "object",
-        "required": ["code", "state"],
+        "required": [
+          "code",
+          "state"
+        ],
         "properties": {
           "code": {
             "type": "string"
@@ -2530,13 +3789,21 @@
             "type": "string"
           },
           "user": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "AuthResponse": {
         "type": "object",
-        "required": ["user", "email", "org", "session"],
+        "required": [
+          "user",
+          "email",
+          "org",
+          "session"
+        ],
         "properties": {
           "email": {
             "$ref": "#/components/schemas/EmailBody"
@@ -2552,9 +3819,24 @@
           }
         }
       },
+      "AuthorizeResponse": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Full OAuth authorization URL — navigate the browser here to start the flow."
+          }
+        }
+      },
       "AuthzSchema": {
         "type": "object",
-        "required": ["version", "resources"],
+        "required": [
+          "version",
+          "resources"
+        ],
         "properties": {
           "resources": {
             "type": "array",
@@ -2594,7 +3876,10 @@
       },
       "BatchResponse": {
         "type": "object",
-        "required": ["written", "deleted"],
+        "required": [
+          "written",
+          "deleted"
+        ],
         "properties": {
           "deleted": {
             "type": "integer",
@@ -2610,7 +3895,10 @@
       },
       "BeginResponse": {
         "type": "object",
-        "required": ["options", "state_token"],
+        "required": [
+          "options",
+          "state_token"
+        ],
         "properties": {
           "options": {
             "type": "object",
@@ -2622,18 +3910,105 @@
           }
         }
       },
+      "CallbackResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "CheckResponse": {
         "type": "object",
-        "required": ["allowed"],
+        "required": [
+          "allowed"
+        ],
         "properties": {
           "allowed": {
             "type": "boolean"
           }
         }
       },
+      "ChecksItem": {
+        "type": "object",
+        "required": [
+          "permission",
+          "resource_type",
+          "resource_id"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "resource_id": {
+            "type": "string"
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit subject to check as. Defaults to the current session user."
+          }
+        }
+      },
+      "ChecksRequest": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecksItem"
+            }
+          }
+        }
+      },
+      "ChecksResponse": {
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "boolean"
+            },
+            "description": "Results in the same order as the input checks."
+          }
+        }
+      },
+      "ConfigResponse": {
+        "type": "object",
+        "properties": {
+          "session_idle_timeout_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "ConfirmRequest": {
         "type": "object",
-        "required": ["code"],
+        "required": [
+          "code"
+        ],
         "properties": {
           "code": {
             "type": "string"
@@ -2642,7 +4017,9 @@
       },
       "ConfirmVerificationRequest": {
         "type": "object",
-        "required": ["token"],
+        "required": [
+          "token"
+        ],
         "properties": {
           "token": {
             "type": "string"
@@ -2651,7 +4028,9 @@
       },
       "ConfirmVerificationResponse": {
         "type": "object",
-        "required": ["verified_at"],
+        "required": [
+          "verified_at"
+        ],
         "properties": {
           "verified_at": {
             "type": "string",
@@ -2661,10 +4040,15 @@
       },
       "CreateInvitationRequest": {
         "type": "object",
-        "required": ["role"],
+        "required": [
+          "role"
+        ],
         "properties": {
           "email": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "role": {
             "type": "string"
@@ -2673,20 +4057,67 @@
       },
       "CreateOrgRequest": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "properties": {
           "metadata": {},
           "name": {
             "type": "string"
           },
           "slug": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
+      "CreateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the key expires. Defaults to 100 years from now (effectively never)."
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Key"
+          },
+          {
+            "type": "object",
+            "required": [
+              "key"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "The full bearer token. Store it now — it cannot be retrieved later."
+              }
+            }
+          }
+        ],
+        "description": "Returned only on creation — the `key` field is never shown again."
+      },
       "CredentialRecord": {
         "type": "object",
-        "required": ["id", "created_at"],
+        "required": [
+          "id",
+          "created_at"
+        ],
         "properties": {
           "created_at": {
             "type": "string",
@@ -2697,17 +4128,28 @@
             "format": "uuid"
           },
           "last_used_at": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           },
           "nickname": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "CurrentSessionResponse": {
         "type": "object",
-        "required": ["id", "token_id", "created_at", "expires_at"],
+        "required": [
+          "id",
+          "token_id",
+          "created_at",
+          "expires_at"
+        ],
         "properties": {
           "created_at": {
             "type": "string",
@@ -2722,10 +4164,16 @@
             "format": "uuid"
           },
           "ip_address": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "last_used_at": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           },
           "token_id": {
@@ -2733,13 +4181,19 @@
             "format": "uuid"
           },
           "user_agent": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "EmailBody": {
         "type": "object",
-        "required": ["id", "email"],
+        "required": [
+          "id",
+          "email"
+        ],
         "properties": {
           "email": {
             "type": "string"
@@ -2749,14 +4203,21 @@
             "format": "uuid"
           },
           "verified_at": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           }
         }
       },
       "EmailRecord": {
         "type": "object",
-        "required": ["id", "email", "is_primary"],
+        "required": [
+          "id",
+          "email",
+          "is_primary"
+        ],
         "properties": {
           "email": {
             "type": "string"
@@ -2769,7 +4230,10 @@
             "type": "boolean"
           },
           "verified_at": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           }
         }
@@ -2808,7 +4272,10 @@
       "ErrorBody": {
         "type": "object",
         "description": "Wire-format error body returned on all non-2xx responses.",
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "properties": {
           "code": {
             "type": "string",
@@ -2823,47 +4290,31 @@
       "ErrorResponse": {
         "type": "object",
         "description": "Top-level error envelope for all API error responses.",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "$ref": "#/components/schemas/ErrorBody"
           }
         }
       },
-      "ExpandResponse": {
-        "type": "object",
-        "required": ["subjects"],
-        "properties": {
-          "subjects": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ExpandSubject"
-            }
-          }
-        }
-      },
-      "ExpandSubject": {
-        "type": "object",
-        "required": ["id", "relation"],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "relation": {
-            "type": "string"
-          }
-        }
-      },
       "FinishRegistrationRequest": {
         "type": "object",
-        "required": ["state_token", "credential"],
+        "required": [
+          "state_token",
+          "credential"
+        ],
         "properties": {
           "credential": {
             "type": "object",
             "description": "WebAuthn `PublicKeyCredential` response from the browser."
           },
           "nickname": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "state_token": {
             "type": "string"
@@ -2872,7 +4323,10 @@
       },
       "HealthzResponse": {
         "type": "object",
-        "required": ["status", "version"],
+        "required": [
+          "status",
+          "version"
+        ],
         "properties": {
           "status": {
             "type": "string"
@@ -2884,7 +4338,10 @@
       },
       "HierarchyDef": {
         "type": "object",
-        "required": ["parent_relation", "parent_resource"],
+        "required": [
+          "parent_relation",
+          "parent_resource"
+        ],
         "properties": {
           "parent_relation": {
             "type": "string",
@@ -2896,16 +4353,78 @@
           }
         }
       },
+      "IdentitiesResponse": {
+        "type": "object",
+        "required": [
+          "identities"
+        ],
+        "properties": {
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityItem"
+            }
+          }
+        }
+      },
+      "IdentityItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "display",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "display": {
+            "type": "string",
+            "description": "Human-readable label: email address for password identities, provider slug for OAuth."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "ImpersonateRequest": {
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The ID of the user to impersonate."
+          }
+        }
+      },
       "InvitationResponse": {
         "type": "object",
-        "required": ["id", "org_id", "role", "created_at", "expires_at"],
+        "required": [
+          "id",
+          "org_id",
+          "role",
+          "created_at",
+          "expires_at"
+        ],
         "properties": {
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
           "email": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "expires_at": {
             "type": "string",
@@ -2923,14 +4442,23 @@
             "type": "string"
           },
           "token": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Plaintext token — only present on creation, never returned again."
           }
         }
       },
       "InvitationViewResponse": {
         "type": "object",
-        "required": ["id", "org_id", "org_name", "role", "expires_at"],
+        "required": [
+          "id",
+          "org_id",
+          "org_name",
+          "role",
+          "expires_at"
+        ],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -2954,19 +4482,54 @@
       },
       "InvitationsResponse": {
         "type": "object",
-        "required": ["invitations"],
+        "required": [
+          "invitations",
+          "has_more"
+        ],
         "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
           "invitations": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/InvitationResponse"
+            }
+          },
+          "next_page": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "IssueRequest": {
+        "type": "object",
+        "properties": {
+          "claims": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Arbitrary JSON object merged into the JWT payload.\nReserved keys (`sub`, `iss`, `aud`, `iat`, `nbf`, `exp`, `jti`,\n`impersonated`) are always overwritten by the service and cannot be\nsupplied here.",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
             }
           }
         }
       },
       "Jwk": {
         "type": "object",
-        "required": ["kty", "crv", "kid", "use", "alg", "x"],
+        "required": [
+          "kty",
+          "crv",
+          "kid",
+          "use",
+          "alg",
+          "x"
+        ],
         "properties": {
           "alg": {
             "type": "string"
@@ -2990,7 +4553,9 @@
       },
       "JwkSet": {
         "type": "object",
-        "required": ["keys"],
+        "required": [
+          "keys"
+        ],
         "properties": {
           "keys": {
             "type": "array",
@@ -3000,18 +4565,82 @@
           }
         }
       },
+      "Key": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "KeysResponse": {
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Key"
+            }
+          }
+        }
+      },
+      "LinkCallbackResponse": {
+        "type": "object",
+        "required": [
+          "linked"
+        ],
+        "properties": {
+          "linked": {
+            "type": "boolean"
+          }
+        }
+      },
       "LoginRequest": {
         "oneOf": [
           {
             "type": "object",
-            "required": ["email", "password", "grant_type"],
+            "required": [
+              "email",
+              "password",
+              "grant_type"
+            ],
             "properties": {
               "email": {
                 "type": "string"
               },
               "grant_type": {
                 "type": "string",
-                "enum": ["password"]
+                "enum": [
+                  "password"
+                ]
               },
               "password": {
                 "type": "string"
@@ -3020,11 +4649,16 @@
           },
           {
             "type": "object",
-            "required": ["token", "grant_type"],
+            "required": [
+              "token",
+              "grant_type"
+            ],
             "properties": {
               "grant_type": {
                 "type": "string",
-                "enum": ["magic_link"]
+                "enum": [
+                  "magic_link"
+                ]
               },
               "token": {
                 "type": "string"
@@ -3033,11 +4667,17 @@
           },
           {
             "type": "object",
-            "required": ["token", "new_password", "grant_type"],
+            "required": [
+              "token",
+              "new_password",
+              "grant_type"
+            ],
             "properties": {
               "grant_type": {
                 "type": "string",
-                "enum": ["password_reset"]
+                "enum": [
+                  "password_reset"
+                ]
               },
               "new_password": {
                 "type": "string"
@@ -3049,11 +4689,16 @@
           },
           {
             "type": "object",
-            "required": ["token", "grant_type"],
+            "required": [
+              "token",
+              "grant_type"
+            ],
             "properties": {
               "grant_type": {
                 "type": "string",
-                "enum": ["email_change"]
+                "enum": [
+                  "email_change"
+                ]
               },
               "token": {
                 "type": "string"
@@ -3062,14 +4707,20 @@
           },
           {
             "type": "object",
-            "required": ["step_up_token", "code", "grant_type"],
+            "required": [
+              "step_up_token",
+              "code",
+              "grant_type"
+            ],
             "properties": {
               "code": {
                 "type": "string"
               },
               "grant_type": {
                 "type": "string",
-                "enum": ["totp_step_up"]
+                "enum": [
+                  "totp_step_up"
+                ]
               },
               "step_up_token": {
                 "type": "string"
@@ -3078,14 +4729,20 @@
           },
           {
             "type": "object",
-            "required": ["step_up_token", "code", "grant_type"],
+            "required": [
+              "step_up_token",
+              "code",
+              "grant_type"
+            ],
             "properties": {
               "code": {
                 "type": "string"
               },
               "grant_type": {
                 "type": "string",
-                "enum": ["totp_recovery"]
+                "enum": [
+                  "totp_recovery"
+                ]
               },
               "step_up_token": {
                 "type": "string"
@@ -3094,14 +4751,20 @@
           },
           {
             "type": "object",
-            "required": ["state_token", "credential", "grant_type"],
+            "required": [
+              "state_token",
+              "credential",
+              "grant_type"
+            ],
             "properties": {
               "credential": {
                 "type": "object"
               },
               "grant_type": {
                 "type": "string",
-                "enum": ["passkey"]
+                "enum": [
+                  "passkey"
+                ]
               },
               "state_token": {
                 "type": "string"
@@ -3110,24 +4773,11 @@
           }
         ]
       },
-      "LookupResponse": {
-        "type": "object",
-        "required": ["object_ids"],
-        "properties": {
-          "next_cursor": {
-            "type": ["string", "null"]
-          },
-          "object_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "MagicLinkRequest": {
         "type": "object",
-        "required": ["email"],
+        "required": [
+          "email"
+        ],
         "properties": {
           "email": {
             "type": "string"
@@ -3136,7 +4786,10 @@
       },
       "MagicLinkResponse": {
         "type": "object",
-        "required": ["token", "expires_at"],
+        "required": [
+          "token",
+          "expires_at"
+        ],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -3150,7 +4803,11 @@
       },
       "MeResponse": {
         "type": "object",
-        "required": ["user", "email", "org"],
+        "required": [
+          "user",
+          "email",
+          "org"
+        ],
         "properties": {
           "email": {
             "$ref": "#/components/schemas/EmailBody"
@@ -3165,7 +4822,11 @@
       },
       "MemberResponse": {
         "type": "object",
-        "required": ["user_id", "role", "joined_at"],
+        "required": [
+          "user_id",
+          "role",
+          "joined_at"
+        ],
         "properties": {
           "joined_at": {
             "type": "string",
@@ -3182,23 +4843,69 @@
       },
       "MembersResponse": {
         "type": "object",
-        "required": ["members"],
+        "required": [
+          "members",
+          "has_more"
+        ],
         "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
           "members": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MemberResponse"
+            }
+          },
+          "next_page": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ObjectsResponse": {
+        "type": "object",
+        "required": [
+          "object_ids",
+          "has_more"
+        ],
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_page": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
       },
       "OrgBody": {
         "type": "object",
-        "required": ["id", "name", "slug"],
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "name": {
             "type": "string"
@@ -3210,7 +4917,13 @@
       },
       "OrgResponse": {
         "type": "object",
-        "required": ["id", "name", "slug", "metadata", "created_at"],
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "metadata",
+          "created_at"
+        ],
         "properties": {
           "created_at": {
             "type": "string",
@@ -3219,6 +4932,12 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "metadata": {},
           "name": {
@@ -3231,8 +4950,20 @@
       },
       "OrgsResponse": {
         "type": "object",
-        "required": ["orgs"],
+        "required": [
+          "orgs",
+          "has_more"
+        ],
         "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_page": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "orgs": {
             "type": "array",
             "items": {
@@ -3243,7 +4974,10 @@
       },
       "OttTokenResponse": {
         "type": "object",
-        "required": ["token", "expires_at"],
+        "required": [
+          "token",
+          "expires_at"
+        ],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -3257,7 +4991,9 @@
       },
       "PasswordResetRequest": {
         "type": "object",
-        "required": ["email"],
+        "required": [
+          "email"
+        ],
         "properties": {
           "email": {
             "type": "string"
@@ -3266,7 +5002,10 @@
       },
       "PasswordResetResponse": {
         "type": "object",
-        "required": ["token", "expires_at"],
+        "required": [
+          "token",
+          "expires_at"
+        ],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -3278,9 +5017,26 @@
           }
         }
       },
+      "RecoveryCodesResponse": {
+        "type": "object",
+        "required": [
+          "recovery_codes"
+        ],
+        "properties": {
+          "recovery_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "RegisteredCredential": {
         "type": "object",
-        "required": ["id", "created_at"],
+        "required": [
+          "id",
+          "created_at"
+        ],
         "properties": {
           "created_at": {
             "type": "string",
@@ -3291,13 +5047,19 @@
             "format": "uuid"
           },
           "nickname": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "RelationObject": {
         "type": "object",
-        "required": ["type", "id"],
+        "required": [
+          "type",
+          "id"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -3309,7 +5071,11 @@
       },
       "RelationRequest": {
         "type": "object",
-        "required": ["object", "relation", "subject"],
+        "required": [
+          "object",
+          "relation",
+          "subject"
+        ],
         "properties": {
           "object": {
             "$ref": "#/components/schemas/RelationObject"
@@ -3324,22 +5090,34 @@
       },
       "RelationSubject": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
           "id": {
             "type": "string"
           },
           "relation": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "type": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "ResourceDef": {
         "type": "object",
-        "required": ["name", "roles", "permissions"],
+        "required": [
+          "name",
+          "roles",
+          "permissions"
+        ],
         "properties": {
           "hierarchy": {
             "oneOf": [
@@ -3382,7 +5160,10 @@
       },
       "RoleEdge": {
         "type": "object",
-        "required": ["superior", "inferior"],
+        "required": [
+          "superior",
+          "inferior"
+        ],
         "properties": {
           "inferior": {
             "type": "string"
@@ -3394,7 +5175,11 @@
       },
       "SessionBody": {
         "type": "object",
-        "required": ["id", "token", "expires_at"],
+        "required": [
+          "id",
+          "token",
+          "expires_at"
+        ],
         "properties": {
           "expires_at": {
             "type": "string",
@@ -3412,7 +5197,13 @@
       },
       "SessionListItem": {
         "type": "object",
-        "required": ["id", "token_id", "created_at", "expires_at", "current"],
+        "required": [
+          "id",
+          "token_id",
+          "created_at",
+          "expires_at",
+          "current"
+        ],
         "properties": {
           "created_at": {
             "type": "string",
@@ -3431,10 +5222,16 @@
             "format": "uuid"
           },
           "ip_address": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "last_used_at": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           },
           "token_id": {
@@ -3442,13 +5239,18 @@
             "format": "uuid"
           },
           "user_agent": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "SessionsResponse": {
         "type": "object",
-        "required": ["sessions"],
+        "required": [
+          "sessions"
+        ],
         "properties": {
           "sessions": {
             "type": "array",
@@ -3460,10 +5262,16 @@
       },
       "SignupRequest": {
         "type": "object",
-        "required": ["email", "password"],
+        "required": [
+          "email",
+          "password"
+        ],
         "properties": {
           "display_name": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
             "type": "string"
@@ -3476,7 +5284,10 @@
       "StepUpResponse": {
         "type": "object",
         "description": "Returned when the user has TOTP enrolled — caller must complete the step-up flow.",
-        "required": ["step_up_required", "step_up_token"],
+        "required": [
+          "step_up_required",
+          "step_up_token"
+        ],
         "properties": {
           "step_up_required": {
             "type": "string",
@@ -3488,9 +5299,42 @@
           }
         }
       },
+      "Subject": {
+        "type": "object",
+        "required": [
+          "id",
+          "relation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          }
+        }
+      },
+      "SubjectsResponse": {
+        "type": "object",
+        "required": [
+          "subjects"
+        ],
+        "properties": {
+          "subjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subject"
+            }
+          }
+        }
+      },
       "TokenResponse": {
         "type": "object",
-        "required": ["access_token", "token_type", "expires_in"],
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in"
+        ],
         "properties": {
           "access_token": {
             "type": "string"
@@ -3498,7 +5342,14 @@
           "expires_in": {
             "type": "integer",
             "format": "int32",
-            "description": "Lifetime in seconds."
+            "description": "Access token lifetime in seconds."
+          },
+          "refresh_token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rotate-on-use refresh token. Present when authenticated via a session or\na prior refresh token; absent for API-key auth."
           },
           "token_type": {
             "type": "string"
@@ -3507,7 +5358,10 @@
       },
       "TraceResponse": {
         "type": "object",
-        "required": ["allowed", "subjects"],
+        "required": [
+          "allowed",
+          "subjects"
+        ],
         "properties": {
           "allowed": {
             "type": "boolean"
@@ -3515,23 +5369,79 @@
           "subjects": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ExpandSubject"
+              "$ref": "#/components/schemas/Subject"
             }
+          }
+        }
+      },
+      "UpdateConfigRequest": {
+        "type": "object",
+        "description": "Partial config update. Only fields explicitly set are updated.\nSend `\"session_idle_timeout_seconds\": null` to clear the idle timeout.",
+        "properties": {
+          "session_idle_timeout_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },
       "UpdateCredentialRequest": {
         "type": "object",
-        "required": ["nickname"],
+        "required": [
+          "nickname"
+        ],
         "properties": {
           "nickname": {
             "type": "string"
           }
         }
       },
+      "UpdateIdentityRequest": {
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateMeRequest": {
+        "type": "object",
+        "properties": {
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateMemberRequest": {
         "type": "object",
-        "required": ["role"],
+        "required": [
+          "role"
+        ],
         "properties": {
           "role": {
             "type": "string"
@@ -3541,41 +5451,56 @@
       "UpdateOrgRequest": {
         "type": "object",
         "properties": {
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "metadata": {},
           "name": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "slug": {
-            "type": ["string", "null"]
-          }
-        }
-      },
-      "UpdateUser": {
-        "type": "object",
-        "properties": {
-          "image_url": {
-            "type": ["string", "null"]
-          },
-          "display_name": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "UserBody": {
         "type": "object",
-        "required": ["id", "created_at"],
+        "required": [
+          "id",
+          "primary_org_id",
+          "name",
+          "metadata",
+          "created_at"
+        ],
         "properties": {
-          "image_url": {
-            "type": ["string", "null"]
-          },
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
-          "display_name": {
-            "type": ["string", "null"]
-          },
           "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "primary_org_id": {
             "type": "string",
             "format": "uuid"
           }
@@ -3632,12 +5557,24 @@
       "description": "Passkey registration and authentication"
     },
     {
+      "name": "identities",
+      "description": "Auth method management — list, add password, update, unlink"
+    },
+    {
       "name": "orgs",
       "description": "Org management, membership, and invitations"
     },
     {
       "name": "invitations",
       "description": "Invitation accept and decline"
+    },
+    {
+      "name": "keys",
+      "description": "API key management"
+    },
+    {
+      "name": "admin",
+      "description": "Admin operations"
     }
   ]
 }

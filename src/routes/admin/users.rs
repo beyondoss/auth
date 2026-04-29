@@ -1,6 +1,7 @@
 use axum::{
     Json,
     extract::{Path, Query, State},
+    http::StatusCode,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -75,6 +76,59 @@ pub async fn search(
         created_at: row.created_at,
         deleted_at: row.deleted_at,
     }))
+}
+
+/// Revoke all active sessions for a user. Idempotent — safe to call when the user
+/// has no sessions.
+#[utoipa::path(
+    delete,
+    path = "/v1/admin/users/{id}/sessions",
+    tag = "admin",
+    params(("id" = Uuid, Path, description = "User ID")),
+    responses(
+        (status = 204, description = "All sessions revoked"),
+        (status = 401, body = crate::error::ErrorResponse),
+        (status = 404, body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn delete_sessions(
+    State(state): State<AppState>,
+    Path(user_id): Path<Uuid>,
+) -> Result<StatusCode, AuthError> {
+    let exists = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM auth.users WHERE id = $1) AS "exists!: bool""#,
+        user_id,
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(AuthError::from)?;
+
+    if !exists {
+        return Err(AuthError::NotFound);
+    }
+
+    let token_ids: Vec<Uuid> = sqlx::query_scalar!(
+        r#"
+        WITH deleted AS (
+            DELETE FROM auth.tokens
+            WHERE id IN (
+                SELECT token_id FROM auth.sessions WHERE user_id = $1
+            )
+            RETURNING id
+        )
+        SELECT id AS "id: Uuid" FROM deleted
+        "#,
+        user_id,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(AuthError::from)?;
+
+    for token_id in token_ids {
+        state.authz_cache.invalidate_session(token_id);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(

@@ -929,3 +929,91 @@ async fn idle_session_rejected_after_timeout() {
         .await
         .assert_status(200);
 }
+
+// ── DELETE /v1/sessions ───────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn delete_all_sessions_requires_auth() {
+    TestClient::new()
+        .delete("/v1/sessions")
+        .await
+        .assert_status(401);
+}
+
+#[tokio::test]
+async fn delete_all_sessions_revokes_all() {
+    let email = unique_email();
+    let first = signup(&email, "correct-horse-battery-staple").await;
+    let second = login(&email, "correct-horse-battery-staple").await;
+    let third = login(&email, "correct-horse-battery-staple").await;
+
+    // Revoke all sessions from the third session's bearer.
+    TestClient::new()
+        .bearer(&third.session.token)
+        .delete("/v1/sessions")
+        .await
+        .assert_status(204);
+
+    // All three tokens must be invalidated.
+    for token in [
+        &first.session.token,
+        &second.session.token,
+        &third.session.token,
+    ] {
+        TestClient::new()
+            .bearer(token)
+            .get("/v1/users/me")
+            .await
+            .assert_status(401);
+    }
+}
+
+#[tokio::test]
+async fn delete_all_sessions_except_current_keeps_current() {
+    let email = unique_email();
+    let first = signup(&email, "correct-horse-battery-staple").await;
+    let second = login(&email, "correct-horse-battery-staple").await;
+
+    // Revoke all except the current session (second).
+    TestClient::new()
+        .bearer(&second.session.token)
+        .delete("/v1/sessions?except_current=true")
+        .await
+        .assert_status(204);
+
+    // First session must be gone.
+    TestClient::new()
+        .bearer(&first.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(401);
+
+    // Current session must still work.
+    TestClient::new()
+        .bearer(&second.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(200);
+}
+
+#[tokio::test]
+async fn delete_all_sessions_idempotent_on_empty() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    // First call revokes everything.
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .delete("/v1/sessions")
+        .await
+        .assert_status(204);
+
+    // No sessions remain — verify via DB.
+    let mut conn = db_conn().await;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM auth.sessions WHERE user_id = $1")
+        .bind(auth.user.id)
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+
+    assert_eq!(count, 0, "all sessions must be gone after delete_all");
+}

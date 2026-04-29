@@ -19,6 +19,7 @@ pub struct ImpersonateRequest {
 
 #[utoipa::path(
     post,
+    operation_id = "create_impersonation",
     path = "/v1/admin/impersonations",
     tag = "admin",
     request_body = ImpersonateRequest,

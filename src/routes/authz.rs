@@ -135,6 +135,13 @@ pub struct SubjectsQuery {
     pub relation: String,
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct SubjectsByPermissionQuery {
+    pub resource_type: String,
+    pub resource_id: String,
+    pub permission: String,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SubjectsResponse {
     pub subjects: Vec<Subject>,
@@ -889,11 +896,83 @@ pub async fn put_schema(
     Ok(Json(req))
 }
 
-/// List all subjects who hold the given relation on an object.
-/// Resolves subject sets recursively.
+/// List all subjects with a given permission on a resource. Resolves through the
+/// schema's role hierarchy to return every subject who can exercise the permission.
+/// Only direct role assignments are expanded; access via parent hierarchy is not
+/// included (use GET /v1/authz/objects from the subject's perspective for that).
 #[utoipa::path(
     get,
     path = "/v1/authz/subjects",
+    tag = "authz",
+    security(("BearerAuth" = [])),
+    params(SubjectsByPermissionQuery),
+    responses(
+        (status = 200, body = SubjectsResponse),
+        (status = 400, description = "Authz not enabled",           body = crate::error::ErrorResponse),
+        (status = 422, description = "Unknown resource/permission", body = crate::error::ErrorResponse),
+    )
+)]
+pub async fn list_subjects(
+    State(state): State<AppState>,
+    Query(params): Query<SubjectsByPermissionQuery>,
+) -> Result<Json<SubjectsResponse>, AuthError> {
+    let schema_guard = state.authz_schema.read().await;
+    let schema = schema_guard_to_compiled(&schema_guard)?;
+
+    let checks = schema
+        .get_checks(&params.resource_type, &params.permission)
+        .ok_or_else(|| {
+            if schema.resource_exists(&params.resource_type) {
+                AuthError::AuthzUnknownPermission {
+                    permission: params.permission.clone(),
+                }
+            } else {
+                AuthError::AuthzUnknownResource {
+                    resource_type: params.resource_type.clone(),
+                }
+            }
+        })?;
+
+    // Collect every direct relation that grants this permission via the role hierarchy.
+    // MultiHop (parent resource) checks are not included — those require a different
+    // query direction (use /v1/authz/objects from the subject side instead).
+    let relations: Vec<String> = checks
+        .iter()
+        .filter_map(|c| {
+            if let AuthzCheckCall::SingleHop { relations, .. } = c {
+                Some(relations.iter().map(|r| r.to_string()))
+            } else {
+                None
+            }
+        })
+        .flatten()
+        .collect();
+
+    let rows = engine::expand(
+        &state.pool,
+        &params.resource_type,
+        &params.resource_id,
+        &relations,
+    )
+    .await?;
+
+    let subjects = rows
+        .into_iter()
+        .map(|r| Subject {
+            id: r.subject_id,
+            relation: r.relation,
+        })
+        .collect();
+
+    Ok(Json(SubjectsResponse { subjects }))
+}
+
+/// List all subjects who hold the given relation on an object.
+/// Resolves subject sets recursively. Admin-only — use GET /v1/authz/subjects
+/// for the permission-scoped view available to authenticated users.
+#[utoipa::path(
+    get,
+    path = "/v1/admin/authz/subjects",
     tag = "authz",
     params(SubjectsQuery),
     responses(
@@ -901,7 +980,7 @@ pub async fn put_schema(
         (status = 400, description = "Authz not enabled", body = crate::error::ErrorResponse),
     )
 )]
-pub async fn list_subjects(
+pub async fn list_subjects_expand(
     State(state): State<AppState>,
     Query(params): Query<SubjectsQuery>,
 ) -> Result<Json<SubjectsResponse>, AuthError> {

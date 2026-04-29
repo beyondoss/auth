@@ -21,6 +21,7 @@
   "scripts": {
     "build": "tsdown",
     "generate-types": "node scripts/generate-types.mjs",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

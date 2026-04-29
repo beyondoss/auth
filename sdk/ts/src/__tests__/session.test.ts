@@ -59,6 +59,15 @@ describe("createSessionVerifier", () => {
     globalThis.fetch = original;
   });
 
+  it("propagates network errors directly — does not wrap in AuthServiceError", async () => {
+    const networkErr = new TypeError("fetch failed");
+    const original = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(networkErr) as typeof fetch;
+    const verifier = createSessionVerifier({ baseUrl: "http://auth" });
+    await expect(verifier.verify("tok_abc")).rejects.toBe(networkErr);
+    globalThis.fetch = original;
+  });
+
   it("sends Authorization: Bearer header", async () => {
     const fetchImpl = mockFetch(200, mockSession);
     const original = globalThis.fetch;

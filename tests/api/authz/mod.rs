@@ -93,13 +93,22 @@
 //! [x] batch_check_no_auth_with_session_check_returns_401
 //! [x] batch_check_unknown_permission_returns_422
 //!
-//! ### subjects.rs — GET /v1/authz/subjects
+//! ### subjects.rs — GET /v1/admin/authz/subjects (admin, relation-expand)
 //! [x] expand_object_with_direct_subjects
 //! [x] expand_object_with_no_relations_returns_empty
 //! [x] expand_via_subject_set_one_hop
 //! [x] expand_via_subject_set_two_hops
 //! [x] expand_only_requested_relation_returned          (other relations on same object not included)
 //! [x] expand_cycle_terminates_safely
+//!
+//! ### subjects.rs — GET /v1/authz/subjects (authenticated, permission-based)
+//! [x] subjects_by_permission_requires_auth
+//! [x] subjects_by_permission_direct_viewer_returned
+//! [x] subjects_by_permission_role_hierarchy_included   (owner > editor > viewer all appear for `read`)
+//! [x] subjects_by_permission_delete_only_owners        (delete not granted to viewers)
+//! [x] subjects_by_permission_empty_when_no_subjects
+//! [x] subjects_by_permission_unknown_permission_returns_422
+//! [x] subjects_by_permission_unknown_resource_returns_422
 //!
 //! ### objects.rs — GET /v1/authz/objects
 //! [x] lookup_direct_grants_returned

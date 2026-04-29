@@ -59,6 +59,7 @@ impl utoipa::Modify for BearerAuth {
         users::update_me,
         sessions::login,
         sessions::list,
+        sessions::delete_all,
         sessions::get_current,
         sessions::delete_current,
         sessions::delete_by_id,
@@ -106,6 +107,8 @@ impl utoipa::Modify for BearerAuth {
         admin::impersonations::create,
         admin::users::search,
         admin::users::get_by_id,
+        admin::users::delete_sessions,
+        admin::config::get,
         admin::config::patch,
         keys::create,
         keys::list,
@@ -119,6 +122,7 @@ impl utoipa::Modify for BearerAuth {
         authz::get_schema,
         authz::put_schema,
         authz::list_subjects,
+        authz::list_subjects_expand,
         authz::list_objects,
         authz::why_check,
 
@@ -236,7 +240,15 @@ pub fn router(state: AppState) -> Router<AppState> {
         )
         .route("/v1/admin/users", get(admin::users::search))
         .route("/v1/admin/users/{id}", get(admin::users::get_by_id))
-        .route("/v1/admin/config", patch(admin::config::patch))
+        .route(
+            "/v1/admin/users/{id}/sessions",
+            delete(admin::users::delete_sessions),
+        )
+        .route(
+            "/v1/admin/config",
+            get(admin::config::get).patch(admin::config::patch),
+        )
+        .route("/v1/admin/authz/subjects", get(authz::list_subjects_expand))
         .route(
             "/v1/authz/relations",
             post(authz::write_relation)
@@ -247,7 +259,6 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/authz/schema",
             get(authz::get_schema).put(authz::put_schema),
         )
-        .route("/v1/authz/subjects", get(authz::list_subjects))
         .route("/v1/authz/traces", get(authz::why_check))
         .route_layer(axum_middleware::from_fn_with_state(
             state.clone(),
@@ -294,7 +305,10 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .patch(users::update_me)
                 .delete(users::delete_me),
         )
-        .route("/v1/sessions", get(sessions::list))
+        .route(
+            "/v1/sessions",
+            get(sessions::list).delete(sessions::delete_all),
+        )
         .route(
             "/v1/sessions/current",
             get(sessions::get_current).delete(sessions::delete_current),
@@ -339,6 +353,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/passkeys/{id}",
             patch(passkeys::update_credential).delete(passkeys::delete_credential),
         )
+        .route("/v1/authz/subjects", get(authz::list_subjects))
         .route("/v1/authz/objects", get(authz::list_objects))
         .route("/v1/keys", get(keys::list).post(keys::create))
         .route("/v1/keys/{id}", get(keys::get).delete(keys::delete))

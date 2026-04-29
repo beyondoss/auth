@@ -70,6 +70,20 @@ cargo run --release -p bench -- compare bench/out/baseline.json bench/out/treatm
 [tasks."openapi:generate"]
 run = "cargo run -- generate-openapi"
 
+[tasks."sdk:ts:install"]
+run = "npm ci"
+dir = "sdk/ts"
+
+[tasks."sdk:ts:typecheck"]
+run = "npm run typecheck"
+dir = "sdk/ts"
+depends = ["sdk:ts:install"]
+
+[tasks."sdk:ts:test"]
+run = "npm test"
+dir = "sdk/ts"
+depends = ["sdk:ts:install"]
+
 [tasks."sdk:generate-types"]
 run = ["cd ts && node scripts/generate-types.mjs"]
 dir = "sdk"
