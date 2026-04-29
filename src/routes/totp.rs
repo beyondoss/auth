@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{error::AuthError, http::AppState, mfa::totp, sessions::SessionContext};
+use crate::{error::AuthError, http::AppState, mfa::totp, sessions::AuthContext};
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct EnrollmentResponse {
@@ -35,7 +35,7 @@ pub struct ConfirmRequest {
 )]
 pub async fn begin_enrollment(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<EnrollmentResponse>, AuthError> {
     let r = totp::enroll(&state.pool, ctx.user.id, &ctx.email.email, "Beyond Auth").await?;
     Ok(Json(EnrollmentResponse {
@@ -60,7 +60,7 @@ pub async fn begin_enrollment(
 )]
 pub async fn confirm_enrollment(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(req): Json<ConfirmRequest>,
 ) -> Result<StatusCode, AuthError> {
     totp::confirm(&state.pool, ctx.user.id, &req.code).await?;
@@ -79,7 +79,7 @@ pub async fn confirm_enrollment(
 )]
 pub async fn disable(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<StatusCode, AuthError> {
     totp::disable(&state.pool, ctx.user.id).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -106,7 +106,7 @@ pub struct RecoveryCodesResponse {
 )]
 pub async fn regenerate_recovery_codes(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(req): Json<ConfirmRequest>,
 ) -> Result<Json<RecoveryCodesResponse>, AuthError> {
     let codes = totp::regenerate_recovery_codes(&state.pool, ctx.user.id, &req.code).await?;

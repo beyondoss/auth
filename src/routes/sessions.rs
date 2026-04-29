@@ -12,7 +12,7 @@ use crate::{
     error::AuthError,
     http::AppState,
     identities, mfa, one_time_token, passwords,
-    sessions::{self, RequestContext, SessionContext},
+    sessions::{self, AuthContext, RequestContext},
     tokens::{Token, TokenPrefix},
 };
 
@@ -489,7 +489,7 @@ const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$
 )]
 pub async fn list(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<SessionsResponse>, AuthError> {
     let sessions = sessions::list(&state.pool, ctx.user.id, ctx.token_id).await?;
     Ok(Json(SessionsResponse { sessions }))
@@ -510,7 +510,7 @@ pub async fn list(
 )]
 pub async fn get_current(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<CurrentSessionResponse>, AuthError> {
     let row = sessions::get_current_session(&state.pool, ctx.user.id, ctx.token_id)
         .await?
@@ -541,7 +541,7 @@ pub async fn get_current(
 )]
 pub async fn delete_current(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<StatusCode, AuthError> {
     // The middleware already authenticated this token. We trust ctx.token_id.
     // Idempotent: if already deleted, the no-op DELETE still returns 204.
@@ -571,11 +571,11 @@ pub async fn delete_current(
 )]
 pub async fn delete_by_id(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(session_id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     // Fast path: caller is revoking their own current session.
-    if session_id == ctx.session_id {
+    if ctx.source.session_id() == Some(session_id) {
         sqlx::query!("DELETE FROM auth.tokens WHERE id = $1", ctx.token_id)
             .execute(&state.pool)
             .await

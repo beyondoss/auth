@@ -11,9 +11,9 @@ use crate::{
     authz::cache::AuthzCache,
     crypto::LocalKeyEncryptor,
     http::AppState,
-    keys,
     metrics::Metrics,
     oauth::OAuthProviders,
+    signing_keys,
     tokens::{Token, TokenPrefix},
 };
 
@@ -32,10 +32,13 @@ pub struct BenchSession {
 }
 
 pub async fn start(pool: PgPool) -> Result<BenchServer> {
-    keys::ensure_app_config(&pool).await?;
+    signing_keys::ensure_app_config(&pool).await?;
+    sqlx::query!("UPDATE auth.app_config SET jwt_enabled = true")
+        .execute(&pool)
+        .await?;
     let enc_key = LocalKeyEncryptor::from_base64(ENC_KEY, &[])?;
-    let loaded_key = keys::load_or_create_active_key(&pool, &enc_key).await?;
-    let jwks = keys::render_jwks(&loaded_key);
+    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
+    let jwks = signing_keys::render_jwks(&loaded_key);
     let app_config = app_config::load(&pool).await?;
     let compiled_authz = app_config::compile_authz_schema(&app_config).ok().flatten();
 

@@ -19,7 +19,8 @@ use crate::{
     },
     error::AuthError,
     http::AppState,
-    sessions::SessionContext,
+    pages,
+    sessions::AuthContext,
     tokens,
 };
 
@@ -150,19 +151,15 @@ pub struct ObjectsQuery {
     pub user: Option<String>,
     pub permission: String,
     pub resource_type: String,
-    #[serde(default = "default_limit")]
-    pub limit: i64,
-    pub cursor: Option<String>,
-}
-
-fn default_limit() -> i64 {
-    100
+    pub limit: Option<i64>,
+    pub after: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
-    pub next_cursor: Option<String>,
+    pub has_more: bool,
+    pub next_page: Option<String>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -946,15 +943,16 @@ pub async fn list_subjects(
 )]
 pub async fn list_objects(
     State(state): State<AppState>,
-    axum::Extension(ctx): axum::Extension<SessionContext>,
+    axum::Extension(ctx): axum::Extension<AuthContext>,
     Query(params): Query<ObjectsQuery>,
 ) -> Result<Json<ObjectsResponse>, AuthError> {
     let schema_guard = state.authz_schema.read().await;
     let schema = schema_guard_to_compiled(&schema_guard)?;
 
     let subject_id = params.user.unwrap_or_else(|| ctx.user.id.to_string());
-    let limit = params.limit.clamp(1, 1000);
-    let cursor = params.cursor.as_deref();
+    let limit = pages::clamp_limit(params.limit);
+    let cursor = pages::decode_cursor(params.after.as_deref());
+    let cursor = cursor.as_deref();
     let fetch_limit = limit + 1;
 
     let checks = schema
@@ -1032,15 +1030,16 @@ pub async fn list_objects(
 
     let has_more = object_ids.len() as i64 > limit;
     object_ids.truncate(limit as usize);
-    let next_cursor = if has_more {
-        object_ids.last().cloned()
+    let next_page = if has_more {
+        object_ids.last().map(|id| pages::encode_cursor(id))
     } else {
         None
     };
 
     Ok(Json(ObjectsResponse {
         object_ids,
-        next_cursor,
+        has_more,
+        next_page,
     }))
 }
 

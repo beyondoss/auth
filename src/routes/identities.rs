@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::AuthError, http::AppState, identities, passwords, sessions::SessionContext};
+use crate::{error::AuthError, http::AppState, identities, passwords, sessions::AuthContext};
 
 // ── Response types ────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ pub struct UpdateIdentityRequest {
 )]
 pub async fn list(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<IdentitiesResponse>, AuthError> {
     let rows = identities::list(&state.pool, ctx.user.id).await?;
     let items = rows
@@ -94,7 +94,7 @@ pub async fn list(
 )]
 pub async fn add_password(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(req): Json<AddPasswordRequest>,
 ) -> Result<(StatusCode, Json<IdentityItem>), AuthError> {
     if identities::has_password(&state.pool, ctx.user.id).await? {
@@ -145,7 +145,7 @@ pub async fn add_password(
 )]
 pub async fn update(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateIdentityRequest>,
 ) -> Result<StatusCode, AuthError> {
@@ -205,7 +205,7 @@ pub async fn update(
 )]
 pub async fn unlink(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     if identities::count(&state.pool, ctx.user.id).await? <= 1 {

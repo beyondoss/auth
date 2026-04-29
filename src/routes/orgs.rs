@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,8 @@ use crate::{
     http::AppState,
     invitations,
     orgs::{self, Org, OrgMember},
-    sessions::SessionContext,
+    pages,
+    sessions::AuthContext,
     tokens::{Token, TokenPrefix},
 };
 
@@ -30,6 +31,8 @@ pub struct OrgResponse {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgsResponse {
     pub orgs: Vec<OrgResponse>,
+    pub has_more: bool,
+    pub next_page: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
@@ -42,6 +45,8 @@ pub struct MemberResponse {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MembersResponse {
     pub members: Vec<MemberResponse>,
+    pub has_more: bool,
+    pub next_page: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
@@ -60,6 +65,8 @@ pub struct InvitationResponse {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvitationsResponse {
     pub invitations: Vec<InvitationResponse>,
+    pub has_more: bool,
+    pub next_page: Option<String>,
 }
 
 fn org_response(org: Org) -> OrgResponse {
@@ -82,6 +89,12 @@ fn member_response(m: OrgMember) -> MemberResponse {
 }
 
 // ── Request types ────────────────────────────────────────────────────────────
+
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct PageQuery {
+    pub after: Option<String>,
+    pub limit: Option<i64>,
+}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateOrgRequest {
@@ -124,7 +137,7 @@ pub struct CreateInvitationRequest {
 )]
 pub async fn create_org(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(req): Json<CreateOrgRequest>,
 ) -> Result<(StatusCode, Json<OrgResponse>), AuthError> {
     let org_id = Uuid::now_v7();
@@ -157,17 +170,32 @@ pub async fn create_org(
     path = "/v1/orgs",
     tag = "orgs",
     security(("BearerAuth" = [])),
+    params(PageQuery),
     responses(
         (status = 200, body = OrgsResponse),
     )
 )]
 pub async fn list_orgs(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
+    Query(page): Query<PageQuery>,
 ) -> Result<Json<OrgsResponse>, AuthError> {
-    let orgs = orgs::list(&state.pool, ctx.user.id).await?;
+    let limit = pages::clamp_limit(page.limit);
+    let after = pages::decode_cursor(page.after.as_deref());
+    let mut orgs = orgs::list(&state.pool, ctx.user.id, after.as_deref(), limit + 1).await?;
+    let has_more = orgs.len() as i64 > limit;
+    if has_more {
+        orgs.truncate(limit as usize);
+    }
+    let next_page = if has_more {
+        orgs.last().map(|o| pages::encode_cursor(&o.id.to_string()))
+    } else {
+        None
+    };
     Ok(Json(OrgsResponse {
         orgs: orgs.into_iter().map(org_response).collect(),
+        has_more,
+        next_page,
     }))
 }
 
@@ -187,7 +215,7 @@ pub async fn list_orgs(
 )]
 pub async fn get_org(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<OrgResponse>, AuthError> {
     orgs::require_member(&state.pool, org_id, ctx.user.id).await?;
@@ -213,7 +241,7 @@ pub async fn get_org(
 )]
 pub async fn update_org(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(org_id): Path<Uuid>,
     Json(req): Json<UpdateOrgRequest>,
 ) -> Result<Json<OrgResponse>, AuthError> {
@@ -247,7 +275,7 @@ pub async fn update_org(
 )]
 pub async fn delete_org(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(org_id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     orgs::require_owner(&state.pool, org_id, ctx.user.id).await?;
@@ -262,7 +290,7 @@ pub async fn delete_org(
     path = "/v1/orgs/{id}/members",
     tag = "orgs",
     security(("BearerAuth" = [])),
-    params(("id" = Uuid, Path, description = "Org ID")),
+    params(("id" = Uuid, Path, description = "Org ID"), PageQuery),
     responses(
         (status = 200, body = MembersResponse),
         (status = 403, body = crate::error::ErrorResponse),
@@ -271,13 +299,29 @@ pub async fn delete_org(
 )]
 pub async fn list_members(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(org_id): Path<Uuid>,
+    Query(page): Query<PageQuery>,
 ) -> Result<Json<MembersResponse>, AuthError> {
     orgs::require_member(&state.pool, org_id, ctx.user.id).await?;
-    let members = orgs::list_members(&state.pool, org_id).await?;
+    let limit = pages::clamp_limit(page.limit);
+    let after = pages::decode_cursor(page.after.as_deref());
+    let mut members = orgs::list_members(&state.pool, org_id, after.as_deref(), limit + 1).await?;
+    let has_more = members.len() as i64 > limit;
+    if has_more {
+        members.truncate(limit as usize);
+    }
+    let next_page = if has_more {
+        members
+            .last()
+            .map(|m| pages::encode_cursor(&m.user_id.to_string()))
+    } else {
+        None
+    };
     Ok(Json(MembersResponse {
         members: members.into_iter().map(member_response).collect(),
+        has_more,
+        next_page,
     }))
 }
 
@@ -302,7 +346,7 @@ pub async fn list_members(
 )]
 pub async fn update_member(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path((org_id, member_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<UpdateMemberRequest>,
 ) -> Result<StatusCode, AuthError> {
@@ -331,7 +375,7 @@ pub async fn update_member(
 )]
 pub async fn remove_member(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path((org_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AuthError> {
     if ctx.user.id != member_id {
@@ -361,7 +405,7 @@ pub async fn remove_member(
 )]
 pub async fn create_invitation(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(org_id): Path<Uuid>,
     Json(req): Json<CreateInvitationRequest>,
 ) -> Result<(StatusCode, Json<InvitationResponse>), AuthError> {
@@ -402,7 +446,7 @@ pub async fn create_invitation(
     path = "/v1/orgs/{id}/invitations",
     tag = "orgs",
     security(("BearerAuth" = [])),
-    params(("id" = Uuid, Path, description = "Org ID")),
+    params(("id" = Uuid, Path, description = "Org ID"), PageQuery),
     responses(
         (status = 200, body = InvitationsResponse),
         (status = 403, body = crate::error::ErrorResponse),
@@ -410,11 +454,24 @@ pub async fn create_invitation(
 )]
 pub async fn list_invitations(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(org_id): Path<Uuid>,
+    Query(page): Query<PageQuery>,
 ) -> Result<Json<InvitationsResponse>, AuthError> {
     orgs::require_owner(&state.pool, org_id, ctx.user.id).await?;
-    let invs = invitations::list(&state.pool, org_id).await?;
+    let limit = pages::clamp_limit(page.limit);
+    let after = pages::decode_cursor(page.after.as_deref());
+    let mut invs = invitations::list(&state.pool, org_id, after.as_deref(), limit + 1).await?;
+    let has_more = invs.len() as i64 > limit;
+    if has_more {
+        invs.truncate(limit as usize);
+    }
+    let next_page = if has_more {
+        invs.last()
+            .map(|inv| pages::encode_cursor(&inv.id.to_string()))
+    } else {
+        None
+    };
     Ok(Json(InvitationsResponse {
         invitations: invs
             .into_iter()
@@ -428,6 +485,8 @@ pub async fn list_invitations(
                 token: None,
             })
             .collect(),
+        has_more,
+        next_page,
     }))
 }
 
@@ -450,7 +509,7 @@ pub async fn list_invitations(
 )]
 pub async fn resend_invitation(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path((org_id, inv_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(StatusCode, Json<InvitationResponse>), AuthError> {
     orgs::require_owner(&state.pool, org_id, ctx.user.id).await?;
@@ -494,7 +553,7 @@ pub async fn resend_invitation(
 )]
 pub async fn revoke_invitation(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path((org_id, inv_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AuthError> {
     orgs::require_owner(&state.pool, org_id, ctx.user.id).await?;

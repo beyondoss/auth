@@ -14,6 +14,7 @@ pub enum TokenPrefix {
     EmailVerification,
     EmailChange,
     Invitation,
+    Key,
 }
 
 impl TokenPrefix {
@@ -26,6 +27,7 @@ impl TokenPrefix {
             TokenPrefix::EmailVerification => "ev",
             TokenPrefix::EmailChange => "ec",
             TokenPrefix::Invitation => "inv",
+            TokenPrefix::Key => "key",
         }
     }
 }

@@ -5,6 +5,7 @@ pub mod healthz;
 pub mod identities;
 pub mod invitations;
 pub mod jwks;
+pub mod keys;
 pub mod magic_link;
 pub mod oauth;
 pub mod orgs;
@@ -103,6 +104,12 @@ impl utoipa::Modify for BearerAuth {
         invitations::accept_invitation,
         invitations::decline_invitation,
         admin::impersonations::create,
+        admin::users::search,
+        admin::users::get_by_id,
+        keys::create,
+        keys::list,
+        keys::get,
+        keys::delete,
         authz::check_permission,
         authz::post_checks,
         authz::write_relation,
@@ -188,6 +195,11 @@ impl utoipa::Modify for BearerAuth {
         orgs::CreateInvitationRequest,
         invitations::InvitationViewResponse,
         admin::impersonations::ImpersonateRequest,
+        admin::users::AdminUserResponse,
+        keys::CreateRequest,
+        keys::CreateResponse,
+        keys::KeysResponse,
+        crate::keys::Key,
     )),
     tags(
         (name = "system", description = "Health and key material"),
@@ -203,6 +215,7 @@ impl utoipa::Modify for BearerAuth {
         (name = "identities", description = "Auth method management — list, add password, update, unlink"),
         (name = "orgs", description = "Org management, membership, and invitations"),
         (name = "invitations", description = "Invitation accept and decline"),
+        (name = "keys", description = "API key management"),
         (name = "admin", description = "Admin operations"),
     )
 )]
@@ -218,6 +231,8 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/v1/admin/oauth-providers",
             get(admin::oauth::get).put(admin::oauth::put),
         )
+        .route("/v1/admin/users", get(admin::users::search))
+        .route("/v1/admin/users/{id}", get(admin::users::get_by_id))
         .route(
             "/v1/authz/relations",
             post(authz::write_relation)
@@ -320,6 +335,8 @@ pub fn router(state: AppState) -> Router<AppState> {
             patch(passkeys::update_credential).delete(passkeys::delete_credential),
         )
         .route("/v1/authz/objects", get(authz::list_objects))
+        .route("/v1/keys", get(keys::list).post(keys::create))
+        .route("/v1/keys/{id}", get(keys::get).delete(keys::delete))
         // Org management
         .route("/v1/orgs", get(orgs::list_orgs).post(orgs::create_org))
         .route(

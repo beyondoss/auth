@@ -4,7 +4,7 @@ use ed25519_dalek::{Signature, Signer, Verifier};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{error::AuthError, keys::LoadedKey};
+use crate::{error::AuthError, signing_keys::LoadedKey};
 
 pub struct StepUpClaims {
     pub user_id: Uuid,

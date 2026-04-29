@@ -6,9 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AuthError, http::AppState, invitations, orgs, sessions::SessionContext, tokens,
-};
+use crate::{error::AuthError, http::AppState, invitations, orgs, sessions::AuthContext, tokens};
 
 // ── Response types ───────────────────────────────────────────────────────────
 
@@ -79,7 +77,7 @@ pub async fn view_invitation(
 )]
 pub async fn accept_invitation(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(inv_id): Path<Uuid>,
     Query(q): Query<TokenQuery>,
 ) -> Result<StatusCode, AuthError> {

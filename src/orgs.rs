@@ -100,9 +100,13 @@ pub async fn get(pool: &PgPool, org_id: Uuid) -> Result<Org, AuthError> {
     .ok_or(AuthError::OrgNotFound)
 }
 
-/// All orgs the user belongs to (any relation), ordered by created_at ascending.
-/// The personal org (oldest) naturally sorts first.
-pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<Org>, AuthError> {
+/// All orgs the user belongs to (any relation), ordered by id ascending (UUIDv7 = time-ordered).
+pub async fn list(
+    pool: &PgPool,
+    user_id: Uuid,
+    after: Option<&str>,
+    limit: i64,
+) -> Result<Vec<Org>, AuthError> {
     let user_id_str = user_id.to_string();
     sqlx::query_as!(
         Org,
@@ -111,15 +115,19 @@ pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<Org>, AuthError> {
                   o.created_at, o.updated_at, o.deleted_at
            FROM auth.orgs o
            WHERE o.deleted_at IS NULL
+             AND ($1::text IS NULL OR o.id > $1::uuid)
              AND EXISTS (
                  SELECT 1 FROM auth.authz_relations
                  WHERE object_type = 'org'
                    AND object_id   = o.id::text
-                   AND subject_id  = $1
+                   AND subject_id  = $2
                    AND subject_set_type IS NULL
              )
-           ORDER BY o.created_at ASC"#,
+           ORDER BY o.id ASC
+           LIMIT $3"#,
+        after,
         user_id_str,
+        limit,
     )
     .fetch_all(pool)
     .await
@@ -200,7 +208,12 @@ pub async fn soft_delete(pool: &PgPool, org_id: Uuid) -> Result<(), AuthError> {
     Ok(())
 }
 
-pub async fn list_members(pool: &PgPool, org_id: Uuid) -> Result<Vec<OrgMember>, AuthError> {
+pub async fn list_members(
+    pool: &PgPool,
+    org_id: Uuid,
+    after: Option<&str>,
+    limit: i64,
+) -> Result<Vec<OrgMember>, AuthError> {
     let org_id_str = org_id.to_string();
     sqlx::query_as!(
         OrgMember,
@@ -212,8 +225,12 @@ pub async fn list_members(pool: &PgPool, org_id: Uuid) -> Result<Vec<OrgMember>,
            WHERE object_type = 'org'
              AND object_id   = $1
              AND subject_set_type IS NULL
-           ORDER BY created_at ASC"#,
+             AND ($2::text IS NULL OR subject_id > $2)
+           ORDER BY subject_id ASC
+           LIMIT $3"#,
         org_id_str,
+        after,
+        limit,
     )
     .fetch_all(pool)
     .await

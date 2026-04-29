@@ -14,7 +14,7 @@ use crate::{
     identities,
     orgs::{self, Org},
     passwords,
-    sessions::{self, SessionContext},
+    sessions::{self, AuthContext},
     tokens::{Token, TokenPrefix},
     users::{self, User},
 };
@@ -126,7 +126,7 @@ pub fn make_auth_response(
 )]
 pub async fn delete_me(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<StatusCode, AuthError> {
     let user_id = ctx.user.id;
     let org_id = ctx.user.primary_org_id;
@@ -240,7 +240,7 @@ pub async fn signup(
         (status = 401, body = crate::error::ErrorResponse),
     )
 )]
-pub async fn get_me(Extension(ctx): Extension<SessionContext>) -> Json<MeResponse> {
+pub async fn get_me(Extension(ctx): Extension<AuthContext>) -> Json<MeResponse> {
     Json(MeResponse {
         user: UserBody {
             id: ctx.user.id,
@@ -289,7 +289,7 @@ pub struct UpdateMeRequest {
 )]
 pub async fn update_me(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(patch): Json<UpdateMeRequest>,
 ) -> Result<Json<MeResponse>, AuthError> {
     let org = orgs::update(

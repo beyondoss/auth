@@ -10,7 +10,7 @@ use crate::{
     app_config,
     config::{MigrateConfig, ServeConfig},
     crypto::LocalKeyEncryptor,
-    db, http, keys, routes, telemetry, token_gc,
+    db, http, routes, signing_keys, telemetry, token_gc,
 };
 
 #[derive(Parser)]
@@ -93,9 +93,9 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         .collect();
     let enc_key = LocalKeyEncryptor::from_base64(&cfg.signing_key_encryption_key, &old_key_strs)?;
 
-    keys::ensure_app_config(&pool).await?;
-    let loaded_key = keys::load_or_create_active_key(&pool, &enc_key).await?;
-    let jwks = keys::render_jwks(&loaded_key);
+    signing_keys::ensure_app_config(&pool).await?;
+    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
+    let jwks = signing_keys::render_jwks(&loaded_key);
     let app_config = app_config::load(&pool)
         .await
         .map_err(|e| anyhow::anyhow!("failed to load app_config: {e}"))?;

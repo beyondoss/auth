@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use crate::{error::AuthError, http::AppState, jwt, sessions::SessionContext};
+use crate::{error::AuthError, http::AppState, jwt, sessions::AuthContext};
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct TokenResponse {
@@ -31,7 +31,7 @@ pub struct TokenResponse {
 )]
 pub async fn issue(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<(StatusCode, Json<TokenResponse>), AuthError> {
     let cfg = state.app_config.read().await;
 

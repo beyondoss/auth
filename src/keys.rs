@@ -1,180 +1,222 @@
-use anyhow::{Context, Result};
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use ed25519_dalek::{
-    SigningKey,
-    pkcs8::{DecodePrivateKey, EncodePrivateKey},
-};
-use pkcs8::LineEnding;
-use rand_core::OsRng;
-use serde_json::json;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use zeroize::Zeroizing;
 
-use crate::crypto::KeyEncryptor;
+// Re-exported so callers that use `crate::keys::LoadedKey` still resolve.
+pub use crate::signing_keys::LoadedKey;
 
-#[derive(Clone)]
-pub struct LoadedKey {
+use crate::{
+    emails::Email,
+    error::AuthError,
+    orgs::Org,
+    sessions::{AuthContext, AuthSource},
+    tokens::Token,
+    users::User,
+};
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct Key {
     pub id: Uuid,
-    pub signing_key: SigningKey,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
 }
 
-/// Inserts the default app_config row if one doesn't exist. Idempotent.
-pub async fn ensure_app_config(pool: &PgPool) -> Result<()> {
-    sqlx::query!(
-        "INSERT INTO auth.app_config
-             (jwt_mode, access_token_ttl_seconds, refresh_token_ttl_seconds, session_ttl_seconds)
-         VALUES ('ed25519', 900, 2592000, 2592000)
-         ON CONFLICT (id) DO NOTHING",
-    )
-    .execute(pool)
-    .await
-    .context("failed to ensure app_config row")?;
-
-    Ok(())
-}
-
-/// Loads the active signing key, generating and persisting one if none exists.
-/// Atomic under concurrent startup: the unique partial index on (status) WHERE
-/// status = 'active' ensures only one INSERT wins; the loser reads the winner's key.
+/// Validate an API key token and return the caller's context in one round-trip.
 ///
-/// If the existing key was encrypted with an old KEK or without AAD (legacy),
-/// it is immediately re-encrypted with the current key before returning.
-pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<LoadedKey> {
-    if let Some((key, needs_reencrypt)) = fetch_active_key(pool, enc).await? {
-        if needs_reencrypt {
-            reencrypt_key(pool, enc, &key).await?;
-        }
-        return Ok(key);
-    }
-
-    tracing::info!("no active signing key found, generating one");
-
-    let signing_key = SigningKey::generate(&mut OsRng);
-    let private_pem = signing_key
-        .to_pkcs8_pem(LineEnding::LF)
-        .context("failed to encode private key")?;
-
-    // Generate the ID in Rust so we can use it as AAD before inserting.
-    let id = Uuid::now_v7();
-    let encrypted = enc.encrypt(private_pem.as_bytes(), id.as_bytes())?;
-
-    // ON CONFLICT DO NOTHING returns no rows if another instance beat us to it.
-    let inserted_id = sqlx::query_scalar!(
-        "INSERT INTO auth.signing_keys (id, algorithm, private_key_enc, status)
-         VALUES ($1, 'ed25519', $2, 'active')
-         ON CONFLICT (status) WHERE status = 'active' DO NOTHING
-         RETURNING id",
-        id,
-        encrypted,
-    )
-    .fetch_optional(pool)
-    .await
-    .context("failed to insert signing key")?;
-
-    match inserted_id {
-        Some(id) => {
-            tracing::info!(kid = %id, "generated and stored new signing key");
-            Ok(LoadedKey { id, signing_key })
-        }
-        None => {
-            let (key, needs_reencrypt) = fetch_active_key(pool, enc)
-                .await?
-                .context("active signing key disappeared after concurrent insert")?;
-            if needs_reencrypt {
-                reencrypt_key(pool, enc, &key).await?;
-            }
-            Ok(key)
-        }
-    }
-}
-
-async fn fetch_active_key(
+/// Same CTE shape as `sessions::validate` but joins `auth.keys` instead of
+/// `auth.sessions`. No idle timeout — keys are programmatic credentials.
+pub async fn validate(
     pool: &PgPool,
-    enc: &dyn KeyEncryptor,
-) -> Result<Option<(LoadedKey, bool)>> {
+    token_id: Uuid,
+    secret_hash: &[u8],
+) -> Result<Option<AuthContext>, AuthError> {
     let row = sqlx::query!(
-        "SELECT id, private_key_enc FROM auth.signing_keys WHERE status = 'active' LIMIT 1",
+        r#"
+        WITH valid_token AS (
+            SELECT tokens.id AS token_id
+            FROM auth.tokens
+            WHERE tokens.id         = $1
+              AND tokens.secret     = $2
+              AND tokens.expires_at > now()
+            LIMIT 1
+        ),
+        update_attempt AS (
+            UPDATE auth.tokens SET last_used_at = now()
+            FROM valid_token
+            WHERE auth.tokens.id = valid_token.token_id
+              AND (auth.tokens.last_used_at IS NULL
+                   OR auth.tokens.last_used_at < now() - interval '1 minute')
+        )
+        SELECT
+            k.id                AS "key_id!: Uuid",
+            u.id                AS "user_id!: Uuid",
+            u.primary_org_id    AS "primary_org_id!: Uuid",
+            u.primary_email_id  AS "primary_email_id!: Uuid",
+            u.created_at        AS "user_created_at!: DateTime<Utc>",
+            t.id                AS "org_id!: Uuid",
+            t.user_id           AS "org_user_id!: Uuid",
+            t.name              AS "org_name!",
+            t.slug              AS "org_slug!",
+            t.image_url         AS "org_image_url",
+            t.metadata          AS "org_metadata: serde_json::Value",
+            t.created_at        AS "org_created_at!: DateTime<Utc>",
+            t.updated_at        AS "org_updated_at!: DateTime<Utc>",
+            t.deleted_at        AS "org_deleted_at",
+            e.id                AS "email_id!: Uuid",
+            e.email::text       AS "email!",
+            e.verified_at,
+            v.token_id          AS "token_id!: Uuid"
+        FROM valid_token v
+        INNER JOIN auth.keys     k ON k.token_id  = v.token_id
+        INNER JOIN auth.users    u ON u.id = k.user_id AND u.deleted_at IS NULL
+        INNER JOIN auth.orgs     t ON t.id = u.primary_org_id AND t.deleted_at IS NULL
+        LEFT  JOIN auth.emails   e ON e.id = u.primary_email_id
+        "#,
+        token_id,
+        secret_hash,
     )
     .fetch_optional(pool)
     .await
-    .context("failed to query signing key")?;
+    .map_err(AuthError::from)?;
 
-    let Some(row) = row else {
-        return Ok(None);
-    };
-
-    let (pem_bytes, needs_reencrypt) = enc
-        .decrypt_with_fallback(&row.private_key_enc, row.id.as_bytes())
-        .context("failed to decrypt signing key")?;
-    let pem_bytes = Zeroizing::new(pem_bytes);
-
-    let pem = std::str::from_utf8(&pem_bytes).context("signing key PEM is not valid UTF-8")?;
-    let signing_key = SigningKey::from_pkcs8_pem(pem).context("failed to parse signing key PEM")?;
-
-    Ok(Some((
-        LoadedKey {
-            id: row.id,
-            signing_key,
+    Ok(row.map(|r| AuthContext {
+        source: AuthSource::Key(r.key_id),
+        token_id: r.token_id,
+        is_impersonated: false,
+        user: User {
+            id: r.user_id,
+            primary_org_id: r.primary_org_id,
+            primary_email_id: r.primary_email_id,
+            created_at: r.user_created_at,
         },
-        needs_reencrypt,
-    )))
-}
-
-async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -> Result<()> {
-    let pem = key
-        .signing_key
-        .to_pkcs8_pem(LineEnding::LF)
-        .context("failed to encode signing key for re-encryption")?;
-    let encrypted = enc.encrypt(pem.as_bytes(), key.id.as_bytes())?;
-    sqlx::query!(
-        "UPDATE auth.signing_keys SET private_key_enc = $1 WHERE id = $2",
-        encrypted,
-        key.id,
-    )
-    .execute(pool)
-    .await
-    .context("failed to re-encrypt signing key")?;
-    tracing::info!(kid = %key.id, "re-encrypted signing key with current KEK");
-    Ok(())
-}
-
-pub fn render_jwks(key: &LoadedKey) -> String {
-    let x = URL_SAFE_NO_PAD.encode(key.signing_key.verifying_key().as_bytes());
-
-    serde_json::to_string(&json!({
-        "keys": [{
-            "kty": "OKP",
-            "crv": "Ed25519",
-            "kid": key.id.to_string(),
-            "use": "sig",
-            "alg": "EdDSA",
-            "x": x,
-        }]
+        org: Org {
+            id: r.org_id,
+            user_id: r.org_user_id,
+            name: r.org_name,
+            slug: r.org_slug,
+            image_url: r.org_image_url,
+            metadata: r.org_metadata,
+            created_at: r.org_created_at,
+            updated_at: r.org_updated_at,
+            deleted_at: r.org_deleted_at,
+        },
+        email: Email {
+            id: r.email_id,
+            user_id: r.user_id,
+            email: r.email,
+            verified_at: r.verified_at,
+        },
     }))
-    .expect("JWKS serialization is infallible")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rand_core::OsRng;
+/// Create a token + key atomically. Returns `(key_id, expires_at)`.
+/// Deletion = `DELETE FROM auth.tokens WHERE id = token.id` (cascades to auth.keys).
+pub async fn create(
+    pool: &PgPool,
+    user_id: Uuid,
+    name: &str,
+    token: &Token,
+    expires_at: DateTime<Utc>,
+) -> Result<(Uuid, DateTime<Utc>), AuthError> {
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
-    #[test]
-    fn render_jwks_contains_valid_ed25519_fields() {
-        let id = Uuid::now_v7();
-        let loaded = LoadedKey {
-            id,
-            signing_key: SigningKey::generate(&mut OsRng),
-        };
-        let jwks: serde_json::Value = serde_json::from_str(&render_jwks(&loaded)).unwrap();
-        let key = &jwks["keys"][0];
-        assert_eq!(key["kty"], "OKP");
-        assert_eq!(key["crv"], "Ed25519");
-        assert_eq!(key["use"], "sig");
-        assert_eq!(key["alg"], "EdDSA");
-        assert_eq!(key["kid"], id.to_string());
-        // Ed25519 public key is 32 bytes → 43 chars base64url no-pad
-        assert_eq!(key["x"].as_str().unwrap().len(), 43);
-    }
+    let stored_expires_at = sqlx::query_scalar!(
+        "INSERT INTO auth.tokens (id, secret, expires_at)
+         VALUES ($1, $2, $3)
+         RETURNING expires_at",
+        token.id,
+        &token.secret_hash() as &[u8],
+        expires_at,
+    )
+    .fetch_one(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?;
+
+    let key_id = sqlx::query_scalar!(
+        "INSERT INTO auth.keys (user_id, token_id, name)
+         VALUES ($1, $2, $3)
+         RETURNING id",
+        user_id,
+        token.id,
+        name,
+    )
+    .fetch_one(tx.as_mut())
+    .await
+    .map_err(AuthError::from)?;
+
+    tx.commit().await.map_err(AuthError::from)?;
+
+    Ok((key_id, stored_expires_at))
+}
+
+pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<Key>, AuthError> {
+    sqlx::query_as!(
+        Key,
+        r#"
+        SELECT
+            k.id,
+            k.name,
+            k.created_at,
+            tok.last_used_at,
+            tok.expires_at
+        FROM auth.keys k
+        INNER JOIN auth.tokens tok ON tok.id = k.token_id
+        WHERE k.user_id = $1
+          AND tok.expires_at > now()
+        ORDER BY k.created_at DESC
+        "#,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AuthError::from)
+}
+
+pub async fn get(pool: &PgPool, user_id: Uuid, key_id: Uuid) -> Result<Option<Key>, AuthError> {
+    sqlx::query_as!(
+        Key,
+        r#"
+        SELECT
+            k.id,
+            k.name,
+            k.created_at,
+            tok.last_used_at,
+            tok.expires_at
+        FROM auth.keys k
+        INNER JOIN auth.tokens tok ON tok.id = k.token_id
+        WHERE k.id      = $1
+          AND k.user_id = $2
+        "#,
+        key_id,
+        user_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)
+}
+
+/// Delete a key by deleting its backing token (cascades to auth.keys).
+/// Returns `false` if the key doesn't exist or doesn't belong to `user_id`.
+pub async fn delete(pool: &PgPool, user_id: Uuid, key_id: Uuid) -> Result<bool, AuthError> {
+    let deleted = sqlx::query_scalar!(
+        r#"
+        WITH target AS (
+            SELECT k.token_id
+            FROM auth.keys k
+            WHERE k.id = $1 AND k.user_id = $2
+        )
+        DELETE FROM auth.tokens WHERE id = (SELECT token_id FROM target)
+        RETURNING id AS "id: Uuid"
+        "#,
+        key_id,
+        user_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)?;
+
+    Ok(deleted.is_some())
 }

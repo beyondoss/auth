@@ -29,9 +29,9 @@ use uuid::Uuid;
 use crate::{
     app_config::AppConfig,
     authz::{cache::AuthzCache, schema::CompiledSchema},
-    keys::LoadedKey,
     metrics::Metrics,
     routes::{self, ApiDoc},
+    signing_keys::LoadedKey,
 };
 
 /// Wrapper for the admin bearer secret that suppresses accidental `Debug` printing.

@@ -102,6 +102,9 @@ pub enum AuthError {
     #[error("forbidden")]
     Forbidden,
 
+    #[error("bad request: {message}")]
+    BadRequest { message: String },
+
     #[error("invitation not found or expired")]
     InvitationNotFound,
 
@@ -135,6 +138,12 @@ pub enum AuthError {
 
 #[allow(dead_code)]
 impl AuthError {
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest {
+            message: msg.into(),
+        }
+    }
+
     pub fn internal(msg: impl Into<String>) -> Self {
         Self::Internal {
             message: msg.into(),
@@ -187,6 +196,9 @@ impl IntoResponse for AuthError {
             AuthError::PersonalOrg => (StatusCode::CONFLICT, "personal_org", self.to_string()),
             AuthError::SlugConflict => (StatusCode::CONFLICT, "slug_conflict", self.to_string()),
             AuthError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
+            AuthError::BadRequest { .. } => {
+                (StatusCode::BAD_REQUEST, "bad_request", self.to_string())
+            }
             AuthError::InvitationNotFound => (
                 StatusCode::NOT_FOUND,
                 "invitation_not_found",

@@ -57,14 +57,24 @@ pub async fn create(
     })
 }
 
-pub async fn list(pool: &PgPool, org_id: Uuid) -> Result<Vec<Invitation>, AuthError> {
+pub async fn list(
+    pool: &PgPool,
+    org_id: Uuid,
+    after: Option<&str>,
+    limit: i64,
+) -> Result<Vec<Invitation>, AuthError> {
     sqlx::query_as!(
         Invitation,
         r#"SELECT id, org_id, invited_by, email::text, role, created_at, expires_at
            FROM auth.org_invitations
-           WHERE org_id = $1 AND expires_at > now()
-           ORDER BY created_at DESC"#,
+           WHERE org_id = $1
+             AND expires_at > now()
+             AND ($2::text IS NULL OR id < $2::uuid)
+           ORDER BY id DESC
+           LIMIT $3"#,
         org_id,
+        after,
+        limit,
     )
     .fetch_all(pool)
     .await

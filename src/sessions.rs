@@ -19,13 +19,36 @@ pub struct Session {
     pub last_used_at: Option<DateTime<Utc>>,
 }
 
-/// Validated caller context — extracted from the bearer token by `validate`.
+/// How the caller authenticated.
 #[derive(Debug, Clone)]
-pub struct SessionContext {
+pub enum AuthSource {
+    Session(Uuid),
+    Key(Uuid),
+}
+
+impl AuthSource {
+    pub fn session_id(&self) -> Option<Uuid> {
+        match self {
+            AuthSource::Session(id) => Some(*id),
+            AuthSource::Key(_) => None,
+        }
+    }
+
+    pub fn key_id(&self) -> Option<Uuid> {
+        match self {
+            AuthSource::Key(id) => Some(*id),
+            AuthSource::Session(_) => None,
+        }
+    }
+}
+
+/// Validated caller context — extracted from the bearer token by auth middleware.
+#[derive(Debug, Clone)]
+pub struct AuthContext {
     pub user: User,
     pub email: Email,
     pub org: Org,
-    pub session_id: Uuid,
+    pub source: AuthSource,
     pub token_id: Uuid,
     pub is_impersonated: bool,
 }
@@ -67,7 +90,7 @@ pub async fn validate(
     token_id: Uuid,
     secret_hash: &[u8],
     idle_timeout_seconds: Option<i32>,
-) -> Result<Option<SessionContext>, AuthError> {
+) -> Result<Option<AuthContext>, AuthError> {
     let row = sqlx::query!(
         r#"
         WITH valid_token AS (
@@ -123,8 +146,8 @@ pub async fn validate(
     .await
     .map_err(AuthError::from)?;
 
-    Ok(row.map(|r| SessionContext {
-        session_id: r.session_id,
+    Ok(row.map(|r| AuthContext {
+        source: AuthSource::Session(r.session_id),
         token_id: r.token_id,
         is_impersonated: false,
         user: User {

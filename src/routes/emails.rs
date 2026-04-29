@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    email, error::AuthError, http::AppState, one_time_token, sessions::SessionContext,
+    email, error::AuthError, http::AppState, one_time_token, sessions::AuthContext,
     tokens::TokenPrefix,
 };
 
@@ -38,7 +38,7 @@ pub struct EmailRecord {
 )]
 pub async fn list(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<Vec<EmailRecord>>, AuthError> {
     let rows = sqlx::query!(
         r#"
@@ -98,7 +98,7 @@ pub struct TokenResponse {
 )]
 pub async fn add(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(req): Json<AddRequest>,
 ) -> Result<Json<TokenResponse>, AuthError> {
     let normalized = email::normalize(&req.email);
@@ -148,7 +148,7 @@ pub async fn add(
 )]
 pub async fn remove(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     // Cannot delete the primary email.
@@ -189,7 +189,7 @@ pub async fn remove(
 )]
 pub async fn make_primary(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     let result = sqlx::query!(
@@ -230,7 +230,7 @@ pub async fn make_primary(
 )]
 pub async fn create_verification(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TokenResponse>, AuthError> {
     // Confirm the email belongs to this user and isn't already verified.

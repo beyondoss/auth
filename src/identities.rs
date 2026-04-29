@@ -120,9 +120,10 @@ pub async fn find_password_secret(
     subject: &str,
 ) -> Result<Option<(Uuid, String)>, AuthError> {
     let row = sqlx::query!(
-        "SELECT user_id, secret
-         FROM auth.identities
-         WHERE provider = 'password' AND subject = $1
+        "SELECT i.user_id, i.secret
+         FROM auth.identities i
+         JOIN auth.users u ON u.id = i.user_id
+         WHERE i.provider = 'password' AND i.subject = $1 AND u.deleted_at IS NULL
          LIMIT 1",
         subject,
     )

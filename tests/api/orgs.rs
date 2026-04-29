@@ -149,6 +149,43 @@ async fn list_orgs_includes_accepted_orgs() {
     );
 }
 
+#[tokio::test]
+async fn list_orgs_paginates() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+    // personal org already exists; create 2 more = 3 total
+    create_org(&auth.session.token, "Org A").await;
+    create_org(&auth.session.token, "Org B").await;
+
+    let page1 = TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/orgs?limit=2")
+        .await
+        .assert_status(200)
+        .json::<OrgsResponse>();
+
+    assert_eq!(page1.orgs.len(), 2);
+    assert!(page1.has_more);
+    let cursor = page1.next_page.expect("must have next_page");
+
+    let page2 = TestClient::new()
+        .bearer(&auth.session.token)
+        .get(&format!("/v1/orgs?limit=2&after={cursor}"))
+        .await
+        .assert_status(200)
+        .json::<OrgsResponse>();
+
+    assert!(!page2.orgs.is_empty());
+    assert!(!page2.has_more);
+
+    let all_ids: std::collections::HashSet<_> = page1
+        .orgs
+        .iter()
+        .chain(page2.orgs.iter())
+        .map(|o| o.id)
+        .collect();
+    assert_eq!(all_ids.len(), 3, "all orgs must appear across pages");
+}
+
 // ── GET /v1/orgs/{id} ────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -344,6 +381,49 @@ async fn list_members_as_non_member_returns_403() {
         .get(&format!("/v1/orgs/{}/members", org.id))
         .await
         .assert_status(403);
+}
+
+#[tokio::test]
+async fn list_members_paginates() {
+    let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
+    let org = create_org(&owner.session.token, "Paginated Members Org").await;
+    // add 2 more members so we have 3 total (owner + 2)
+    for _ in 0..2 {
+        let m = signup(&unique_email(), "correct-horse-battery-staple").await;
+        invite_and_accept(org.id, &owner.session.token, &m.session.token, "member").await;
+    }
+
+    let page1 = TestClient::new()
+        .bearer(&owner.session.token)
+        .get(&format!("/v1/orgs/{}/members?limit=2", org.id))
+        .await
+        .assert_status(200)
+        .json::<MembersResponse>();
+
+    assert_eq!(page1.members.len(), 2);
+    assert!(page1.has_more);
+    let cursor = page1.next_page.expect("must have next_page");
+
+    let page2 = TestClient::new()
+        .bearer(&owner.session.token)
+        .get(&format!(
+            "/v1/orgs/{}/members?limit=2&after={cursor}",
+            org.id
+        ))
+        .await
+        .assert_status(200)
+        .json::<MembersResponse>();
+
+    assert!(!page2.members.is_empty());
+    assert!(!page2.has_more);
+
+    let all_ids: std::collections::HashSet<_> = page1
+        .members
+        .iter()
+        .chain(page2.members.iter())
+        .map(|m| m.user_id)
+        .collect();
+    assert_eq!(all_ids.len(), 3, "all members must appear across pages");
 }
 
 // ── PATCH /v1/orgs/{id}/members/{member_id} ──────────────────────────────────
@@ -588,6 +668,46 @@ async fn list_invitations_returns_pending_without_token() {
         list.invitations[0].token.is_none(),
         "token must not appear in list response"
     );
+}
+
+#[tokio::test]
+async fn list_invitations_paginates() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+    let org = create_org(&auth.session.token, "Paginated Invites Org").await;
+    for _ in 0..3 {
+        TestClient::new()
+            .bearer(&auth.session.token)
+            .post(
+                &format!("/v1/orgs/{}/invitations", org.id),
+                &serde_json::json!({ "role": "member" }),
+            )
+            .await
+            .assert_status(201);
+    }
+
+    let page1 = TestClient::new()
+        .bearer(&auth.session.token)
+        .get(&format!("/v1/orgs/{}/invitations?limit=2", org.id))
+        .await
+        .assert_status(200)
+        .json::<InvitationsResponse>();
+
+    assert_eq!(page1.invitations.len(), 2);
+    assert!(page1.has_more);
+    let cursor = page1.next_page.expect("must have next_page");
+
+    let page2 = TestClient::new()
+        .bearer(&auth.session.token)
+        .get(&format!(
+            "/v1/orgs/{}/invitations?limit=2&after={cursor}",
+            org.id
+        ))
+        .await
+        .assert_status(200)
+        .json::<InvitationsResponse>();
+
+    assert_eq!(page2.invitations.len(), 1);
+    assert!(!page2.has_more);
 }
 
 // ── POST /v1/orgs/{id}/invitations/{inv_id}/resends ──────────────────────────

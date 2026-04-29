@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::{error::AuthError, http::AppState, mfa::passkeys as wn, sessions::SessionContext};
+use crate::{error::AuthError, http::AppState, mfa::passkeys as wn, sessions::AuthContext};
 
 // ── Shared response types ─────────────────────────────────────────────────────
 
@@ -52,14 +52,14 @@ pub struct UpdateCredentialRequest {
     tag = "passkeys",
     security(("BearerAuth" = [])),
     responses(
-        (status = 200, body = BeginResponse),
+        (status = 201, body = BeginResponse),
         (status = 401, body = crate::error::ErrorResponse),
     )
 )]
 pub async fn begin_registration(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
-) -> Result<Json<serde_json::Value>, AuthError> {
+    Extension(ctx): Extension<AuthContext>,
+) -> Result<(StatusCode, Json<serde_json::Value>), AuthError> {
     let (ccr, reg_state) = state
         .webauthn
         .start_passkey_registration(ctx.user.id, &ctx.email.email, &ctx.org.name, None)
@@ -67,10 +67,13 @@ pub async fn begin_registration(
 
     let state_token = wn::pack_reg_state(&reg_state, ctx.user.id, &state.signing_key);
 
-    Ok(Json(json!({
-        "options": ccr,
-        "state_token": state_token,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "options": ccr,
+            "state_token": state_token,
+        })),
+    ))
 }
 
 #[utoipa::path(
@@ -87,7 +90,7 @@ pub async fn begin_registration(
 )]
 pub async fn finish_registration(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Json(req): Json<FinishRegistrationRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AuthError> {
     let reg_state = wn::unpack_reg_state(&req.state_token, ctx.user.id, &state.signing_key)?;
@@ -123,7 +126,7 @@ pub async fn finish_registration(
 )]
 pub async fn list_credentials(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<Vec<wn::CredentialRecord>>, AuthError> {
     let creds = wn::credentials_for_user(&state.pool, ctx.user.id).await?;
     Ok(Json(creds))
@@ -144,7 +147,7 @@ pub async fn list_credentials(
 )]
 pub async fn update_credential(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateCredentialRequest>,
 ) -> Result<StatusCode, AuthError> {
@@ -166,7 +169,7 @@ pub async fn update_credential(
 )]
 pub async fn delete_credential(
     State(state): State<AppState>,
-    Extension(ctx): Extension<SessionContext>,
+    Extension(ctx): Extension<AuthContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
     wn::delete_credential(&state.pool, id, ctx.user.id).await?;
