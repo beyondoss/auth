@@ -4,6 +4,7 @@ use aes_gcm::{
 };
 use anyhow::{Result, bail};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use zeroize::Zeroizing;
 
 /// Encrypts and decrypts signing key material at rest.
 ///
@@ -37,8 +38,8 @@ pub trait KeyEncryptor: Send + Sync {
 ///
 /// Wire format: 12-byte random nonce || GCM ciphertext+tag.
 pub struct LocalKeyEncryptor {
-    key: [u8; 32],
-    old_keys: Vec<[u8; 32]>,
+    key: Zeroizing<[u8; 32]>,
+    old_keys: Vec<Zeroizing<[u8; 32]>>,
 }
 
 impl LocalKeyEncryptor {
@@ -55,13 +56,14 @@ impl LocalKeyEncryptor {
     }
 }
 
-fn decode_key(b64: &str) -> Result<[u8; 32]> {
+fn decode_key(b64: &str) -> Result<Zeroizing<[u8; 32]>> {
     let bytes = URL_SAFE_NO_PAD
         .decode(b64.trim())
         .map_err(|_| anyhow::anyhow!("encryption key is not valid base64url"))?;
-    bytes
+    let arr: [u8; 32] = bytes
         .try_into()
-        .map_err(|_| anyhow::anyhow!("encryption key must decode to exactly 32 bytes"))
+        .map_err(|_| anyhow::anyhow!("encryption key must decode to exactly 32 bytes"))?;
+    Ok(Zeroizing::new(arr))
 }
 
 fn aes_encrypt(key: &[u8; 32], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {

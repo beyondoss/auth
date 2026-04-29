@@ -34,13 +34,14 @@ use crate::{
     signing_keys::LoadedKey,
 };
 
-/// Wrapper for the admin bearer secret that suppresses accidental `Debug` printing.
+/// Wrapper for the admin bearer secret that suppresses accidental `Debug` printing
+/// and zeroes memory on drop.
 #[derive(Clone)]
-pub struct AdminSecret(String);
+pub struct AdminSecret(zeroize::Zeroizing<String>);
 
 impl AdminSecret {
     pub fn new(s: String) -> Self {
-        Self(s)
+        Self(zeroize::Zeroizing::new(s))
     }
 
     pub fn as_bytes(&self) -> &[u8] {

@@ -37,7 +37,14 @@ pub async fn begin_enrollment(
     State(state): State<AppState>,
     Extension(ctx): Extension<AuthContext>,
 ) -> Result<Json<EnrollmentResponse>, AuthError> {
-    let r = totp::enroll(&state.pool, ctx.user.id, &ctx.email.email, "Beyond Auth").await?;
+    let r = totp::enroll(
+        &state.pool,
+        ctx.user.id,
+        &ctx.email.email,
+        "Beyond Auth",
+        state.encryptor.as_ref(),
+    )
+    .await?;
     Ok(Json(EnrollmentResponse {
         factor_id: r.factor_id,
         secret_b32: r.secret_b32,
@@ -63,7 +70,13 @@ pub async fn confirm_enrollment(
     Extension(ctx): Extension<AuthContext>,
     Json(req): Json<ConfirmRequest>,
 ) -> Result<StatusCode, AuthError> {
-    totp::confirm(&state.pool, ctx.user.id, &req.code).await?;
+    totp::confirm(
+        &state.pool,
+        ctx.user.id,
+        &req.code,
+        state.encryptor.as_ref(),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -109,7 +122,13 @@ pub async fn regenerate_recovery_codes(
     Extension(ctx): Extension<AuthContext>,
     Json(req): Json<ConfirmRequest>,
 ) -> Result<Json<RecoveryCodesResponse>, AuthError> {
-    let codes = totp::regenerate_recovery_codes(&state.pool, ctx.user.id, &req.code).await?;
+    let codes = totp::regenerate_recovery_codes(
+        &state.pool,
+        ctx.user.id,
+        &req.code,
+        state.encryptor.as_ref(),
+    )
+    .await?;
     Ok(Json(RecoveryCodesResponse {
         recovery_codes: codes,
     }))

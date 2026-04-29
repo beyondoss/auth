@@ -364,7 +364,7 @@ async fn login_totp_step_up(
         return Err(AuthError::TokenInvalid);
     }
 
-    mfa::totp::verify_step_up(&state.pool, claims.user_id, code).await?;
+    mfa::totp::verify_step_up(&state.pool, claims.user_id, code, state.encryptor.as_ref()).await?;
 
     let (user, org, email) = sessions::load_user_context(&state.pool, claims.user_id).await?;
     let session_token = Token::new(TokenPrefix::Session);

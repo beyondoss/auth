@@ -6,7 +6,7 @@ use subtle::ConstantTimeEq;
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
-use crate::error::AuthError;
+use crate::{crypto::KeyEncryptor, error::AuthError};
 
 fn sha256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -102,6 +102,7 @@ pub async fn enroll(
     user_id: Uuid,
     email: &str,
     issuer: &str,
+    encryptor: &dyn KeyEncryptor,
 ) -> Result<EnrollResponse, AuthError> {
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
@@ -115,12 +116,20 @@ pub async fn enroll(
 
     let (secret_bytes, secret_b32) = generate_secret();
     let factor_id = Uuid::now_v7();
+    let encrypted = encryptor
+        .encrypt(&secret_bytes, factor_id.as_bytes())
+        .map_err(|e| {
+            AuthError::internal_with(
+                "totp secret encryption",
+                std::io::Error::other(e.to_string()),
+            )
+        })?;
 
     sqlx::query!(
         "INSERT INTO auth.totp_factors (id, user_id, secret) VALUES ($1, $2, $3)",
         factor_id,
         user_id,
-        &secret_bytes as &[u8],
+        &encrypted as &[u8],
     )
     .execute(tx.as_mut())
     .await
@@ -164,7 +173,12 @@ pub async fn enroll(
     })
 }
 
-pub async fn confirm(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), AuthError> {
+pub async fn confirm(
+    pool: &PgPool,
+    user_id: Uuid,
+    code: &str,
+    encryptor: &dyn KeyEncryptor,
+) -> Result<(), AuthError> {
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
     let row = sqlx::query!(
@@ -178,7 +192,16 @@ pub async fn confirm(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), Aut
     .map_err(AuthError::from)?
     .ok_or(AuthError::NotFound)?;
 
-    if !verify_code(&row.secret, code) {
+    let secret = encryptor
+        .decrypt(&row.secret, row.id.as_bytes())
+        .map_err(|e| {
+            AuthError::internal_with(
+                "totp secret decryption",
+                std::io::Error::other(e.to_string()),
+            )
+        })?;
+
+    if !verify_code(&secret, code) {
         return Err(AuthError::MfaError {
             message: "invalid code".into(),
         });
@@ -208,7 +231,12 @@ pub async fn is_enrolled(pool: &PgPool, user_id: Uuid) -> Result<bool, AuthError
     Ok(row.is_some())
 }
 
-pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<(), AuthError> {
+pub async fn verify_step_up(
+    pool: &PgPool,
+    user_id: Uuid,
+    code: &str,
+    encryptor: &dyn KeyEncryptor,
+) -> Result<(), AuthError> {
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
     let row = sqlx::query!(
@@ -222,7 +250,16 @@ pub async fn verify_step_up(pool: &PgPool, user_id: Uuid, code: &str) -> Result<
     .map_err(AuthError::from)?
     .ok_or(AuthError::NotFound)?;
 
-    if !verify_code(&row.secret, code) {
+    let secret = encryptor
+        .decrypt(&row.secret, row.id.as_bytes())
+        .map_err(|e| {
+            AuthError::internal_with(
+                "totp secret decryption",
+                std::io::Error::other(e.to_string()),
+            )
+        })?;
+
+    if !verify_code(&secret, code) {
         return Err(AuthError::MfaError {
             message: "invalid code".into(),
         });
@@ -308,6 +345,7 @@ pub async fn regenerate_recovery_codes(
     pool: &PgPool,
     user_id: Uuid,
     totp_code: &str,
+    encryptor: &dyn KeyEncryptor,
 ) -> Result<Vec<String>, AuthError> {
     let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
@@ -322,7 +360,16 @@ pub async fn regenerate_recovery_codes(
     .map_err(AuthError::from)?
     .ok_or(AuthError::NotFound)?;
 
-    if !verify_code(&row.secret, totp_code) {
+    let secret = encryptor
+        .decrypt(&row.secret, row.id.as_bytes())
+        .map_err(|e| {
+            AuthError::internal_with(
+                "totp secret decryption",
+                std::io::Error::other(e.to_string()),
+            )
+        })?;
+
+    if !verify_code(&secret, totp_code) {
         return Err(AuthError::MfaError {
             message: "invalid code".into(),
         });

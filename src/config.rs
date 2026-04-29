@@ -1,6 +1,6 @@
 use clap::Args;
 
-#[derive(Debug, Args)]
+#[derive(Args)]
 pub struct ServeConfig {
     #[arg(long, env = "DATABASE_URL")]
     pub database_url: String,
@@ -60,6 +60,36 @@ pub struct ServeConfig {
     /// write-side correctness; TTL is a safety net for deep-chain transitive changes.
     #[arg(long, env = "AUTHZ_CACHE_TTL_SECS", default_value_t = 1800)]
     pub authz_cache_ttl_secs: u64,
+}
+
+impl std::fmt::Debug for ServeConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServeConfig")
+            .field("database_url", &"[redacted]")
+            .field("address", &self.address)
+            .field("log_level", &self.log_level)
+            .field("otlp_enabled", &self.otlp_enabled)
+            .field("otlp_endpoint", &self.otlp_endpoint)
+            .field("signing_key_encryption_key", &"[redacted]")
+            .field(
+                "signing_key_encryption_key_old",
+                &self
+                    .signing_key_encryption_key_old
+                    .as_ref()
+                    .map(|_| "[redacted]"),
+            )
+            .field("admin_secret", &"[redacted]")
+            .field("webauthn_rp_id", &self.webauthn_rp_id)
+            .field("webauthn_rp_origin", &self.webauthn_rp_origin)
+            .field("public_url", &self.public_url)
+            .field(
+                "oauth_allowed_redirect_origins",
+                &self.oauth_allowed_redirect_origins,
+            )
+            .field("authz_cache_size", &self.authz_cache_size)
+            .field("authz_cache_ttl_secs", &self.authz_cache_ttl_secs)
+            .finish()
+    }
 }
 
 #[derive(Debug, Args)]
