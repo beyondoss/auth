@@ -42,7 +42,7 @@ pub async fn create(
     let user_id = sqlx::query_scalar!(
         "SELECT u.id FROM auth.users u
          INNER JOIN auth.emails e ON e.id = u.primary_email_id
-         WHERE e.email = $1::citext AND u.deleted_at IS NULL",
+         WHERE e.email = $1::auth.citext AND u.deleted_at IS NULL",
         normalized,
     )
     .fetch_optional(&state.pool)

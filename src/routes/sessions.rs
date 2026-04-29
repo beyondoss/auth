@@ -293,7 +293,7 @@ async fn login_email_change(
 
     sqlx::query!(
         "INSERT INTO auth.emails (id, user_id, email, verified_at)
-         VALUES ($1, $2, $3::citext, now())",
+         VALUES ($1, $2, $3::auth.citext, now())",
         email_id,
         user_id,
         new_email,
