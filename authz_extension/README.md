@@ -96,26 +96,26 @@ Replaces an `OR`-chain of separate check calls. Use when a permission can be hel
 
 ## Query cost summary
 
-| Function | Query count |
-|---|---|
-| `authz_check` | `depth + 1` (1 on direct-grant hit) |
-| `authz_check_batch` | `N × (depth + 1)` |
-| `authz_check_parallel_batch` | `depth + 1` |
-| `authz_check_path_batch` | `len(relation_prefix) + 1` |
-| `authz_check_multi` | `depth + len(relation_prefix) + 2` |
+| Function                     | Query count                         |
+| ---------------------------- | ----------------------------------- |
+| `authz_check`                | `depth + 1` (1 on direct-grant hit) |
+| `authz_check_batch`          | `N × (depth + 1)`                   |
+| `authz_check_parallel_batch` | `depth + 1`                         |
+| `authz_check_path_batch`     | `len(relation_prefix) + 1`          |
+| `authz_check_multi`          | `depth + len(relation_prefix) + 2`  |
 
 ## Data model
 
 All functions read from `auth.authz_relations`:
 
-| Column | Type | Meaning |
-|---|---|---|
-| `object_type` | text | Resource type (e.g. `"document"`) |
-| `object_id` | text | Resource identifier |
-| `relation` | text | Relation name (e.g. `"editor"`) |
-| `subject_id` | text | User or group identifier |
-| `subject_set_type` | text \| NULL | Non-NULL for group membership rows |
-| `subject_set_relation` | text \| NULL | Relation within the group type |
+| Column                 | Type         | Meaning                            |
+| ---------------------- | ------------ | ---------------------------------- |
+| `object_type`          | text         | Resource type (e.g. `"document"`)  |
+| `object_id`            | text         | Resource identifier                |
+| `relation`             | text         | Relation name (e.g. `"editor"`)    |
+| `subject_id`           | text         | User or group identifier           |
+| `subject_set_type`     | text \| NULL | Non-NULL for group membership rows |
+| `subject_set_relation` | text \| NULL | Relation within the group type     |
 
 Rows with `subject_set_type IS NULL` are direct grants. Rows with `subject_set_type` set expand to the members of that group/set via BFS.
 

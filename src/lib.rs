@@ -22,7 +22,7 @@ mod passwords;
 mod routes;
 mod sessions;
 mod telemetry;
-mod token_gc;
+pub mod token_gc;
 mod tokens;
 mod users;
 

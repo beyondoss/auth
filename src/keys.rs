@@ -154,3 +154,27 @@ pub fn render_jwks(key: &LoadedKey) -> String {
     }))
     .expect("JWKS serialization is infallible")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_core::OsRng;
+
+    #[test]
+    fn render_jwks_contains_valid_ed25519_fields() {
+        let id = Uuid::now_v7();
+        let loaded = LoadedKey {
+            id,
+            signing_key: SigningKey::generate(&mut OsRng),
+        };
+        let jwks: serde_json::Value = serde_json::from_str(&render_jwks(&loaded)).unwrap();
+        let key = &jwks["keys"][0];
+        assert_eq!(key["kty"], "OKP");
+        assert_eq!(key["crv"], "Ed25519");
+        assert_eq!(key["use"], "sig");
+        assert_eq!(key["alg"], "EdDSA");
+        assert_eq!(key["kid"], id.to_string());
+        // Ed25519 public key is 32 bytes → 43 chars base64url no-pad
+        assert_eq!(key["x"].as_str().unwrap().len(), 43);
+    }
+}

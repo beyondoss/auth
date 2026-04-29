@@ -13,7 +13,10 @@ async fn request_password_reset_returns_token() {
     signup(&email, "correct-horse-battery-staple").await;
 
     let resp = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<PasswordResetResponse>();
@@ -38,18 +41,27 @@ async fn request_password_reset_twice_succeeds_and_rotates_token() {
     signup(&email, "correct-horse-battery-staple").await;
 
     let first = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<PasswordResetResponse>();
 
     let second = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<PasswordResetResponse>();
 
-    assert_ne!(first.token, second.token, "each request must issue a fresh token");
+    assert_ne!(
+        first.token, second.token,
+        "each request must issue a fresh token"
+    );
 }
 
 #[tokio::test]
@@ -58,14 +70,20 @@ async fn rotated_password_reset_token_invalidates_previous() {
     signup(&email, "correct-horse-battery-staple").await;
 
     let first = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<PasswordResetResponse>();
 
     // Rotate: second request issues a new token.
     TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200);
 

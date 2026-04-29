@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use sqlx::PgPool;
-use testcontainers::ImageExt;
 use testcontainers::CopyTargetOptions;
+use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 

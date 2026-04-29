@@ -132,3 +132,85 @@ impl KeyEncryptor for LocalKeyEncryptor {
         bail!("decryption failed with all known keys")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn enc(byte: u8) -> LocalKeyEncryptor {
+        LocalKeyEncryptor::from_base64(&URL_SAFE_NO_PAD.encode([byte; 32]), &[]).unwrap()
+    }
+
+    fn enc_with_old(current: u8, old: u8) -> LocalKeyEncryptor {
+        let cur = URL_SAFE_NO_PAD.encode([current; 32]);
+        let old = URL_SAFE_NO_PAD.encode([old; 32]);
+        LocalKeyEncryptor::from_base64(&cur, &[old.as_str()]).unwrap()
+    }
+
+    #[test]
+    fn round_trip() {
+        let e = enc(0x42);
+        let ct = e.encrypt(b"hello world", b"key-id").unwrap();
+        assert_eq!(e.decrypt(&ct, b"key-id").unwrap(), b"hello world");
+    }
+
+    #[test]
+    fn wrong_aad_fails() {
+        let e = enc(0x42);
+        let ct = e.encrypt(b"secret", b"correct-aad").unwrap();
+        assert!(e.decrypt(&ct, b"wrong-aad").is_err());
+    }
+
+    #[test]
+    fn truncated_ciphertext_fails() {
+        assert!(enc(0x42).decrypt(&[0u8; 5], b"aad").is_err());
+    }
+
+    #[test]
+    fn bad_base64_key_rejected() {
+        assert!(LocalKeyEncryptor::from_base64("not-valid-base64!!!", &[]).is_err());
+    }
+
+    #[test]
+    fn wrong_size_key_rejected() {
+        let short = URL_SAFE_NO_PAD.encode([0u8; 16]);
+        assert!(LocalKeyEncryptor::from_base64(&short, &[]).is_err());
+    }
+
+    #[test]
+    fn fallback_current_key_with_aad_needs_no_reencrypt() {
+        let e = enc_with_old(0x01, 0x02);
+        let ct = e.encrypt(b"data", b"aad").unwrap();
+        let (pt, needs_reencrypt) = e.decrypt_with_fallback(&ct, b"aad").unwrap();
+        assert_eq!(pt, b"data");
+        assert!(!needs_reencrypt);
+    }
+
+    #[test]
+    fn fallback_legacy_no_aad_triggers_reencrypt() {
+        let e = enc(0x01);
+        // Simulate data encrypted without AAD (legacy path).
+        let ct = e.encrypt(b"legacy", &[]).unwrap();
+        let (pt, needs_reencrypt) = e.decrypt_with_fallback(&ct, b"some-key-id").unwrap();
+        assert_eq!(pt, b"legacy");
+        assert!(needs_reencrypt);
+    }
+
+    #[test]
+    fn fallback_old_key_triggers_reencrypt() {
+        let old_b64 = URL_SAFE_NO_PAD.encode([0x02u8; 32]);
+        let new_b64 = URL_SAFE_NO_PAD.encode([0x03u8; 32]);
+        let old_enc = LocalKeyEncryptor::from_base64(&old_b64, &[]).unwrap();
+        let ct = old_enc.encrypt(b"rotated", b"aad").unwrap();
+        let new_enc = LocalKeyEncryptor::from_base64(&new_b64, &[old_b64.as_str()]).unwrap();
+        let (pt, needs_reencrypt) = new_enc.decrypt_with_fallback(&ct, b"aad").unwrap();
+        assert_eq!(pt, b"rotated");
+        assert!(needs_reencrypt);
+    }
+
+    #[test]
+    fn fallback_exhausted_returns_error() {
+        let ct = enc(0x01).encrypt(b"data", b"aad").unwrap();
+        assert!(enc(0x02).decrypt_with_fallback(&ct, b"aad").is_err());
+    }
+}

@@ -229,20 +229,34 @@ async fn checks_three_level_hierarchy() {
 async fn write_rel(obj_type: &str, obj_id: &str, relation: &str, subject_id: &str) {
     TestClient::new()
         .admin()
-        .post("/v1/authz/relations", &direct_rel(obj_type, obj_id, relation, subject_id))
+        .post(
+            "/v1/authz/relations",
+            &direct_rel(obj_type, obj_id, relation, subject_id),
+        )
         .await
         .assert_status(201);
 }
 
 async fn write_set_rel(
-    obj_type: &str, obj_id: &str, relation: &str,
-    subject_id: &str, subject_type: &str, subject_relation: &str,
+    obj_type: &str,
+    obj_id: &str,
+    relation: &str,
+    subject_id: &str,
+    subject_type: &str,
+    subject_relation: &str,
 ) {
     TestClient::new()
         .admin()
         .post(
             "/v1/authz/relations",
-            &set_rel(obj_type, obj_id, relation, subject_id, subject_type, subject_relation),
+            &set_rel(
+                obj_type,
+                obj_id,
+                relation,
+                subject_id,
+                subject_type,
+                subject_relation,
+            ),
         )
         .await
         .assert_status(201);

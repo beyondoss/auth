@@ -123,12 +123,11 @@ impl AppleClient {
             });
         }
 
-        let payload_bytes =
-            URL_SAFE_NO_PAD
-                .decode(parts[1])
-                .map_err(|e| AuthError::OAuth {
-                    message: format!("failed to decode id_token payload: {e}"),
-                })?;
+        let payload_bytes = URL_SAFE_NO_PAD
+            .decode(parts[1])
+            .map_err(|e| AuthError::OAuth {
+                message: format!("failed to decode id_token payload: {e}"),
+            })?;
 
         let claims: Value =
             serde_json::from_slice(&payload_bytes).map_err(|e| AuthError::OAuth {

@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,6 +13,7 @@ use axum::{
     routing::get,
 };
 use bytes::Bytes;
+use quick_cache::sync::Cache;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
 use tower::ServiceBuilder;
@@ -74,7 +74,7 @@ pub struct AppState {
     /// OAuth callback URIs. When None, derived from the incoming request Host header.
     pub public_url: Option<String>,
     pub authz_cache: Arc<AuthzCache>,
-    pub partition_cache: Arc<RwLock<HashSet<String>>>,
+    pub partition_cache: Arc<Cache<String, ()>>,
     pub parallel_batch_available: bool,
 }
 

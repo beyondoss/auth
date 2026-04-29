@@ -24,7 +24,15 @@ use crate::{
 };
 
 type CheckGroup = HashMap<(Arc<str>, String), Vec<(usize, String)>>;
-type PathBatch = HashMap<String, (Vec<String>, Vec<String>, Vec<String>, Vec<(usize, String, String)>)>;
+type PathBatch = HashMap<
+    String,
+    (
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+        Vec<(usize, String, String)>,
+    ),
+>;
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -402,7 +410,9 @@ pub async fn batch_check_permissions(
     for (i, check) in req.checks.iter().enumerate() {
         let subject_id: Arc<str> = match &check.user {
             Some(u) => Arc::from(u.as_str()),
-            None => session_subject.clone().expect("invariant: session_subject set when user field is absent"),
+            None => session_subject
+                .clone()
+                .expect("invariant: session_subject set when user field is absent"),
         };
         let cache_key = CheckKey {
             subject_id: subject_id.clone(),
@@ -520,7 +530,9 @@ pub async fn post_checks(
     for (i, check) in req.checks.iter().enumerate() {
         let subject_id: Arc<str> = match &check.user {
             Some(u) => Arc::from(u.as_str()),
-            None => session_subject.clone().expect("invariant: session_subject set when user field is absent"),
+            None => session_subject
+                .clone()
+                .expect("invariant: session_subject set when user field is absent"),
         };
         subjects[i] = Some(subject_id.clone());
 
@@ -552,7 +564,10 @@ pub async fn post_checks(
         if state.parallel_batch_available {
             for c in calls {
                 match c {
-                    AuthzCheckCall::SingleHop { relations, object_type } => {
+                    AuthzCheckCall::SingleHop {
+                        relations,
+                        object_type,
+                    } => {
                         for relation in relations {
                             parallel_rows.push((
                                 subject_id.to_string(),
@@ -594,8 +609,7 @@ pub async fn post_checks(
                 }
             }
         } else {
-            let or_chain =
-                resolve_batch_or_chain(schema, &check.resource_type, &check.permission)?;
+            let or_chain = resolve_batch_or_chain(schema, &check.resource_type, &check.permission)?;
             match fallback_groups.entry((subject_id, or_chain)) {
                 Entry::Occupied(mut e) => e.get_mut().push((i, check.resource_id.clone())),
                 Entry::Vacant(e) => {
@@ -620,9 +634,15 @@ pub async fn post_checks(
     for (_, (rel_prefix, obj_type_path, term_rels, items)) in path_batches {
         let sids: Vec<String> = items.iter().map(|(_, s, _)| s.clone()).collect();
         let oids: Vec<String> = items.iter().map(|(_, _, o)| o.clone()).collect();
-        let bools =
-            engine::path_batch_check(&state.pool, &sids, &rel_prefix, &obj_type_path, &term_rels, &oids)
-                .await?;
+        let bools = engine::path_batch_check(
+            &state.pool,
+            &sids,
+            &rel_prefix,
+            &obj_type_path,
+            &term_rels,
+            &oids,
+        )
+        .await?;
         for ((idx, _, _), allowed) in items.iter().zip(bools) {
             if allowed {
                 aggregated[*idx] = true;
@@ -634,7 +654,9 @@ pub async fn post_checks(
         if handled[i] {
             results[i] = aggregated[i];
             let check = &req.checks[i];
-            let subject_id = subjects[i].clone().expect("invariant: subjects[i] populated for all handled[i] indices");
+            let subject_id = subjects[i]
+                .clone()
+                .expect("invariant: subjects[i] populated for all handled[i] indices");
             state.authz_cache.insert_check(
                 CheckKey {
                     subject_id,

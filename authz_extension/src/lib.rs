@@ -82,12 +82,9 @@ fn bfs_with_client(
 
     // --- BFS loop ---
     while !frontier.is_empty() {
-        let ft: Vec<Option<String>> =
-            frontier.iter().map(|(t, _, _)| Some(t.clone())).collect();
-        let fi: Vec<Option<String>> =
-            frontier.iter().map(|(_, i, _)| Some(i.clone())).collect();
-        let fr: Vec<Option<String>> =
-            frontier.iter().map(|(_, _, r)| Some(r.clone())).collect();
+        let ft: Vec<Option<String>> = frontier.iter().map(|(t, _, _)| Some(t.clone())).collect();
+        let fi: Vec<Option<String>> = frontier.iter().map(|(_, i, _)| Some(i.clone())).collect();
+        let fr: Vec<Option<String>> = frontier.iter().map(|(_, _, r)| Some(r.clone())).collect();
 
         let level_rows: Vec<(Option<String>, Option<String>, Option<String>, Option<bool>)> =
             client
@@ -262,14 +259,10 @@ fn authz_check_parallel_batch(
         // --- Direct-grant fast path for all N checks in one query ---
         // Returns one bool per check_idx (1-based in the UNNEST).
         let ci: Vec<Option<i64>> = (0..n as i64).map(|i| Some(i + 1)).collect();
-        let sids: Vec<Option<String>> =
-            inputs.iter().map(|(s, _, _, _)| Some(s.clone())).collect();
-        let rels: Vec<Option<String>> =
-            inputs.iter().map(|(_, r, _, _)| Some(r.clone())).collect();
-        let ots: Vec<Option<String>> =
-            inputs.iter().map(|(_, _, t, _)| Some(t.clone())).collect();
-        let ois: Vec<Option<String>> =
-            inputs.iter().map(|(_, _, _, o)| Some(o.clone())).collect();
+        let sids: Vec<Option<String>> = inputs.iter().map(|(s, _, _, _)| Some(s.clone())).collect();
+        let rels: Vec<Option<String>> = inputs.iter().map(|(_, r, _, _)| Some(r.clone())).collect();
+        let ots: Vec<Option<String>> = inputs.iter().map(|(_, _, t, _)| Some(t.clone())).collect();
+        let ois: Vec<Option<String>> = inputs.iter().map(|(_, _, _, o)| Some(o.clone())).collect();
 
         let direct_rows: Vec<(Option<i64>, Option<bool>)> = client
             .select(
@@ -288,9 +281,7 @@ fn authz_check_parallel_batch(
                 &[ci.into(), sids.into(), ots.into(), ois.into(), rels.into()],
             )?
             .into_iter()
-            .map(|row| -> Result<_, spi::Error> {
-                Ok((row.get::<i64>(1)?, row.get::<bool>(2)?))
-            })
+            .map(|row| -> Result<_, spi::Error> { Ok((row.get::<i64>(1)?, row.get::<bool>(2)?)) })
             .collect::<Result<_, _>>()?;
 
         let mut states: Vec<Option<CheckState>> = (0..n).map(|_| None).collect();
@@ -312,8 +303,7 @@ fn authz_check_parallel_batch(
         // Build one UNNEST query covering all undone checks.
         let undone: Vec<usize> = (0..n).filter(|&i| results[i].is_none()).collect();
         if !undone.is_empty() {
-            let a_ci: Vec<Option<i64>> =
-                undone.iter().map(|&i| Some(i as i64 + 1)).collect();
+            let a_ci: Vec<Option<i64>> = undone.iter().map(|&i| Some(i as i64 + 1)).collect();
             let a_ots: Vec<Option<String>> =
                 undone.iter().map(|&i| Some(inputs[i].2.clone())).collect();
             let a_ois: Vec<Option<String>> =

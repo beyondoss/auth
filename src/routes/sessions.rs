@@ -77,7 +77,6 @@ pub struct CurrentSessionResponse {
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-
 // ── POST /v1/sessions ─────────────────────────────────────────────────────────
 
 #[utoipa::path(

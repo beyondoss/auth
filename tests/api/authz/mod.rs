@@ -22,6 +22,7 @@
 //! [x] write_direct_relation_is_idempotent              (duplicate → 201, DB row count = 1)
 //! [x] write_subject_set_relation_is_idempotent
 //! [x] write_creates_partition_jit                      (new object_type → partition exists in DB)
+//! [x] concurrent_first_write_creates_partition_exactly_once  (DDL race → exactly one partition)
 //!
 //! Delete (DELETE with JSON body):
 //! [x] delete_existing_direct_relation_returns_204

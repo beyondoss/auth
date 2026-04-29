@@ -51,7 +51,10 @@ async fn begin_enrollment_restart_clears_in_progress_factor() {
     let code = totp_now(&enrollment2.secret_b32);
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/totp/confirmations", &serde_json::json!({ "code": code }))
+        .post(
+            "/v1/totp/confirmations",
+            &serde_json::json!({ "code": code }),
+        )
         .await
         .assert_status(204);
 }
@@ -72,7 +75,10 @@ async fn confirm_with_valid_code_returns_204() {
     let code = totp_now(&enrollment.secret_b32);
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/totp/confirmations", &serde_json::json!({ "code": code }))
+        .post(
+            "/v1/totp/confirmations",
+            &serde_json::json!({ "code": code }),
+        )
         .await
         .assert_status(204);
 }
@@ -89,7 +95,10 @@ async fn confirm_with_invalid_code_returns_401() {
 
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/totp/confirmations", &serde_json::json!({ "code": "000000" }))
+        .post(
+            "/v1/totp/confirmations",
+            &serde_json::json!({ "code": "000000" }),
+        )
         .await
         .assert_status(401);
 }
@@ -132,7 +141,10 @@ async fn regenerate_recovery_codes_returns_10_new_codes() {
     let code = totp_now(&enrollment.secret_b32);
     let resp = TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/totp/recovery-codes", &serde_json::json!({ "code": code }))
+        .post(
+            "/v1/totp/recovery-codes",
+            &serde_json::json!({ "code": code }),
+        )
         .await
         .assert_status(200)
         .json::<RecoveryCodesResponse>();
@@ -151,7 +163,10 @@ async fn prior_recovery_codes_rejected_after_regeneration() {
     let code = totp_now(&enrollment.secret_b32);
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/totp/recovery-codes", &serde_json::json!({ "code": code }))
+        .post(
+            "/v1/totp/recovery-codes",
+            &serde_json::json!({ "code": code }),
+        )
         .await
         .assert_status(200);
 
@@ -194,7 +209,10 @@ async fn regenerate_recovery_codes_invalid_totp_returns_401() {
 
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/totp/recovery-codes", &serde_json::json!({ "code": "000000" }))
+        .post(
+            "/v1/totp/recovery-codes",
+            &serde_json::json!({ "code": "000000" }),
+        )
         .await
         .assert_status(401);
 }

@@ -118,12 +118,11 @@ impl OidcClient {
                     message: "oidc returned malformed id_token".to_string(),
                 });
             }
-            let payload_bytes =
-                URL_SAFE_NO_PAD
-                    .decode(parts[1])
-                    .map_err(|e| AuthError::OAuth {
-                        message: format!("failed to decode id_token payload: {e}"),
-                    })?;
+            let payload_bytes = URL_SAFE_NO_PAD
+                .decode(parts[1])
+                .map_err(|e| AuthError::OAuth {
+                    message: format!("failed to decode id_token payload: {e}"),
+                })?;
             let claims: Value =
                 serde_json::from_slice(&payload_bytes).map_err(|e| AuthError::OAuth {
                     message: format!("failed to parse id_token claims: {e}"),
@@ -152,12 +151,9 @@ impl OidcClient {
             });
         }
 
-        let userinfo: Value = userinfo_resp
-            .json()
-            .await
-            .map_err(|e| AuthError::OAuth {
-                message: e.to_string(),
-            })?;
+        let userinfo: Value = userinfo_resp.json().await.map_err(|e| AuthError::OAuth {
+            message: e.to_string(),
+        })?;
 
         let sub = id_token_sub
             .or_else(|| {

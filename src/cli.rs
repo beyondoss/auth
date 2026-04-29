@@ -150,7 +150,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         oauth_redirect_allowlist,
         public_url: cfg.public_url.clone(),
         authz_cache,
-        partition_cache: Arc::new(RwLock::new(std::collections::HashSet::new())),
+        partition_cache: Arc::new(quick_cache::sync::Cache::new(1024)),
         parallel_batch_available,
     };
 

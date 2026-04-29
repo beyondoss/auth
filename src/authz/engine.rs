@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
+use quick_cache::sync::Cache;
 use sqlx::PgPool;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::error::AuthError;
@@ -12,7 +12,7 @@ use crate::error::AuthError;
 #[allow(clippy::too_many_arguments)]
 pub async fn write_relation(
     pool: &PgPool,
-    partition_cache: &RwLock<HashSet<String>>,
+    partition_cache: &Cache<String, ()>,
     object_type: &str,
     object_id: &str,
     relation: &str,
@@ -89,7 +89,7 @@ pub struct BatchResult {
 
 pub async fn batch_relations(
     pool: &PgPool,
-    partition_cache: &RwLock<HashSet<String>>,
+    partition_cache: &Cache<String, ()>,
     writes: Vec<BatchOp>,
     deletes: Vec<BatchOp>,
 ) -> Result<BatchResult, AuthError> {
@@ -481,9 +481,9 @@ pub async fn enumerate_via_parent(
 pub async fn ensure_partition(
     pool: &PgPool,
     object_type: &str,
-    cache: &RwLock<HashSet<String>>,
+    cache: &Cache<String, ()>,
 ) -> Result<(), AuthError> {
-    if cache.read().await.contains(object_type) {
+    if cache.get(object_type).is_some() {
         return Ok(());
     }
     let sql = format!(
@@ -494,6 +494,6 @@ pub async fn ensure_partition(
         .execute(pool)
         .await
         .map_err(AuthError::from)?;
-    cache.write().await.insert(object_type.to_string());
+    cache.insert(object_type.to_string(), ());
     Ok(())
 }

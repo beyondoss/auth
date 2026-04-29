@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use testcontainers::ImageExt;
 use testcontainers::CopyTargetOptions;
+use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
@@ -58,10 +58,8 @@ pub fn test_env() -> &'static TestEnv {
                 let container = match so_path {
                     Some(path) => pg
                         .with_copy_to(
-                            CopyTargetOptions::new(
-                                "/usr/lib/postgresql/18/lib/authz_extension.so",
-                            )
-                            .with_mode(0o755),
+                            CopyTargetOptions::new("/usr/lib/postgresql/18/lib/authz_extension.so")
+                                .with_mode(0o755),
                             path,
                         )
                         .start()
@@ -370,7 +368,10 @@ pub async fn enroll_totp(bearer: &str) -> TotpEnrollment {
 
     let code = totp_now(&enrollment.secret_b32);
     client
-        .post("/v1/totp/confirmations", &serde_json::json!({ "code": code }))
+        .post(
+            "/v1/totp/confirmations",
+            &serde_json::json!({ "code": code }),
+        )
         .await
         .assert_status(204);
 

@@ -4,7 +4,6 @@ use crate::harness::Scenario;
 
 pub mod batch_check;
 pub mod bulk_write;
-pub mod native_batch_check;
 pub mod corpus;
 pub mod depth_sweep;
 pub mod depth_sweep_cold;
@@ -12,6 +11,7 @@ pub mod early_exit;
 pub mod early_exit_v2;
 pub mod hierarchy_check;
 pub mod multi_decision_serial;
+pub mod native_batch_check;
 pub mod read_write_mix;
 pub mod scale_sweep;
 pub mod single_check;

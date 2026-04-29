@@ -2,7 +2,6 @@ use crate::helpers::{TestClient, signup, unique_email};
 
 use super::*;
 
-
 // ── Local helpers ──────────────────────────────────────────────────────────────
 
 async fn write(obj_type: &str, obj_id: &str, relation: &str, subject_id: &str) {

@@ -78,7 +78,10 @@ async fn decline_invitation_wrong_token_returns_404() {
 
     TestClient::new()
         .post(
-            &format!("/v1/invitations/{}/declinations?token=it_wrongtoken", inv.id),
+            &format!(
+                "/v1/invitations/{}/declinations?token=it_wrongtoken",
+                inv.id
+            ),
             &serde_json::json!({}),
         )
         .await

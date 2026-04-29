@@ -159,7 +159,9 @@ async fn callback_creates_session() {
     );
 
     let resp = TestClient::new()
-        .get(&format!("/v1/oauth/{id}/callback?code=test-code&state={state}"))
+        .get(&format!(
+            "/v1/oauth/{id}/callback?code=test-code&state={state}"
+        ))
         .await
         .assert_status(200)
         .json::<CallbackResponse>();
@@ -245,7 +247,9 @@ async fn callback_links_identity_to_existing_user() {
     );
 
     let resp: serde_json::Value = TestClient::new()
-        .get(&format!("/v1/oauth/{id}/callback?code=test-code&state={state}"))
+        .get(&format!(
+            "/v1/oauth/{id}/callback?code=test-code&state={state}"
+        ))
         .await
         .assert_status(200)
         .json();

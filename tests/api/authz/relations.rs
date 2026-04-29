@@ -397,3 +397,42 @@ async fn batch_delete_nonexistent_counts_zero() {
         .json::<BatchRelationResponse>();
     assert_eq!(res.deleted, 0, "missing delete must count as 0, not error");
 }
+
+// ── Partition creation ─────────────────────────────────────────────────────────
+
+/// [x] concurrent_first_write_creates_partition_exactly_once
+/// When multiple concurrent requests are the first to write a new object_type,
+/// ensure_partition must create exactly one partition table despite the race.
+/// All requests must succeed (idempotent ON CONFLICT DO NOTHING on the relation).
+#[tokio::test]
+async fn concurrent_first_write_creates_partition_exactly_once() {
+    let _guard = with_schema().await;
+    // Fresh type name not seen by this server process — guarantees a cold partition cache.
+    let custom_type = format!("t{}", &uid()[..16]);
+    let body = direct_rel(&custom_type, &uid(), "owner", &uid());
+
+    let (r1, r2, r3) = tokio::join!(
+        TestClient::new().admin().post("/v1/authz/relations", &body),
+        TestClient::new().admin().post("/v1/authz/relations", &body),
+        TestClient::new().admin().post("/v1/authz/relations", &body),
+    );
+
+    assert_eq!(r1.status(), 201);
+    assert_eq!(r2.status(), 201);
+    assert_eq!(r3.status(), 201);
+
+    let mut conn = db_conn().await;
+    let partition_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.tables
+         WHERE table_schema = 'auth' AND table_name = $1",
+    )
+    .bind(format!("authz_relations_{custom_type}"))
+    .fetch_one(&mut conn)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        partition_count, 1,
+        "exactly one partition must be created despite concurrent first-writes"
+    );
+}

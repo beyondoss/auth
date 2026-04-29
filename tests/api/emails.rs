@@ -46,12 +46,19 @@ async fn initiate_email_change_returns_token() {
 
     let resp = TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/emails", &serde_json::json!({ "email": unique_email() }))
+        .post(
+            "/v1/emails",
+            &serde_json::json!({ "email": unique_email() }),
+        )
         .await
         .assert_status(200)
         .json::<TokenResponse>();
 
-    assert!(resp.token.starts_with("ec_"), "token must start with ec_, got: {}", resp.token);
+    assert!(
+        resp.token.starts_with("ec_"),
+        "token must start with ec_, got: {}",
+        resp.token
+    );
 }
 
 #[tokio::test]
@@ -72,7 +79,10 @@ async fn initiate_email_change_duplicate_email_returns_409() {
 #[tokio::test]
 async fn initiate_email_change_requires_auth() {
     TestClient::new()
-        .post("/v1/emails", &serde_json::json!({ "email": unique_email() }))
+        .post(
+            "/v1/emails",
+            &serde_json::json!({ "email": unique_email() }),
+        )
         .await
         .assert_status(401);
 }
@@ -93,7 +103,11 @@ async fn create_verification_returns_token() {
         .assert_status(200)
         .json::<TokenResponse>();
 
-    assert!(resp.token.starts_with("ev_"), "token must start with ev_, got: {}", resp.token);
+    assert!(
+        resp.token.starts_with("ev_"),
+        "token must start with ev_, got: {}",
+        resp.token
+    );
 }
 
 #[tokio::test]
@@ -163,7 +177,9 @@ async fn confirm_verification_marks_email_verified() {
         .json::<Vec<EmailRecord>>();
 
     assert!(
-        records.iter().any(|e| e.id == auth.email.id && e.verified_at.is_some()),
+        records
+            .iter()
+            .any(|e| e.id == auth.email.id && e.verified_at.is_some()),
         "email must show as verified after confirmation"
     );
 }

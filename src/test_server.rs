@@ -65,7 +65,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         oauth_redirect_allowlist: vec![],
         public_url: None,
         authz_cache,
-        partition_cache: Arc::new(RwLock::new(std::collections::HashSet::new())),
+        partition_cache: Arc::new(quick_cache::sync::Cache::new(1024)),
         parallel_batch_available,
     };
 

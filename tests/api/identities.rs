@@ -39,7 +39,10 @@ async fn add_password_when_already_has_one_returns_409() {
 
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/identities", &serde_json::json!({ "password": "new-pass-battery-horse" }))
+        .post(
+            "/v1/identities",
+            &serde_json::json!({ "password": "new-pass-battery-horse" }),
+        )
         .await
         .assert_status(409);
 }
@@ -47,7 +50,10 @@ async fn add_password_when_already_has_one_returns_409() {
 #[tokio::test]
 async fn add_password_requires_auth() {
     TestClient::new()
-        .post("/v1/identities", &serde_json::json!({ "password": "new-pass-battery-horse" }))
+        .post(
+            "/v1/identities",
+            &serde_json::json!({ "password": "new-pass-battery-horse" }),
+        )
         .await
         .assert_status(401);
 }
@@ -192,4 +198,3 @@ async fn delete_last_identity_returns_409() {
         .await
         .assert_status(409);
 }
-

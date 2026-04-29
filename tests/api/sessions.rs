@@ -1,4 +1,4 @@
-use crate::helpers::{TestClient, enroll_totp, login, signup, totp_now, unique_email};
+use crate::helpers::{TestClient, db_conn, enroll_totp, login, signup, totp_now, unique_email};
 
 #[derive(serde::Deserialize)]
 struct OttResponse {
@@ -132,7 +132,10 @@ async fn password_reset_grant_changes_password_and_creates_session() {
     signup(&email, "correct-horse-battery-staple").await;
 
     let ott = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<OttResponse>();
@@ -170,7 +173,10 @@ async fn password_reset_grant_token_consumed_only_once() {
     signup(&email, "correct-horse-battery-staple").await;
 
     let ott = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<OttResponse>();
@@ -206,7 +212,10 @@ async fn password_reset_revokes_all_prior_sessions() {
     let original = signup(&email, "correct-horse-battery-staple").await;
 
     let ott = TestClient::new()
-        .post("/v1/password-resets", &serde_json::json!({ "email": email }))
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
         .await
         .assert_status(200)
         .json::<OttResponse>();
@@ -272,7 +281,10 @@ async fn email_change_grant_token_consumed_only_once() {
 
     let ott = TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/emails", &serde_json::json!({ "email": unique_email() }))
+        .post(
+            "/v1/emails",
+            &serde_json::json!({ "email": unique_email() }),
+        )
         .await
         .assert_status(200)
         .json::<OttResponse>();
@@ -306,7 +318,10 @@ async fn email_change_revokes_all_prior_sessions() {
 
     let ott = TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/emails", &serde_json::json!({ "email": unique_email() }))
+        .post(
+            "/v1/emails",
+            &serde_json::json!({ "email": unique_email() }),
+        )
         .await
         .assert_status(200)
         .json::<OttResponse>();
@@ -710,4 +725,103 @@ async fn delete_session_by_id_other_user_returns_404() {
         .delete(&format!("/v1/sessions/{}", user_b.session.id))
         .await
         .assert_status(404);
+}
+
+// ── Deleted-user session invalidation ─────────────────────────────────────────
+
+/// A bearer token held by a soft-deleted user must be rejected — the validate()
+/// CTE joins `users WHERE deleted_at IS NULL`, so deletion immediately
+/// invalidates all existing sessions without touching the tokens table.
+#[tokio::test]
+async fn deleted_user_existing_session_is_rejected() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .delete("/v1/users/me")
+        .await
+        .assert_status(204);
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(401);
+}
+
+// ── Token expiry ──────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn expired_session_token_is_rejected() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    let mut conn = db_conn().await;
+    sqlx::query(
+        "UPDATE auth.tokens SET expires_at = now() - interval '1 second'
+         WHERE id = (SELECT token_id FROM auth.sessions WHERE id = $1)",
+    )
+    .bind(auth.session.id)
+    .execute(&mut conn)
+    .await
+    .unwrap();
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(401);
+}
+
+// ── last_used_at debounce ─────────────────────────────────────────────────────
+
+/// The validate() CTE only writes last_used_at when it is NULL or older than
+/// 1 minute. Two back-to-back requests within that window must leave the
+/// timestamp unchanged after the first write.
+#[tokio::test]
+async fn last_used_at_debounce_skips_update_within_window() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    // First authenticated request — last_used_at starts NULL, gets set.
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(200);
+
+    let mut conn = db_conn().await;
+    let first: Option<String> = sqlx::query_scalar(
+        "SELECT tok.last_used_at::text
+         FROM auth.tokens tok
+         INNER JOIN auth.sessions s ON s.token_id = tok.id
+         WHERE s.id = $1",
+    )
+    .bind(auth.session.id)
+    .fetch_one(&mut conn)
+    .await
+    .unwrap();
+
+    assert!(first.is_some(), "first use must set last_used_at");
+
+    // Immediate second request — debounce window (1 minute) has not elapsed.
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(200);
+
+    let second: Option<String> = sqlx::query_scalar(
+        "SELECT tok.last_used_at::text
+         FROM auth.tokens tok
+         INNER JOIN auth.sessions s ON s.token_id = tok.id
+         WHERE s.id = $1",
+    )
+    .bind(auth.session.id)
+    .fetch_one(&mut conn)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        first, second,
+        "debounce must skip last_used_at update within 1 minute"
+    );
 }

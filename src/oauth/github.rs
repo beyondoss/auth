@@ -127,13 +127,9 @@ impl GithubClient {
             });
         }
 
-        let emails: Vec<GithubEmail> =
-            emails_resp
-                .json()
-                .await
-                .map_err(|e| AuthError::OAuth {
-                    message: e.to_string(),
-                })?;
+        let emails: Vec<GithubEmail> = emails_resp.json().await.map_err(|e| AuthError::OAuth {
+            message: e.to_string(),
+        })?;
 
         let primary_email = emails.into_iter().find(|e| e.primary && e.verified);
 

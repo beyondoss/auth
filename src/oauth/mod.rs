@@ -265,9 +265,7 @@ pub async fn find_or_create_oauth_user(
         .await
         .map_err(AuthError::from)?
     {
-        match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, b"")
-            .await
-        {
+        match identities::create(&mut tx, row.id, provider_slug, &profile.external_id, b"").await {
             Ok(_) => {}
             Err(e) if is_identity_conflict(&e) => { /* another request won the race; row.id is still correct */
             }

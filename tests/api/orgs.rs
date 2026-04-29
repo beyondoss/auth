@@ -29,7 +29,9 @@ async fn invite_and_accept(org_id: Uuid, owner_token: &str, member_token: &str, 
         .assert_status(201)
         .json::<InvitationResponse>();
 
-    let token = inv.token.expect("invitation token must be present on creation");
+    let token = inv
+        .token
+        .expect("invitation token must be present on creation");
 
     TestClient::new()
         .bearer(member_token)
@@ -59,7 +61,10 @@ async fn create_org_with_explicit_slug() {
 
     let org = TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/orgs", &serde_json::json!({ "name": "Acme", "slug": slug }))
+        .post(
+            "/v1/orgs",
+            &serde_json::json!({ "name": "Acme", "slug": slug }),
+        )
         .await
         .assert_status(201)
         .json::<OrgResponse>();
@@ -74,13 +79,19 @@ async fn create_org_slug_conflict_returns_409() {
 
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/orgs", &serde_json::json!({ "name": "First", "slug": slug }))
+        .post(
+            "/v1/orgs",
+            &serde_json::json!({ "name": "First", "slug": slug }),
+        )
         .await
         .assert_status(201);
 
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/orgs", &serde_json::json!({ "name": "Second", "slug": slug }))
+        .post(
+            "/v1/orgs",
+            &serde_json::json!({ "name": "Second", "slug": slug }),
+        )
         .await
         .assert_status(409);
 }
@@ -117,7 +128,13 @@ async fn list_orgs_includes_accepted_orgs() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Shared Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     let resp = TestClient::new()
         .bearer(&member.session.token)
@@ -202,7 +219,13 @@ async fn update_org_as_member_returns_403() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Team Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     TestClient::new()
         .bearer(&member.session.token)
@@ -221,7 +244,10 @@ async fn update_org_slug_conflict_returns_409() {
 
     TestClient::new()
         .bearer(&auth.session.token)
-        .post("/v1/orgs", &serde_json::json!({ "name": "Existing", "slug": taken_slug }))
+        .post(
+            "/v1/orgs",
+            &serde_json::json!({ "name": "Existing", "slug": taken_slug }),
+        )
         .await
         .assert_status(201);
 
@@ -273,7 +299,13 @@ async fn delete_org_as_member_returns_403() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Protected Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     TestClient::new()
         .bearer(&member.session.token)
@@ -321,7 +353,13 @@ async fn update_member_role_returns_204() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Role Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     // Promote to owner (now two owners).
     TestClient::new()
@@ -365,8 +403,20 @@ async fn update_member_as_non_owner_returns_403() {
     let member_a = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member_b = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Hierarchy Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member_a.session.token, "member").await;
-    invite_and_accept(org.id, &owner.session.token, &member_b.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member_a.session.token,
+        "member",
+    )
+    .await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member_b.session.token,
+        "member",
+    )
+    .await;
 
     TestClient::new()
         .bearer(&member_a.session.token)
@@ -385,7 +435,13 @@ async fn remove_member_returns_204() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Remove Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     TestClient::new()
         .bearer(&owner.session.token)
@@ -420,7 +476,13 @@ async fn member_can_remove_themselves_without_owner_permission() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Self-Leave Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     TestClient::new()
         .bearer(&member.session.token)
@@ -480,7 +542,13 @@ async fn create_invitation_as_member_returns_403() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let member = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Gated Org").await;
-    invite_and_accept(org.id, &owner.session.token, &member.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &member.session.token,
+        "member",
+    )
+    .await;
 
     TestClient::new()
         .bearer(&member.session.token)
@@ -549,9 +617,15 @@ async fn resend_invitation_rotates_token() {
         .assert_status(201)
         .json::<InvitationResponse>();
 
-    assert_eq!(reissued.id, original.id, "resend must keep the same invitation id");
+    assert_eq!(
+        reissued.id, original.id,
+        "resend must keep the same invitation id"
+    );
     assert!(reissued.token.is_some(), "resend must return a new token");
-    assert_ne!(reissued.token, original.token, "resend must rotate the token");
+    assert_ne!(
+        reissued.token, original.token,
+        "resend must rotate the token"
+    );
 }
 
 // ── DELETE /v1/orgs/{id}/invitations/{inv_id} ────────────────────────────────
@@ -584,7 +658,10 @@ async fn revoke_invitation_returns_204() {
         .assert_status(200)
         .json::<InvitationsResponse>();
 
-    assert!(list.invitations.is_empty(), "revoked invitation must not appear in list");
+    assert!(
+        list.invitations.is_empty(),
+        "revoked invitation must not appear in list"
+    );
 }
 
 // ── Invitation accept flow ────────────────────────────────────────────────────
@@ -594,7 +671,13 @@ async fn accept_invitation_adds_member_to_org() {
     let owner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let joiner = signup(&unique_email(), "correct-horse-battery-staple").await;
     let org = create_org(&owner.session.token, "Join Org").await;
-    invite_and_accept(org.id, &owner.session.token, &joiner.session.token, "member").await;
+    invite_and_accept(
+        org.id,
+        &owner.session.token,
+        &joiner.session.token,
+        "member",
+    )
+    .await;
 
     let resp = TestClient::new()
         .bearer(&owner.session.token)

@@ -68,7 +68,10 @@ async fn signup_common_password_returns_422() {
 
 #[tokio::test]
 async fn get_me_without_auth_returns_401() {
-    TestClient::new().get("/v1/users/me").await.assert_status(401);
+    TestClient::new()
+        .get("/v1/users/me")
+        .await
+        .assert_status(401);
 }
 
 // ── PATCH /v1/users/me ────────────────────────────────────────────────────────

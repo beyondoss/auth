@@ -13,10 +13,11 @@ const N_USERS: usize = 2_000;
 
 async fn seed_hierarchy(pool: &PgPool) -> Result<()> {
     // Idempotent: skip if already seeded
-    let existing: (i64,) =
-        sqlx::query_as("SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = 'hier_doc'")
-            .fetch_one(pool)
-            .await?;
+    let existing: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*)::bigint FROM auth.authz_relations WHERE object_type = 'hier_doc'",
+    )
+    .fetch_one(pool)
+    .await?;
     if existing.0 as usize >= N_DOCS {
         return Ok(());
     }
@@ -92,13 +93,17 @@ pub struct HierarchyOrChainOld {
 
 impl HierarchyOrChainOld {
     pub fn new() -> Self {
-        Self { doc_sampler: ZipfSampler::new(N_DOCS, 1.0) }
+        Self {
+            doc_sampler: ZipfSampler::new(N_DOCS, 1.0),
+        }
     }
 }
 
 #[async_trait]
 impl Scenario for HierarchyOrChainOld {
-    fn name(&self) -> &str { "authz::hierarchy_or_chain_old" }
+    fn name(&self) -> &str {
+        "authz::hierarchy_or_chain_old"
+    }
 
     fn question(&self) -> &str {
         "Old OR-chain (1 authz_check + 3 authz_check_path, one per role): what is the baseline QPS?"
@@ -136,13 +141,17 @@ pub struct HierarchyMulti {
 
 impl HierarchyMulti {
     pub fn new() -> Self {
-        Self { doc_sampler: ZipfSampler::new(N_DOCS, 1.0) }
+        Self {
+            doc_sampler: ZipfSampler::new(N_DOCS, 1.0),
+        }
     }
 }
 
 #[async_trait]
 impl Scenario for HierarchyMulti {
-    fn name(&self) -> &str { "authz::hierarchy_multi" }
+    fn name(&self) -> &str {
+        "authz::hierarchy_multi"
+    }
 
     fn question(&self) -> &str {
         "authz_check_multi (1 SPI session: direct BFS + hierarchy walk): QPS vs 2-call OR-chain?"
@@ -182,13 +191,17 @@ pub struct HierarchyOrChainNew {
 
 impl HierarchyOrChainNew {
     pub fn new() -> Self {
-        Self { doc_sampler: ZipfSampler::new(N_DOCS, 1.0) }
+        Self {
+            doc_sampler: ZipfSampler::new(N_DOCS, 1.0),
+        }
     }
 }
 
 #[async_trait]
 impl Scenario for HierarchyOrChainNew {
-    fn name(&self) -> &str { "authz::hierarchy_or_chain_new" }
+    fn name(&self) -> &str {
+        "authz::hierarchy_or_chain_new"
+    }
 
     fn question(&self) -> &str {
         "New OR-chain (1 authz_check + 1 authz_check_path with terminal array): QPS improvement?"

@@ -11,5 +11,6 @@ mod orgs;
 mod passkeys;
 mod password_reset;
 mod sessions;
+mod token_gc;
 mod totp;
 mod users;

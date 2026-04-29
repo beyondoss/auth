@@ -227,9 +227,7 @@ impl IntoResponse for AuthError {
                 (StatusCode::UNAUTHORIZED, "token_expired", self.to_string())
             }
             AuthError::TokenUsed => (StatusCode::UNAUTHORIZED, "token_used", self.to_string()),
-            AuthError::OAuth { .. } => {
-                (StatusCode::BAD_REQUEST, "oauth_error", self.to_string())
-            }
+            AuthError::OAuth { .. } => (StatusCode::BAD_REQUEST, "oauth_error", self.to_string()),
             AuthError::MfaError { .. } => (StatusCode::UNAUTHORIZED, "mfa_error", self.to_string()),
             AuthError::AdminRequired => {
                 (StatusCode::UNAUTHORIZED, "admin_required", self.to_string())
