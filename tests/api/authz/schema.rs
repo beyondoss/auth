@@ -146,3 +146,60 @@ async fn schema_put_unknown_role_in_permissions_rejected() {
         .await
         .assert_status(422);
 }
+
+/// A schema with a cyclic role hierarchy (owner > editor > owner) must not hang
+/// or panic the server. The `compute_inherited_roles` fixed-point loop terminates
+/// when no new inferences can be added — cycles do not cause infinite loops.
+/// The schema is accepted (200) and authorization checks work correctly.
+#[tokio::test]
+async fn schema_put_role_hierarchy_cycle_does_not_hang() {
+    let _guard = exclusive().await;
+
+    let schema = serde_json::json!({
+        "version": 1,
+        "resources": [{
+            "name": "thing",
+            "roles": ["owner", "editor"],
+            "role_hierarchy": [
+                {"superior": "owner",  "inferior": "editor"},
+                {"superior": "editor", "inferior": "owner"}   // cycle
+            ],
+            "permissions": {
+                "read": ["editor"]
+            }
+        }]
+    });
+
+    // Must respond quickly — not hang. The fixed-point loop terminates because
+    // the role set is finite and bounded.
+    TestClient::new()
+        .admin()
+        .put("/v1/authz/schema", &schema)
+        .await
+        .assert_status(200);
+
+    // Verify the compiled schema still works: an owner should pass a read check
+    // since owner > editor (directly) and read requires editor.
+    let (thing_id, user_id) = (uid(), uid());
+    TestClient::new()
+        .admin()
+        .post(
+            "/v1/authz/relations",
+            &direct_rel("thing", &thing_id, "owner", &user_id),
+        )
+        .await
+        .assert_status(201);
+
+    let res = TestClient::new()
+        .get(&format!(
+            "/v1/authz/decisions?user={user_id}&permission=read&resource_type=thing&resource_id={thing_id}"
+        ))
+        .await
+        .assert_status(200)
+        .json::<CheckResponse>();
+
+    assert!(
+        res.allowed,
+        "owner must pass read check via cyclic role hierarchy"
+    );
+}

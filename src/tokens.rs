@@ -15,6 +15,7 @@ pub enum TokenPrefix {
     EmailChange,
     Invitation,
     Key,
+    Refresh,
 }
 
 impl TokenPrefix {
@@ -28,6 +29,7 @@ impl TokenPrefix {
             TokenPrefix::EmailChange => "ec",
             TokenPrefix::Invitation => "inv",
             TokenPrefix::Key => "key",
+            TokenPrefix::Refresh => "rt",
         }
     }
 }
@@ -170,6 +172,11 @@ mod tests {
             Token::new(TokenPrefix::EmailChange)
                 .to_string()
                 .starts_with("ec_")
+        );
+        assert!(
+            Token::new(TokenPrefix::Refresh)
+                .to_string()
+                .starts_with("rt_")
         );
     }
 

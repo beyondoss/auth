@@ -1,4 +1,6 @@
-use crate::helpers::{TestClient, db_conn, enroll_totp, login, signup, totp_now, unique_email};
+use crate::helpers::{
+    TestClient, db_conn, enroll_totp, exclusive, login, signup, totp_now, unique_email,
+};
 
 #[derive(serde::Deserialize)]
 struct OttResponse {
@@ -200,6 +202,49 @@ async fn password_reset_grant_token_consumed_only_once() {
                 "grant_type": "password_reset",
                 "token": ott.token,
                 "new_password": "yet-another-correct-horse"
+            }),
+        )
+        .await
+        .assert_status(401);
+}
+
+#[tokio::test]
+async fn password_reset_grant_expired_token_returns_401() {
+    let email = unique_email();
+    signup(&email, "correct-horse-battery-staple").await;
+
+    let ott = TestClient::new()
+        .post(
+            "/v1/password-resets",
+            &serde_json::json!({ "email": email }),
+        )
+        .await
+        .assert_status(200)
+        .json::<OttResponse>();
+
+    let token_hex = ott
+        .token
+        .split('_')
+        .nth(1)
+        .expect("token must have 3 parts");
+    let token_id = uuid::Uuid::parse_str(token_hex).expect("middle segment must be a UUID");
+
+    let mut conn = db_conn().await;
+    sqlx::query(
+        "UPDATE auth.one_time_tokens SET expires_at = now() - interval '1 second' WHERE id = $1",
+    )
+    .bind(token_id)
+    .execute(&mut conn)
+    .await
+    .unwrap();
+
+    TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "password_reset",
+                "token": ott.token,
+                "new_password": "new-correct-horse-battery-staple"
             }),
         )
         .await
@@ -824,4 +869,63 @@ async fn last_used_at_debounce_skips_update_within_window() {
         first, second,
         "debounce must skip last_used_at update within 1 minute"
     );
+}
+
+// ── Session idle timeout ──────────────────────────────────────────────────────
+
+/// When a session's last_used_at falls outside the configured idle window,
+/// subsequent requests must be rejected — the validate() CTE checks
+/// `last_used_at > now() - make_interval(secs => $idle_timeout)`.
+///
+/// Uses `exclusive()` because it mutates the global session_idle_timeout_seconds
+/// config. The timeout is always restored to NULL so other tests are unaffected.
+#[tokio::test]
+async fn idle_session_rejected_after_timeout() {
+    let _guard = exclusive().await;
+
+    // Set a 1-second idle window.
+    TestClient::new()
+        .admin()
+        .patch(
+            "/v1/admin/config",
+            &serde_json::json!({ "session_idle_timeout_seconds": 1 }),
+        )
+        .await
+        .assert_status(200);
+
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+
+    // First use sets last_used_at (starts NULL).
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(200);
+
+    // Push last_used_at beyond the 1-second idle window.
+    let mut conn = db_conn().await;
+    sqlx::query(
+        "UPDATE auth.tokens SET last_used_at = now() - interval '2 seconds'
+         WHERE id = (SELECT token_id FROM auth.sessions WHERE id = $1)",
+    )
+    .bind(auth.session.id)
+    .execute(&mut conn)
+    .await
+    .unwrap();
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .get("/v1/users/me")
+        .await
+        .assert_status(401);
+
+    // Restore: clear idle timeout so parallel tests are not affected.
+    TestClient::new()
+        .admin()
+        .patch(
+            "/v1/admin/config",
+            &serde_json::json!({ "session_idle_timeout_seconds": null }),
+        )
+        .await
+        .assert_status(200);
 }

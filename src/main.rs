@@ -25,6 +25,7 @@ mod one_time_token;
 mod orgs;
 mod pages;
 mod passwords;
+mod refresh_tokens;
 mod routes;
 mod sessions;
 mod signing_keys;

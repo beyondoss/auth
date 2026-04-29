@@ -201,6 +201,7 @@ pub struct TestClient {
     inner: reqwest::Client,
     base_url: String,
     auth: Option<String>,
+    api_key: Option<String>,
 }
 
 impl TestClient {
@@ -210,6 +211,7 @@ impl TestClient {
             inner: reqwest::Client::new(),
             base_url: env.url.clone(),
             auth: None,
+            api_key: None,
         }
     }
 
@@ -225,11 +227,20 @@ impl TestClient {
         self
     }
 
+    /// Set the `x-api-key` header for all requests from this client.
+    pub fn x_api_key(mut self, key: impl Into<String>) -> Self {
+        self.api_key = Some(key.into());
+        self
+    }
+
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let url = format!("{}{}", self.base_url, path);
         let mut req = self.inner.request(method, url);
         if let Some(auth) = &self.auth {
             req = req.header(reqwest::header::AUTHORIZATION, format!("Bearer {auth}"));
+        }
+        if let Some(key) = &self.api_key {
+            req = req.header("x-api-key", key);
         }
         req
     }

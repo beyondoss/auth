@@ -103,6 +103,44 @@ async fn confirm_with_invalid_code_returns_401() {
         .assert_status(401);
 }
 
+/// Using the same TOTP code to confirm enrollment a second time must fail.
+/// After successful confirmation the in-progress enrollment state is cleared,
+/// so there is nothing to confirm against; the second attempt returns an error.
+#[tokio::test]
+async fn confirm_same_code_twice_returns_error() {
+    let auth = signup(&unique_email(), "correct-horse-battery-staple").await;
+    let client = TestClient::new().bearer(&auth.session.token);
+
+    let enrollment = client
+        .post("/v1/totp", &serde_json::json!({}))
+        .await
+        .assert_status(200)
+        .json::<EnrollmentResponse>();
+
+    let code = totp_now(&enrollment.secret_b32);
+
+    client
+        .post(
+            "/v1/totp/confirmations",
+            &serde_json::json!({ "code": code }),
+        )
+        .await
+        .assert_status(204);
+
+    // Second call: enrollment is already confirmed and cleared.
+    let status = client
+        .post(
+            "/v1/totp/confirmations",
+            &serde_json::json!({ "code": code }),
+        )
+        .await
+        .status();
+    assert_ne!(
+        status, 204,
+        "second confirmation with same code must not succeed"
+    );
+}
+
 // ── DELETE /v1/totp ───────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -212,6 +250,79 @@ async fn regenerate_recovery_codes_invalid_totp_returns_401() {
         .post(
             "/v1/totp/recovery-codes",
             &serde_json::json!({ "code": "000000" }),
+        )
+        .await
+        .assert_status(401);
+}
+
+/// After all ten recovery codes are consumed, the eleventh attempt with any code
+/// must be rejected — there is nothing left in the recovery codes table.
+#[tokio::test]
+async fn all_recovery_codes_exhausted_returns_401() {
+    #[derive(serde::Deserialize)]
+    struct StepUp {
+        step_up_token: String,
+    }
+
+    let email = unique_email();
+    let auth = signup(&email, "correct-horse-battery-staple").await;
+    let enrollment = enroll_totp(&auth.session.token).await;
+    assert_eq!(
+        enrollment.recovery_codes.len(),
+        10,
+        "must have exactly 10 codes"
+    );
+
+    // Use each of the 10 recovery codes via separate step-up flows.
+    for code in &enrollment.recovery_codes {
+        let step_up = TestClient::new()
+            .post(
+                "/v1/sessions",
+                &serde_json::json!({
+                    "grant_type": "password",
+                    "email": email,
+                    "password": "correct-horse-battery-staple"
+                }),
+            )
+            .await
+            .assert_status(200)
+            .json::<StepUp>();
+
+        TestClient::new()
+            .post(
+                "/v1/sessions",
+                &serde_json::json!({
+                    "grant_type": "totp_recovery",
+                    "step_up_token": step_up.step_up_token,
+                    "code": code
+                }),
+            )
+            .await
+            .assert_status(201);
+    }
+
+    // The eleventh attempt — no valid codes remain.
+    let step_up = TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "password",
+                "email": email,
+                "password": "correct-horse-battery-staple"
+            }),
+        )
+        .await
+        .assert_status(200)
+        .json::<StepUp>();
+
+    TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({
+                "grant_type": "totp_recovery",
+                "step_up_token": step_up.step_up_token,
+                "code": &enrollment.recovery_codes[0]  // already consumed
+            }),
         )
         .await
         .assert_status(401);

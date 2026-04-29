@@ -106,6 +106,7 @@ impl utoipa::Modify for BearerAuth {
         admin::impersonations::create,
         admin::users::search,
         admin::users::get_by_id,
+        admin::config::patch,
         keys::create,
         keys::list,
         keys::get,
@@ -196,6 +197,8 @@ impl utoipa::Modify for BearerAuth {
         invitations::InvitationViewResponse,
         admin::impersonations::ImpersonateRequest,
         admin::users::AdminUserResponse,
+        admin::config::UpdateConfigRequest,
+        admin::config::ConfigResponse,
         keys::CreateRequest,
         keys::CreateResponse,
         keys::KeysResponse,
@@ -233,6 +236,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         )
         .route("/v1/admin/users", get(admin::users::search))
         .route("/v1/admin/users/{id}", get(admin::users::get_by_id))
+        .route("/v1/admin/config", patch(admin::config::patch))
         .route(
             "/v1/authz/relations",
             post(authz::write_relation)
@@ -279,7 +283,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/v1/invitations/{id}/declinations",
             post(invitations::decline_invitation),
-        );
+        )
+        // Token endpoint handles its own auth (accepts session, refresh, and API key tokens).
+        .route("/v1/tokens", post(tokens::issue));
 
     let authenticated = Router::new()
         .route(
@@ -294,7 +300,6 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(sessions::get_current).delete(sessions::delete_current),
         )
         .route("/v1/sessions/{id}", delete(sessions::delete_by_id))
-        .route("/v1/tokens", post(tokens::issue))
         // Email resource
         .route("/v1/emails", get(emails::list).post(emails::add))
         .route(

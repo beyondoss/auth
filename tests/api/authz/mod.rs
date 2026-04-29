@@ -13,6 +13,7 @@
 //! [x] schema_put_unknown_parent_resource_rejected
 //! [x] schema_put_unknown_role_in_role_hierarchy_rejected
 //! [x] schema_put_unknown_role_in_permissions_rejected
+//! [x] schema_put_role_hierarchy_cycle_does_not_hang      (cycle terminates; server does not hang)
 //!
 //! ### relations.rs — POST / DELETE / PATCH /v1/authz/relations
 //!

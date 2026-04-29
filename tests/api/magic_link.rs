@@ -129,3 +129,62 @@ async fn expired_magic_link_token_is_rejected() {
         .await
         .assert_status(401);
 }
+
+/// A magic-link token whose secret has been tampered with is rejected with 401.
+/// The secret_hash mismatch is indistinguishable from a non-existent token —
+/// no information about which segment was wrong is leaked to the caller.
+#[tokio::test]
+async fn magic_link_wrong_secret_returns_401() {
+    let email = unique_email();
+    signup(&email, "correct-horse-battery-staple").await;
+
+    let resp = TestClient::new()
+        .post("/v1/magic-links", &serde_json::json!({ "email": email }))
+        .await
+        .assert_status(200)
+        .json::<MagicLinkResponse>();
+
+    // Preserve the prefix and id segments; corrupt only the secret.
+    let parts: Vec<&str> = resp.token.splitn(3, '_').collect();
+    let tampered = format!(
+        "{}_{}_{}",
+        parts[0], parts[1], "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    );
+
+    TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({ "grant_type": "magic_link", "token": tampered }),
+        )
+        .await
+        .assert_status(401);
+}
+
+/// A magic-link token for a soft-deleted user must be rejected. The OTT is consumed
+/// successfully, but `load_user_context` returns NotFound (deleted_at IS NULL filter)
+/// → the route returns 404, not 201. The token is gone either way.
+#[tokio::test]
+async fn magic_link_deleted_user_returns_401() {
+    let email = unique_email();
+    let auth = signup(&email, "correct-horse-battery-staple").await;
+
+    let ott = TestClient::new()
+        .post("/v1/magic-links", &serde_json::json!({ "email": email }))
+        .await
+        .assert_status(200)
+        .json::<MagicLinkResponse>();
+
+    TestClient::new()
+        .bearer(&auth.session.token)
+        .delete("/v1/users/me")
+        .await
+        .assert_status(204);
+
+    TestClient::new()
+        .post(
+            "/v1/sessions",
+            &serde_json::json!({ "grant_type": "magic_link", "token": ott.token }),
+        )
+        .await
+        .assert_status(404);
+}
