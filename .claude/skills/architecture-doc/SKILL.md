@@ -171,20 +171,7 @@ Document what the system _actually checks_ and what it lets through unchecked. B
 - Schema validation happens in the application server, not the proxy
 ```
 
-### 8. Package Structure
-
-Map files to what they actually do — behavior, not aspirational descriptions.
-
-```markdown
-| File              | What It Does                                             |
-| ----------------- | -------------------------------------------------------- |
-| `state/events.go` | Defines the event types that trigger state transitions   |
-| `state/status.go` | Enforces transition rules; rejects invalid state changes |
-| `repo.go`         | Reads/writes VM records with row-level locking           |
-| `service.go`      | Orchestrates create/delete with compensating rollbacks   |
-```
-
-### 9. Configuration
+### 8. Configuration
 
 Document what each setting actually controls at runtime, not just what it's "for."
 
@@ -196,7 +183,7 @@ Document what each setting actually controls at runtime, not just what it's "for
 | `TIMEOUT_SECS`    | 30      | After 30s, in-flight requests get context cancellation |
 ```
 
-### 10. Failure Modes
+### 9. Failure Modes
 
 Document what actually happens when things break — not what "should" happen.
 

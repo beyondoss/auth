@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { type AuthzClient, createAuthzClient } from "../authz.js";
-import type { AuthzSchema } from "../authz.js";
 import { AuthzError } from "../errors.js";
 import { getAdminSecret, getBaseUrl, signup, uniqueEmail } from "./harness.js";
 
@@ -8,7 +7,7 @@ import { getAdminSecret, getBaseUrl, signup, uniqueEmail } from "./harness.js";
 
 // owner > editor > viewer with explicit permission grants.
 // Matches the doc_folder_schema used in the Rust integration tests.
-const SCHEMA: AuthzSchema = {
+const SCHEMA = {
   version: 1,
   resources: [
     {
@@ -25,18 +24,19 @@ const SCHEMA: AuthzSchema = {
       ],
     },
   ],
-};
+} as const;
 
 function uid(): string {
   return crypto.randomUUID();
 }
 
-let authz: AuthzClient;
+let authz: AuthzClient<typeof SCHEMA>;
 
 beforeAll(async () => {
   authz = createAuthzClient({
     baseUrl: getBaseUrl(),
     adminSecret: getAdminSecret(),
+    schema: SCHEMA,
   });
   await authz.putSchema(SCHEMA);
 });
@@ -59,20 +59,30 @@ describe("check", () => {
   it("resolves when the subject holds the role granting the permission", async () => {
     const [doc, user] = [uid(), uid()];
     await authz.createRelation({
-      objectType: "document",
-      objectId: doc,
+      resource: "document",
+      id: doc,
       relation: "editor",
-      subjectId: user,
+      subject: user,
     });
     await expect(
-      authz.check("document", "write", doc, user),
+      authz.check({
+        resource: "document",
+        id: doc,
+        permission: "write",
+        subject: user,
+      }),
     ).resolves.toBeUndefined();
   });
 
   it("throws AuthzError(unauthorized) when the subject has no relation", async () => {
     const [doc, user] = [uid(), uid()];
     await expect(
-      authz.check("document", "read", doc, user),
+      authz.check({
+        resource: "document",
+        id: doc,
+        permission: "read",
+        subject: user,
+      }),
     ).rejects.toSatisfy(
       (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
     );
@@ -82,13 +92,18 @@ describe("check", () => {
     const [doc, user] = [uid(), uid()];
     // owner also gets "read" via owner > editor > viewer hierarchy
     await authz.createRelation({
-      objectType: "document",
-      objectId: doc,
+      resource: "document",
+      id: doc,
       relation: "owner",
-      subjectId: user,
+      subject: user,
     });
     await expect(
-      authz.check("document", "read", doc, user),
+      authz.check({
+        resource: "document",
+        id: doc,
+        permission: "read",
+        subject: user,
+      }),
     ).resolves.toBeUndefined();
   });
 });
@@ -101,15 +116,20 @@ describe("createRelations / deleteRelations", () => {
     const users = [uid(), uid(), uid()];
     await authz.createRelations(
       users.map((u) => ({
-        objectType: "document",
-        objectId: doc,
-        relation: "viewer",
-        subjectId: u,
+        resource: "document" as const,
+        id: doc,
+        relation: "viewer" as const,
+        subject: u,
       })),
     );
     for (const u of users) {
       await expect(
-        authz.check("document", "read", doc, u),
+        authz.check({
+          resource: "document",
+          id: doc,
+          permission: "read",
+          subject: u,
+        }),
       ).resolves.toBeUndefined();
     }
   });
@@ -117,19 +137,29 @@ describe("createRelations / deleteRelations", () => {
   it("deleteRelation revokes access", async () => {
     const [doc, user] = [uid(), uid()];
     const rel = {
-      objectType: "document",
-      objectId: doc,
-      relation: "viewer",
-      subjectId: user,
+      resource: "document" as const,
+      id: doc,
+      relation: "viewer" as const,
+      subject: user,
     };
     await authz.createRelation(rel);
     await expect(
-      authz.check("document", "read", doc, user),
+      authz.check({
+        resource: "document",
+        id: doc,
+        permission: "read",
+        subject: user,
+      }),
     ).resolves.toBeUndefined();
 
     await authz.deleteRelation(rel);
     await expect(
-      authz.check("document", "read", doc, user),
+      authz.check({
+        resource: "document",
+        id: doc,
+        permission: "read",
+        subject: user,
+      }),
     ).rejects.toSatisfy(
       (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
     );
@@ -148,20 +178,14 @@ describe("expand", () => {
     const doc = uid();
     const [alice, bob] = [uid(), uid()];
     await authz.createRelations([
-      {
-        objectType: "document",
-        objectId: doc,
-        relation: "viewer",
-        subjectId: alice,
-      },
-      {
-        objectType: "document",
-        objectId: doc,
-        relation: "editor",
-        subjectId: bob,
-      },
+      { resource: "document", id: doc, relation: "viewer", subject: alice },
+      { resource: "document", id: doc, relation: "editor", subject: bob },
     ]);
-    const subjects = await authz.expand("document", doc, "viewer");
+    const subjects = await authz.expand({
+      resource: "document",
+      id: doc,
+      relation: "viewer",
+    });
     expect(subjects.some((s) => s.id === alice)).toBe(true);
   });
 });
@@ -172,19 +196,29 @@ describe("trace", () => {
   it("returns allowed=true and includes the subject when granted", async () => {
     const [doc, user] = [uid(), uid()];
     await authz.createRelation({
-      objectType: "document",
-      objectId: doc,
+      resource: "document",
+      id: doc,
       relation: "editor",
-      subjectId: user,
+      subject: user,
     });
-    const result = await authz.trace("document", "write", doc, user);
+    const result = await authz.trace({
+      resource: "document",
+      id: doc,
+      permission: "write",
+      subject: user,
+    });
     expect(result.allowed).toBe(true);
     expect(result.subjects.some((s) => s.id === user)).toBe(true);
   });
 
   it("returns allowed=false when the subject has no relation", async () => {
     const [doc, user] = [uid(), uid()];
-    const result = await authz.trace("document", "write", doc, user);
+    const result = await authz.trace({
+      resource: "document",
+      id: doc,
+      permission: "write",
+      subject: user,
+    });
     expect(result.allowed).toBe(false);
   });
 });
@@ -196,20 +230,30 @@ describe("checkSession", () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const doc = uid();
     await authz.createRelation({
-      objectType: "document",
-      objectId: doc,
+      resource: "document",
+      id: doc,
       relation: "viewer",
-      subjectId: auth.user.id,
+      subject: auth.user.id,
     });
     await expect(
-      authz.checkSession(auth.session.token, "document", "read", doc),
+      authz.checkSession({
+        token: auth.session.token,
+        resource: "document",
+        id: doc,
+        permission: "read",
+      }),
     ).resolves.toBeUndefined();
   });
 
   it("throws AuthzError(unauthorized) for an invalid token", async () => {
     const doc = uid();
     await expect(
-      authz.checkSession("invalid-token", "document", "read", doc),
+      authz.checkSession({
+        token: "invalid-token",
+        resource: "document",
+        id: doc,
+        permission: "read",
+      }),
     ).rejects.toSatisfy(
       (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
     );
@@ -224,20 +268,24 @@ describe("lookup", () => {
     const [doc1, doc2] = [uid(), uid()];
     await authz.createRelations([
       {
-        objectType: "document",
-        objectId: doc1,
+        resource: "document",
+        id: doc1,
         relation: "viewer",
-        subjectId: auth.user.id,
+        subject: auth.user.id,
       },
       {
-        objectType: "document",
-        objectId: doc2,
+        resource: "document",
+        id: doc2,
         relation: "viewer",
-        subjectId: auth.user.id,
+        subject: auth.user.id,
       },
     ]);
 
-    const page = await authz.lookup(auth.session.token, "document", "read");
+    const page = await authz.lookup({
+      token: auth.session.token,
+      resource: "document",
+      permission: "read",
+    });
     expect(page.objectIds).toContain(doc1);
     expect(page.objectIds).toContain(doc2);
   });

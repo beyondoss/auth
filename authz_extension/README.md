@@ -1,51 +1,47 @@
 # authz_extension
 
-PostgreSQL extension (PGRX/Rust) implementing BFS-based permission checks for the beyond-auth authorization engine.
+Evaluate transitive permissions inside PostgreSQL. Replaces N×depth round-trips with `depth+1` queries via BFS over the `auth.authz_relations` graph.
 
-Compiled to a native `.so` and loaded by PostgreSQL. All functions live in the `auth` schema and are called by the application layer in `/src/authz/`.
+Compiled to a native `.so` via PGRX and loaded by PostgreSQL. All functions live in the `auth` schema. The application layer calls them through `sqlx` — the extension receives raw tuples and runs BFS without knowing your schema.
+
+## Install
+
+Requires `pgrx` and a matching PostgreSQL installation. Supports PostgreSQL 17 and 18.
+
+```sh
+# default: pg17
+cargo pgrx install --pg-config $(which pg_config)
+
+# pg18
+cargo pgrx install --features pg18 --no-default-features --pg-config $(which pg_config)
+```
+
+If the extension is not loaded, the application falls back to serial checks and logs a warning. Install it.
 
 ## Functions
 
-### Single check
+### Single check — `authz_check`
 
 ```sql
--- single relation
-SELECT auth.authz_check(subject_id, relation, object_type, object_id);
+-- one relation
+SELECT auth.authz_check('user:1', 'editor', 'doc', 'abc');
 
--- OR across multiple relations
-SELECT auth.authz_check(subject_id, relations::text[], object_type, object_id);
+-- any of several relations
+SELECT auth.authz_check('user:1', ARRAY['editor', 'owner'], 'doc', 'abc');
 ```
 
-Returns `true` if the subject holds any of the relations on the object, after full subject-set (group membership) expansion.
-
-**Algorithm**: direct-grant point-lookup first; BFS through subject-set rows if no direct match.
+Returns `true` if the subject holds any of the given relations on the object, including via group membership. Tries a direct-grant point-lookup first; falls back to BFS if no direct match.
 
 ---
 
-### Batch checks
-
-#### Sequential — `authz_check_batch`
-
-```sql
-SELECT auth.authz_check_batch(
-    ARRAY['user:1',  'user:2'],   -- subject_ids
-    ARRAY['editor', 'viewer'],    -- relations
-    ARRAY['doc',    'doc'],       -- object_types
-    ARRAY['abc',    'xyz']        -- object_ids
-);
--- → boolean[]
-```
-
-N checks in one SPI session. Query count: `N × (depth + 1)`. Use for small N or when order matters.
-
-#### Parallel BFS — `authz_check_parallel_batch`
+### Parallel BFS batch — `authz_check_parallel_batch`
 
 ```sql
 SELECT auth.authz_check_parallel_batch(
-    subject_ids   ::text[],
-    relations     ::text[],
-    object_types  ::text[],
-    object_ids    ::text[]
+    ARRAY['user:1', 'user:2'],    -- subject_ids
+    ARRAY['editor', 'viewer'],    -- relations (one per check)
+    ARRAY['doc',    'doc'],       -- object_types
+    ARRAY['abc',    'xyz']        -- object_ids
 );
 -- → boolean[]
 ```
@@ -54,20 +50,36 @@ All N checks share BFS expansion per depth level. Query count: `depth + 1` regar
 
 ---
 
-### Hierarchy path batch — `authz_check_path_batch`
+### Sequential batch — `authz_check_batch`
 
 ```sql
-SELECT auth.authz_check_path_batch(
-    subject_ids      ::text[],
-    relation_prefix  ::text[],   -- hops to walk outward
-    object_type_path ::text[],   -- type at each hop
-    terminal_relations::text[],  -- relations to check at the final ancestor
-    object_ids       ::text[]
+SELECT auth.authz_check_batch(
+    subject_ids   ::text[],
+    relations     ::text[],
+    object_types  ::text[],
+    object_ids    ::text[]
 );
 -- → boolean[]
 ```
 
-Walks a fixed-depth relation chain (e.g., document → folder → workspace). Query count: `len(relation_prefix) + 1`. No subject-set expansion during hops—only at the terminal check.
+N independent BFS checks in one SPI session. Query count: `N × (depth + 1)`. Use for small N (≤4) where check order matters.
+
+---
+
+### Hierarchy path batch — `authz_check_path_batch`
+
+```sql
+SELECT auth.authz_check_path_batch(
+    subject_ids       ::text[],
+    relation_prefix   ::text[],    -- hops to walk outward (e.g. ['parent'])
+    object_type_path  ::text[],    -- type at each hop (e.g. ['folder'])
+    terminal_relations::text[],    -- relations to check at the ancestor
+    object_ids        ::text[]
+);
+-- → boolean[]
+```
+
+Walks a fixed-depth relation chain (e.g., document → folder → workspace). Query count: `len(relation_prefix) + 1`. Uses direct-grant matches only at every hop — no BFS expansion.
 
 ---
 
@@ -75,26 +87,21 @@ Walks a fixed-depth relation chain (e.g., document → folder → workspace). Qu
 
 ```sql
 SELECT auth.authz_check_multi(
-    subject_id        text,
-    direct_relations  text[],
-    relation_prefix   text[],
-    object_type_path  text[],
-    terminal_relations text[],
-    object_id         text
+    'user:1',                        -- subject_id
+    ARRAY['editor', 'owner'],        -- direct_relations
+    ARRAY['parent'],                 -- relation_prefix
+    ARRAY['folder'],                 -- object_type_path
+    ARRAY['folder_editor'],          -- terminal_relations
+    'doc:abc'                        -- object_id
 );
 -- → boolean
 ```
 
-Combines a BFS check on the object itself with a hierarchy walk, in one SPI session.
-
-1. Full BFS check against `direct_relations` on the object.
-2. If false, walk `relation_prefix` hop-by-hop; check `terminal_relations` directly at each ancestor.
-
-Replaces an `OR`-chain of separate check calls. Use when a permission can be held directly or inherited from a parent.
+BFS check on the object itself, then a hierarchy walk if false — one SPI session. Use when a permission can be held directly or inherited from a parent resource.
 
 ---
 
-## Query cost summary
+## Query cost
 
 | Function                     | Query count                         |
 | ---------------------------- | ----------------------------------- |
@@ -106,29 +113,28 @@ Replaces an `OR`-chain of separate check calls. Use when a permission can be hel
 
 ## Data model
 
-All functions read from `auth.authz_relations`:
+All functions read from `auth.authz_relations` (partitioned by `object_type`):
 
-| Column                 | Type         | Meaning                            |
-| ---------------------- | ------------ | ---------------------------------- |
-| `object_type`          | text         | Resource type (e.g. `"document"`)  |
-| `object_id`            | text         | Resource identifier                |
-| `relation`             | text         | Relation name (e.g. `"editor"`)    |
-| `subject_id`           | text         | User or group identifier           |
-| `subject_set_type`     | text \| NULL | Non-NULL for group membership rows |
-| `subject_set_relation` | text \| NULL | Relation within the group type     |
+| Column                 | Type         | Meaning                                          |
+| ---------------------- | ------------ | ------------------------------------------------ |
+| `object_type`          | text         | Resource type (e.g. `"doc"`)                     |
+| `object_id`            | text         | Resource identifier                              |
+| `relation`             | text         | Relation name (e.g. `"editor"`)                  |
+| `subject_id`           | text         | User or group identifier                         |
+| `subject_set_type`     | text \| NULL | Non-NULL indicates a group membership row        |
+| `subject_set_relation` | text \| NULL | Relation within the group type for BFS expansion |
 
-Rows with `subject_set_type IS NULL` are direct grants. Rows with `subject_set_type` set expand to the members of that group/set via BFS.
+`subject_set_type IS NULL` → direct grant. `subject_set_type` set → expand to members of that group via BFS.
 
-## Build
+**Example:**
 
-Requires `pgrx` and a matching PostgreSQL installation.
-
-```sh
-cargo pgrx install --pg-config $(which pg_config)
+```
+(doc, abc, editor, user:1,  NULL,   NULL)   → user:1 is directly an editor of doc:abc
+(doc, abc, editor, team:5,  member, NULL)   → any member of team:5 is an editor of doc:abc
 ```
 
-Supports PostgreSQL 17 and 18 via feature flags `pg17` / `pg18` (default: `pg17`).
+The second row causes BFS: the engine checks if `subject_id` appears as a `member` of `team:5`.
 
 ## Integration
 
-The application layer compiles the user-defined authz schema into check plans (`/src/authz/schema.rs`) and calls these functions via `sqlx` in `/src/authz/engine.rs`. The extension has no knowledge of the schema—it receives raw tuples and runs BFS.
+The authz schema compiler (`/src/authz/schema.rs`) compiles user-defined permission models into SQL plans and selects the right function per check type. The engine (`/src/authz/engine.rs`) calls `probe_parallel_batch` on startup to detect whether the extension is loaded, then routes batch checks to `authz_check_parallel_batch`. Hierarchy checks go to `authz_check_path_batch`. Mixed checks use `authz_check_multi`.

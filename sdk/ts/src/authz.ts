@@ -23,6 +23,31 @@
  *
  * Upload a schema once via {@link AuthzClient.putSchema} to enable the engine.
  *
+ * ## Strict typing
+ *
+ * Pass `schema` in the client options to get compile-time checking of resource
+ * types, permissions, and relation names. No `as const` needed — the `const`
+ * type parameter infers literals automatically:
+ *
+ * ```ts
+ * const authz = createAuthzClient({
+ *   baseUrl: 'http://auth:8080',
+ *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ *   schema: {
+ *     version: 1,
+ *     resources: [{
+ *       name: 'document',
+ *       roles: ['owner', 'editor', 'viewer'],
+ *       permissions: { write: ['owner', 'editor'], read: ['owner', 'editor', 'viewer'] },
+ *     }],
+ *   },
+ * })
+ *
+ * authz.check({ resource: 'document', id: docId, permission: 'write', subject: userId })
+ * //                       ^^^^^^^^^                        ^^^^^^^
+ * //                  'document' only                  'write' | 'read' only
+ * ```
+ *
  * ## Operations
  *
  * - **Check** — is subject S reachable from object O via permission P's role set?
@@ -49,6 +74,110 @@ export type { AuthzError };
 
 /** The authorization schema — defines resource types, roles, and permissions. */
 export type AuthzSchema = components["schemas"]["AuthzSchema"];
+
+// ── Schema definition types ───────────────────────────────────────────────────
+
+/**
+ * Idiomatic TypeScript schema definition — camelCase, tuple role hierarchy.
+ * Pass to {@link defineSchema} for strict typing without `as const`.
+ *
+ * @example
+ * ```ts
+ * const authz = createAuthzClient({
+ *   baseUrl: '...',
+ *   adminSecret: '...',
+ *   schema: defineSchema({
+ *     version: 1,
+ *     resources: [{
+ *       name: 'document',
+ *       roles: ['owner', 'editor', 'viewer'],
+ *       permissions: { write: ['owner', 'editor'], read: ['owner', 'editor', 'viewer'] },
+ *       roleHierarchy: [['owner', 'editor'], ['editor', 'viewer']],
+ *     }],
+ *   }),
+ * })
+ * ```
+ */
+export type SchemaDefinition = {
+  version: number;
+  resources: ReadonlyArray<{
+    name: string;
+    roles: ReadonlyArray<string>;
+    permissions: { readonly [K: string]: ReadonlyArray<string> };
+    /** `[superior, inferior]` role pairs, e.g. `[['owner', 'editor'], ['editor', 'viewer']]`. */
+    roleHierarchy?: ReadonlyArray<readonly [string, string]> | null;
+    hierarchy?: { parentRelation: string; parentResource: string } | null;
+  }>;
+  subjectTypes?: ReadonlyArray<string>;
+};
+
+/**
+ * A schema shape that accepts both mutable and `as const` readonly arrays.
+ * This is the constraint used by {@link createAuthzClient}'s `schema` option.
+ * Compatible with both {@link SchemaDefinition} (via {@link defineSchema}) and JSON imports.
+ */
+export type SchemaInput = {
+  version: number;
+  resources: ReadonlyArray<{
+    name: string;
+    roles: ReadonlyArray<string>;
+    permissions: { readonly [K: string]: ReadonlyArray<string> };
+    role_hierarchy?:
+      | ReadonlyArray<{
+        superior: string;
+        inferior: string;
+      }>
+      | null;
+    hierarchy?: { parent_relation: string; parent_resource: string } | null;
+  }>;
+  subject_types?: ReadonlyArray<string>;
+};
+
+// Preserves literal types for name/roles/permissions while converting to wire format.
+type ResourceToWire<R> = R extends {
+  name: infer N;
+  roles: infer Roles;
+  permissions: infer Perms;
+} ? {
+    readonly name: N;
+    readonly roles: Roles;
+    readonly permissions: Perms;
+    readonly role_hierarchy?:
+      | ReadonlyArray<{
+        readonly superior: string;
+        readonly inferior: string;
+      }>
+      | null;
+    readonly hierarchy?: {
+      readonly parent_relation: string;
+      readonly parent_resource: string;
+    } | null;
+  }
+  : never;
+
+type ToSchemaInput<S extends SchemaDefinition> = {
+  version: number;
+  subject_types?: ReadonlyArray<string>;
+  resources: {
+    readonly [I in keyof S["resources"]]: ResourceToWire<S["resources"][I]>;
+  };
+};
+
+/** All resource type names defined in the schema. */
+export type ResourceNames<S extends SchemaInput> =
+  S["resources"][number]["name"];
+
+/** All permission names for a given resource type. */
+export type PermissionsOf<
+  S extends SchemaInput,
+  R extends ResourceNames<S>,
+> = keyof Extract<S["resources"][number], { name: R }>["permissions"] & string;
+
+/** All role/relation names for a given resource type. */
+export type RelationsOf<
+  S extends SchemaInput,
+  R extends ResourceNames<S>,
+> = Extract<S["resources"][number], { name: R }>["roles"][number];
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -79,10 +208,10 @@ function parseError(error: unknown, response: Response): never {
 
 function toWire(r: Relation): components["schemas"]["RelationRequest"] {
   return {
-    object: { type: r.objectType, id: r.objectId },
+    object: { type: r.resource, id: r.id },
     relation: r.relation,
     subject: {
-      id: r.subjectId,
+      id: r.subject,
       ...(r.subjectType !== undefined && { type: r.subjectType }),
       ...(r.subjectRelation !== undefined && { relation: r.subjectRelation }),
     },
@@ -92,7 +221,7 @@ function toWire(r: Relation): components["schemas"]["RelationRequest"] {
 // ── Public types ──────────────────────────────────────────────────────────────
 
 /** Options for {@link createAuthzClient}. */
-export interface AuthzClientOptions {
+export interface AuthzClientOptions<S extends SchemaInput = AuthzSchema> {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
   baseUrl: string;
   /**
@@ -100,47 +229,68 @@ export interface AuthzClientOptions {
    * operations (tuple writes, expand, trace, schema management).
    */
   adminSecret: string;
+  /**
+   * Authorization schema. When provided, resource types, permission names, and
+   * relation names are all strictly typed across every client method.
+   *
+   * Literal types are inferred automatically — no `as const` needed.
+   *
+   * @example
+   * ```ts
+   * const authz = createAuthzClient({
+   *   baseUrl: 'http://auth:8080',
+   *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+   *   schema: {
+   *     version: 1,
+   *     resources: [{
+   *       name: 'document',
+   *       roles: ['owner', 'editor', 'viewer'],
+   *       permissions: { write: ['owner', 'editor'], read: ['owner', 'editor', 'viewer'] },
+   *     }],
+   *   },
+   * })
+   * ```
+   */
+  schema?: S;
 }
 
 /**
  * A Zanzibar relation tuple — the atomic unit of the authorization graph.
  *
- * Represents the statement: `objectType:objectId#relation@subjectId`
+ * Represents: `resource:id#relation@subject`
  *
- * @example Direct: alice is an editor of document doc1
+ * @example Direct — alice is an editor of document doc1
  * ```ts
- * { objectType: 'document', objectId: 'doc1', relation: 'editor', subjectId: 'alice' }
+ * { resource: 'document', id: 'doc1', relation: 'editor', subject: 'alice' }
  * ```
  *
- * @example Subject set: all members of team eng are editors of document doc1
+ * @example Subject set — all members of team eng are editors of document doc1
  * ```ts
- * { objectType: 'document', objectId: 'doc1', relation: 'editor',
- *   subjectId: 'eng', subjectType: 'team', subjectRelation: 'member' }
+ * { resource: 'document', id: 'doc1', relation: 'editor',
+ *   subject: 'eng', subjectType: 'team', subjectRelation: 'member' }
  * ```
  */
-export interface Relation {
-  /** The resource type. Must match a name defined in the schema. */
-  objectType: string;
-  /** The resource identifier. */
-  objectId: string;
-  /** The relation (typically a role name) the subject holds on the object. */
-  relation: string;
-  /** The subject identifier — a user ID, group ID, or any entity ID. */
-  subjectId: string;
-  /**
-   * Subject type — set when the subject is itself a typed entity (e.g. `'group'`).
-   *
-   * @remarks When both `subjectType` and `subjectRelation` are set, this tuple
-   * defines a **subject set**: the engine recursively expands all entities that
-   * hold `subjectRelation` on `subjectType:subjectId` during a check.
-   */
-  subjectType?: string;
-  /**
-   * Subject relation — the relation to expand on the subject entity.
-   * Only meaningful when `subjectType` is also set.
-   */
-  subjectRelation?: string;
-}
+export type Relation<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    /** The resource type. Must match a name defined in the schema. */
+    resource: R;
+    /** The resource identifier. */
+    id: string;
+    /** The relation (role) the subject holds on the resource. */
+    relation: RelationsOf<S, R>;
+    /** The subject identifier — a user ID, group ID, or any entity ID. */
+    subject: string;
+    /**
+     * Subject type — set when the subject is itself a typed entity (e.g. `'group'`).
+     * When both `subjectType` and `subjectRelation` are set, this tuple defines a
+     * **subject set**: the engine recursively expands all entities that hold
+     * `subjectRelation` on `subjectType:subject`.
+     */
+    subjectType?: string;
+    /** Subject relation — the relation to expand on the subject entity. Only meaningful when `subjectType` is also set. */
+    subjectRelation?: string;
+  };
+}[ResourceNames<S>];
 
 /** A resolved subject returned by {@link AuthzClient.expand} and {@link AuthzClient.trace}. */
 export interface ResolvedSubject {
@@ -157,57 +307,96 @@ export interface LookupPage {
   /** `true` when additional pages exist. */
   hasMore: boolean;
   /**
-   * Opaque cursor for the next page. Pass as `opts.cursor` on the next call.
+   * Opaque cursor for the next page. Pass as `cursor` on the next call.
    * `undefined` when there are no more results.
    */
   nextCursor?: string;
 }
 
-/** Options for {@link AuthzClient.lookup}. */
-export interface LookupOptions {
-  /** Override the subject. Defaults to the session user when omitted. */
-  subject?: string;
-  /** Maximum results per page. Clamped to [1, 1000] server-side. Defaults to 100. */
-  limit?: number;
-  /** Cursor from a previous {@link AuthzClient.lookup} call. */
-  cursor?: string;
-}
+// ── Method arg types ──────────────────────────────────────────────────────────
+
+/** Args for {@link AuthzClient.check}. */
+export type CheckArgs<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    resource: R;
+    id: string;
+    permission: PermissionsOf<S, R>;
+    subject: string;
+  };
+}[ResourceNames<S>];
+
+/** Args for {@link AuthzClient.checkSession}. */
+export type CheckSessionArgs<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    token: string;
+    resource: R;
+    id: string;
+    permission: PermissionsOf<S, R>;
+  };
+}[ResourceNames<S>];
+
+/** Args for {@link AuthzClient.expand}. */
+export type ExpandArgs<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    resource: R;
+    id: string;
+    relation: RelationsOf<S, R>;
+  };
+}[ResourceNames<S>];
+
+/** Args for {@link AuthzClient.trace}. */
+export type TraceArgs<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    resource: R;
+    id: string;
+    permission: PermissionsOf<S, R>;
+    subject: string;
+  };
+}[ResourceNames<S>];
+
+/** Args for {@link AuthzClient.lookup}. */
+export type LookupArgs<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    token: string;
+    resource: R;
+    permission: PermissionsOf<S, R>;
+    /** Override the subject. Defaults to the session user when omitted. */
+    subject?: string;
+    /** Maximum results per page. Clamped to [1, 1000] server-side. Defaults to 100. */
+    limit?: number;
+    /** Cursor from a previous {@link AuthzClient.lookup} call. */
+    cursor?: string;
+  };
+}[ResourceNames<S>];
+
+// ── Client interface ──────────────────────────────────────────────────────────
 
 /** A Zanzibar authz client scoped to an auth service instance. */
-export interface AuthzClient {
+export interface AuthzClient<S extends SchemaInput = SchemaInput> {
   // ── Checks ──────────────────────────────────────────────────────────────────
 
   /**
    * Zanzibar **Check** with an explicit subject.
    *
-   * Resolves whether `subject` is reachable from `resourceType:resourceId` via
-   * the roles that grant `permission`, as defined in the compiled schema.
+   * Resolves whether `subject` is reachable from `resource:id` via the roles
+   * that grant `permission`, as defined in the compiled schema.
    *
    * Use this when you already know the subject ID (server-side logic, admin
    * operations). For middleware that has a session token but not a subject ID,
    * prefer {@link checkSession} — it validates the session and checks the
    * permission in a single database round-trip.
    *
-   * @param resourceType - Resource type as defined in the schema (e.g. `'document'`).
-   * @param permission - Permission name as defined in the schema (e.g. `'edit'`).
-   * @param resourceId - The resource identifier.
-   * @param subject - The subject identifier to check.
    * @throws {AuthzError} `unauthorized` if the subject cannot reach the resource.
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   * @throws {AuthzError} `authz_unknown_resource` if `resourceType` is not in the schema.
+   * @throws {AuthzError} `authz_unknown_resource` if `resource` is not in the schema.
    *
    * @example
    * ```ts
-   * await authz.check('document', 'edit', docId, userId)
+   * await authz.check({ resource: 'document', id: docId, permission: 'edit', subject: userId })
    * // throws AuthzError if denied; returns void if allowed
    * ```
    */
-  check(
-    resourceType: string,
-    permission: string,
-    resourceId: string,
-    subject: string,
-  ): Promise<void>;
+  check(args: CheckArgs<S>): Promise<void>;
 
   /**
    * Zanzibar **Check** with a session token — one database round-trip.
@@ -216,41 +405,25 @@ export interface AuthzClient {
    * CTE query. This is the hot path for request middleware: you pay one DB
    * round-trip instead of two (session validate + authz check separately).
    *
-   * The subject is resolved from the session internally; you do not need to
-   * know the user ID.
-   *
-   * @param token - Raw opaque session token (`session_<id>_<secret>`).
-   * @param resourceType - Resource type as defined in the schema.
-   * @param permission - Permission name as defined in the schema.
-   * @param resourceId - The resource identifier.
    * @throws {AuthzError} `unauthorized` if the token is invalid, expired, or
    *   the session user cannot reach the resource.
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    *
    * @example
    * ```ts
-   * const token = getSessionToken(request)
-   * await authz.checkSession(token, 'document', 'edit', docId)
+   * await authz.checkSession({ token, resource: 'document', id: docId, permission: 'edit' })
    * ```
    */
-  checkSession(
-    token: string,
-    resourceType: string,
-    permission: string,
-    resourceId: string,
-  ): Promise<void>;
+  checkSession(args: CheckSessionArgs<S>): Promise<void>;
 
   // ── Tuple writes (admin) ─────────────────────────────────────────────────────
 
   /**
    * Write a single relation tuple. Idempotent — duplicate writes are silently ignored.
    *
-   * Records `objectType:objectId#relation@subjectId` in the authorization graph.
-   *
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   * @throws {AuthServiceError} on unexpected service errors.
    */
-  createRelation(relation: Relation): Promise<void>;
+  createRelation(relation: Relation<S>): Promise<void>;
 
   /**
    * Write multiple relation tuples in a single transactional batch. Idempotent.
@@ -258,104 +431,65 @@ export interface AuthzClient {
    * No-op when `relations` is empty.
    *
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   * @throws {AuthServiceError} on unexpected service errors.
    */
-  createRelations(relations: Relation[]): Promise<void>;
+  createRelations(relations: Relation<S>[]): Promise<void>;
 
-  /**
-   * Delete a single relation tuple.
-   *
-   * @throws {AuthServiceError} `404` if the tuple does not exist.
-   */
-  deleteRelation(relation: Relation): Promise<void>;
+  /** Delete a single relation tuple. */
+  deleteRelation(relation: Relation<S>): Promise<void>;
 
   /**
    * Delete multiple relation tuples in a single transactional batch.
    *
    * No-op when `relations` is empty.
-   *
-   * @throws {AuthServiceError} on unexpected service errors.
    */
-  deleteRelations(relations: Relation[]): Promise<void>;
+  deleteRelations(relations: Relation<S>[]): Promise<void>;
 
   // ── Admin reads ──────────────────────────────────────────────────────────────
 
   /**
    * Zanzibar **Expand** — return all subjects directly reachable from
-   * `objectType:objectId#relation`, resolving subject sets recursively.
+   * `resource:id#relation`, resolving subject sets recursively.
    *
-   * Useful for auditing ("who has access to this document?") and for building
-   * cache-invalidation lists.
-   *
-   * @param objectType - The resource type.
-   * @param objectId - The resource identifier.
-   * @param relation - The relation to expand (typically a role name).
-   * @returns All resolved direct subjects and the relation through which each was reached.
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    *
    * @example
    * ```ts
-   * const subjects = await authz.expand('document', 'doc1', 'viewer')
+   * const subjects = await authz.expand({ resource: 'document', id: 'doc1', relation: 'viewer' })
    * // [{ id: 'alice', relation: 'viewer' }, { id: 'bob', relation: 'viewer' }]
    * ```
    */
-  expand(
-    objectType: string,
-    objectId: string,
-    relation: string,
-  ): Promise<ResolvedSubject[]>;
+  expand(args: ExpandArgs<S>): Promise<ResolvedSubject[]>;
 
   /**
    * Zanzibar **why-check** (Trace) — expand all relations that could grant
-   * `permission` on `resourceType:resourceId` and report which subjects appear,
-   * explaining why a check allowed or denied.
+   * `permission` on `resource:id` and report which subjects appear.
    *
-   * This is a debug/audit operation, not a hot-path check. Use it to answer
-   * "why does Alice have edit access?" or "why was Bob denied?"
+   * Use to answer "why does Alice have edit access?" or "why was Bob denied?"
    *
-   * @param resourceType - Resource type as defined in the schema.
-   * @param permission - Permission name as defined in the schema.
-   * @param resourceId - The resource identifier.
-   * @param subject - The subject to explain access for.
    * @returns `allowed` reflects whether `subject` appears in the expanded set.
    *   `subjects` lists everyone who has access and through which relation.
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    */
   trace(
-    resourceType: string,
-    permission: string,
-    resourceId: string,
-    subject: string,
+    args: TraceArgs<S>,
   ): Promise<{ allowed: boolean; subjects: ResolvedSubject[] }>;
 
   /**
    * Zanzibar **Lookup Objects** (reverse index) — return all objects of
-   * `resourceType` that `subject` can reach via the roles that grant `permission`.
+   * `resource` that the session user can reach via the roles that grant `permission`.
    *
-   * Results are cursor-paginated. Pass `opts.cursor` from the previous page's
+   * Results are cursor-paginated. Pass `cursor` from the previous page's
    * `nextCursor` to continue.
    *
-   * Requires a valid session token; the subject defaults to the session user
-   * unless overridden via `opts.subject`.
-   *
-   * @param token - Raw opaque session token for the requesting user.
-   * @param resourceType - Resource type to enumerate (e.g. `'document'`).
-   * @param permission - Permission to check (e.g. `'view'`).
-   * @param opts - Optional subject override, page size, and cursor.
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    * @throws {AuthServiceError} `401` if the session token is invalid.
    *
    * @example
    * ```ts
-   * const { objectIds, nextCursor } = await authz.lookup(token, 'document', 'view')
+   * const { objectIds, nextCursor } = await authz.lookup({ token, resource: 'document', permission: 'view' })
    * ```
    */
-  lookup(
-    token: string,
-    resourceType: string,
-    permission: string,
-    opts?: LookupOptions,
-  ): Promise<LookupPage>;
+  lookup(args: LookupArgs<S>): Promise<LookupPage>;
 
   // ── Schema management (admin) ────────────────────────────────────────────────
 
@@ -369,12 +503,72 @@ export interface AuthzClient {
    * Upload (replace) the authorization schema. Validates and compiles the
    * schema before persisting. This is the only way to enable the authz engine.
    *
-   * All in-memory compiled state is updated atomically — in-flight checks
-   * complete against the old schema; new checks use the new one.
+   * Accepts both mutable and `as const` schemas.
    *
    * @throws {AuthServiceError} `422` if the schema fails validation.
    */
-  putSchema(schema: AuthzSchema): Promise<AuthzSchema>;
+  putSchema(schema: SchemaInput): Promise<AuthzSchema>;
+}
+
+// ── Schema helper ────────────────────────────────────────────────────────────
+
+/**
+ * Define an authorization schema with idiomatic TypeScript naming.
+ *
+ * Converts camelCase fields (`roleHierarchy`, `subjectTypes`, `hierarchy.*`)
+ * to the wire format expected by the auth service, while preserving literal
+ * types for resource names, roles, and permissions — no `as const` needed.
+ *
+ * @example
+ * ```ts
+ * const authz = createAuthzClient({
+ *   baseUrl: process.env.AUTH_URL!,
+ *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ *   schema: defineSchema({
+ *     version: 1,
+ *     resources: [{
+ *       name: 'document',
+ *       roles: ['owner', 'editor', 'viewer'],
+ *       permissions: {
+ *         delete: ['owner'],
+ *         write: ['owner', 'editor'],
+ *         read: ['owner', 'editor', 'viewer'],
+ *       },
+ *       roleHierarchy: [['owner', 'editor'], ['editor', 'viewer']],
+ *     }],
+ *   }),
+ * })
+ *
+ * // resource types, permissions, and relations are all strictly typed:
+ * await authz.check({ resource: 'document', id: docId, permission: 'write', subject: userId })
+ * ```
+ */
+export function defineSchema<const S extends SchemaDefinition>(
+  schema: S,
+): ToSchemaInput<S> {
+  return {
+    version: schema.version,
+    ...(schema.subjectTypes !== undefined && {
+      subject_types: schema.subjectTypes,
+    }),
+    resources: schema.resources.map((r) => ({
+      name: r.name,
+      roles: r.roles,
+      permissions: r.permissions,
+      ...(r.roleHierarchy != null && {
+        role_hierarchy: r.roleHierarchy.map(([superior, inferior]) => ({
+          superior,
+          inferior,
+        })),
+      }),
+      ...(r.hierarchy != null && {
+        hierarchy: {
+          parent_relation: r.hierarchy.parentRelation,
+          parent_resource: r.hierarchy.parentResource,
+        },
+      }),
+    })),
+  } as ToSchemaInput<S>;
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -385,28 +579,40 @@ export interface AuthzClient {
  * The client is stateless and safe to share across requests. Create once at
  * application startup.
  *
- * @param opts - Client configuration.
- * @returns A fully-typed authz client.
+ * When `schema` is provided, resource types, permission names, and relation
+ * names are strictly typed across all methods. Literal types are inferred
+ * automatically — no `as const` needed.
  *
- * @example
+ * @example Without schema (all strings)
  * ```ts
  * const authz = createAuthzClient({
  *   baseUrl: process.env.AUTH_URL!,
  *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
  * })
+ * ```
  *
- * // Write a tuple
- * await authz.createRelation({
- *   objectType: 'document', objectId: 'doc1',
- *   relation: 'editor',
- *   subjectId: userId,
+ * @example With schema (strictly typed)
+ * ```ts
+ * const authz = createAuthzClient({
+ *   baseUrl: process.env.AUTH_URL!,
+ *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ *   schema: {
+ *     version: 1,
+ *     resources: [{
+ *       name: 'document',
+ *       roles: ['owner', 'editor', 'viewer'],
+ *       permissions: { write: ['owner', 'editor'], read: ['owner', 'editor', 'viewer'] },
+ *     }],
+ *   },
  * })
  *
- * // Check a permission (throws if denied)
- * await authz.check('document', 'edit', 'doc1', userId)
+ * await authz.createRelation({ resource: 'document', id: 'doc1', relation: 'editor', subject: userId })
+ * await authz.check({ resource: 'document', id: 'doc1', permission: 'write', subject: userId })
  * ```
  */
-export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
+export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
+  opts: AuthzClientOptions<S>,
+): AuthzClient<S> {
   const client = createFetchClient<paths>({
     baseUrl: opts.baseUrl.replace(/\/+$/, ""),
   });
@@ -414,15 +620,15 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
   const adminHeaders = { Authorization: `Bearer ${opts.adminSecret}` };
 
   return {
-    async check(resourceType, permission, resourceId, subject) {
+    async check({ resource, id, permission, subject }) {
       const { data, error, response } = await client.GET(
         "/v1/authz/decisions",
         {
           params: {
             query: {
-              resource_type: resourceType,
+              resource_type: resource,
               permission,
-              resource_id: resourceId,
+              resource_id: id,
               user: subject,
             },
           },
@@ -434,16 +640,16 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
       }
     },
 
-    async checkSession(token, resourceType, permission, resourceId) {
+    async checkSession({ token, resource, id, permission }) {
       const { data, error, response } = await client.GET(
         "/v1/authz/decisions",
         {
           headers: { Authorization: `Bearer ${token}` },
           params: {
             query: {
-              resource_type: resourceType,
+              resource_type: resource,
               permission,
-              resource_id: resourceId,
+              resource_id: id,
             },
           },
         },
@@ -488,13 +694,13 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
       if (error !== undefined) parseError(error, response as Response);
     },
 
-    async expand(objectType, objectId, relation) {
+    async expand({ resource, id, relation }) {
       const { data, error, response } = await client.GET(
         "/v1/admin/authz/subjects",
         {
           headers: adminHeaders,
           params: {
-            query: { object_type: objectType, object_id: objectId, relation },
+            query: { object_type: resource, object_id: id, relation },
           },
         },
       );
@@ -502,14 +708,14 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
       return data.subjects;
     },
 
-    async trace(resourceType, permission, resourceId, subject) {
+    async trace({ resource, id, permission, subject }) {
       const { data, error, response } = await client.GET("/v1/authz/traces", {
         headers: adminHeaders,
         params: {
           query: {
-            resource_type: resourceType,
+            resource_type: resource,
             permission,
-            resource_id: resourceId,
+            resource_id: id,
             user: subject,
           },
         },
@@ -518,16 +724,16 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
       return { allowed: data.allowed, subjects: data.subjects };
     },
 
-    async lookup(token, resourceType, permission, opts) {
+    async lookup({ token, resource, permission, subject, limit, cursor }) {
       const { data, error, response } = await client.GET("/v1/authz/objects", {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           query: {
-            resource_type: resourceType,
+            resource_type: resource,
             permission,
-            ...(opts?.subject !== undefined && { user: opts.subject }),
-            ...(opts?.limit !== undefined && { limit: opts.limit }),
-            ...(opts?.cursor !== undefined && { after: opts.cursor }),
+            ...(subject !== undefined && { user: subject }),
+            ...(limit !== undefined && { limit }),
+            ...(cursor !== undefined && { after: cursor }),
           },
         },
       });
@@ -550,7 +756,7 @@ export function createAuthzClient(opts: AuthzClientOptions): AuthzClient {
     async putSchema(schema) {
       const { data, error, response } = await client.PUT("/v1/authz/schema", {
         headers: adminHeaders,
-        body: schema,
+        body: schema as AuthzSchema,
       });
       if (error !== undefined) parseError(error, response as Response);
       return data;
