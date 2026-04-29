@@ -118,7 +118,7 @@ pub async fn create_session(pool: &PgPool) -> Result<BenchSession> {
     .await?;
 
     sqlx::query!(
-        "INSERT INTO auth.emails (id, user_id, email) VALUES ($1, $2, $3)",
+        "INSERT INTO auth.emails (id, user_id, email) VALUES ($1, $2, $3::text)",
         email_id,
         user_id,
         email,

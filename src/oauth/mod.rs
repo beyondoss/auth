@@ -254,7 +254,7 @@ pub async fn find_or_create_oauth_user(
             SELECT u.id AS "id!: Uuid"
             FROM auth.users u
             INNER JOIN auth.emails e ON e.id = u.primary_email_id
-            WHERE e.email = $1::auth.citext
+            WHERE e.email = $1::text
               AND e.verified_at IS NOT NULL
               AND u.deleted_at IS NULL
             LIMIT 1

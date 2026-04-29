@@ -37,7 +37,7 @@ pub async fn create(
     sqlx::query_as!(
         Invitation,
         r#"INSERT INTO auth.org_invitations (org_id, invited_by, email, role, token_hash)
-           VALUES ($1, $2, $3::auth.citext, $4, $5)
+           VALUES ($1, $2, $3::text, $4, $5)
            RETURNING id, org_id, invited_by, email::text, role, created_at, expires_at"#,
         org_id,
         invited_by,

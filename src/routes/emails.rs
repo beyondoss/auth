@@ -104,7 +104,7 @@ pub async fn add(
     let normalized = email::normalize(&req.email);
 
     let taken = sqlx::query_scalar!(
-        "SELECT 1 FROM auth.emails WHERE email = $1::auth.citext",
+        "SELECT 1 FROM auth.emails WHERE email = $1::text",
         normalized,
     )
     .fetch_optional(&state.pool)
