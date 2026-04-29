@@ -135,15 +135,18 @@ export function clearCookieAttrs(
 export function getSessionToken(request: Request): string | null {
   const cookieHeader = request.headers.get("cookie");
   if (cookieHeader) {
+    let hostValue: string | undefined;
+    let secureValue: string | undefined;
     for (const part of cookieHeader.split(";")) {
       const eq = part.indexOf("=");
       if (eq === -1) continue;
       const name = part.slice(0, eq).trim();
-      if (name === HOST_COOKIE || name === SECURE_COOKIE) {
-        const value = part.slice(eq + 1).trim();
-        if (value) return value;
-      }
+      const value = part.slice(eq + 1).trim();
+      if (name === HOST_COOKIE && value) hostValue = value;
+      else if (name === SECURE_COOKIE && value) secureValue = value;
     }
+    if (hostValue) return hostValue;
+    if (secureValue) return secureValue;
   }
 
   const auth = request.headers.get("authorization");

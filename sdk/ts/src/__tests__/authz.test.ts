@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { type AuthzClient, createAuthzClient } from "../authz.js";
 import { AuthzError } from "../errors.js";
-import { getAdminSecret, getBaseUrl, signup, uniqueEmail } from "./harness.js";
+import {
+  authedClient,
+  getAdminSecret,
+  getBaseUrl,
+  signup,
+  uniqueEmail,
+} from "./harness.js";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -250,6 +256,41 @@ describe("checkSession", () => {
     await expect(
       authz.checkSession({
         token: "invalid-token",
+        resource: "document",
+        id: doc,
+        permission: "read",
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
+    );
+  });
+
+  it("throws AuthzError(unauthorized) for a revoked session token", async () => {
+    const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
+    const doc = uid();
+    await authz.createRelation({
+      resource: "document",
+      id: doc,
+      relation: "viewer",
+      subject: auth.user.id,
+    });
+    await expect(
+      authz.checkSession({
+        token: auth.session.token,
+        resource: "document",
+        id: doc,
+        permission: "read",
+      }),
+    ).resolves.toBeUndefined();
+
+    const { error } = await authedClient(auth.session.token).DELETE(
+      "/v1/sessions/current",
+    );
+    expect(error).toBeUndefined();
+
+    await expect(
+      authz.checkSession({
+        token: auth.session.token,
         resource: "document",
         id: doc,
         permission: "read",

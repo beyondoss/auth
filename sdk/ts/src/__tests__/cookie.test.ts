@@ -94,4 +94,11 @@ describe("getSessionToken", () => {
     });
     expect(getSessionToken(r)).toBe("tok_multi");
   });
+
+  it("prefers __Host-session over __Secure-session regardless of order", () => {
+    const r = req({
+      cookie: "__Secure-session=secure_tok; __Host-session=host_tok",
+    });
+    expect(getSessionToken(r)).toBe("host_tok");
+  });
 });

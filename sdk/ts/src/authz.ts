@@ -206,6 +206,13 @@ function parseError(error: unknown, response: Response): never {
   throw new AuthServiceError(code ?? "unknown_error", message, response.status);
 }
 
+function assertOk(
+  error: unknown,
+  response: Response | undefined,
+): asserts error is undefined {
+  if (error !== undefined) parseError(error, response as Response);
+}
+
 function toWire(r: Relation): components["schemas"]["RelationRequest"] {
   return {
     object: { type: r.resource, id: r.id },
@@ -634,9 +641,9 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       );
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       if (!data.allowed) {
-        throw new AuthzError("unauthorized", "permission denied", 200);
+        throw new AuthzError("unauthorized", "permission denied", 403);
       }
     },
 
@@ -654,9 +661,9 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       );
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       if (!data.allowed) {
-        throw new AuthzError("unauthorized", "permission denied", 200);
+        throw new AuthzError("unauthorized", "permission denied", 403);
       }
     },
 
@@ -665,7 +672,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: toWire(relation),
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
     },
 
     async createRelations(relations) {
@@ -674,7 +681,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: { writes: relations.map(toWire), deletes: [] },
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
     },
 
     async deleteRelation(relation) {
@@ -682,7 +689,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: toWire(relation),
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
     },
 
     async deleteRelations(relations) {
@@ -691,7 +698,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: { writes: [], deletes: relations.map(toWire) },
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
     },
 
     async expand({ resource, id, relation }) {
@@ -704,7 +711,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       );
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       return data.subjects;
     },
 
@@ -720,7 +727,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       return { allowed: data.allowed, subjects: data.subjects };
     },
 
@@ -737,7 +744,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       return {
         objectIds: data.object_ids,
         hasMore: data.has_more,
@@ -749,7 +756,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
       const { data, error, response } = await client.GET("/v1/authz/schema", {
         headers: adminHeaders,
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       return data ?? null;
     },
 
@@ -758,7 +765,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: schema as AuthzSchema,
       });
-      if (error !== undefined) parseError(error, response as Response);
+      assertOk(error, response);
       return data;
     },
   };

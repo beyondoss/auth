@@ -85,7 +85,8 @@ export function createServerHelpers(
       return cache(fn as (...args: never[]) => unknown) as (
         ...args: A
       ) => Promise<R>;
-    } catch {
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "MODULE_NOT_FOUND") throw err;
       return fn;
     }
   }
@@ -97,12 +98,11 @@ export function createServerHelpers(
   });
 
   const getMe = withCache(async (cookieStore: CookieStore) => {
-    const token = getTokenFromCookieStore(cookieStore);
-    if (!token) return null;
-    const session = await verifier.verify(token);
+    const session = await getSession(cookieStore);
     if (!session) return null;
+    const token = getTokenFromCookieStore(cookieStore);
     const { data } = await client.GET("/v1/users/me", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token!}` },
     });
     return data ?? null;
   });

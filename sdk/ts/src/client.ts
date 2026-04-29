@@ -87,8 +87,14 @@ export function createAuthClient<
     headers: { Authorization: `Bearer ${opts.token}` },
   });
 
+  const { GET, POST, PUT, PATCH, DELETE } = raw;
+
   return {
-    ...raw,
+    GET,
+    POST,
+    PUT,
+    PATCH,
+    DELETE,
 
     identities: {
       list: () => raw.GET("/v1/identities", {}),
