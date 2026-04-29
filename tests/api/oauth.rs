@@ -377,10 +377,10 @@ async fn callback_with_totp_step_up_completes_to_session() {
         )
         .await
         .assert_status(201)
-        .json::<CallbackResponse>();
+        .json::<beyond_auth::AuthResponse>();
 
     TestClient::new()
-        .bearer(&session.token)
+        .bearer(&session.session.token)
         .get("/v1/users/me")
         .await
         .assert_status(200);
