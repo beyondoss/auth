@@ -7,8 +7,17 @@ cargo-binstall = "latest"
 "cargo:sqlx-cli" = "latest"
 "cargo:cross" = "latest"
 
+[tasks."build"]
+run = "cargo build"
+
+[tasks."build:release"]
+run = "cargo build --release"
+
 [tasks."format"]
 run = "dprint fmt"
+
+[tasks."migrate"]
+run = "cargo sqlx migrate run"
 
 [tasks."sqlx:prepare"]
 run = "cargo run --package xtask"
@@ -82,7 +91,7 @@ depends = ["sdk:ts:install"]
 [tasks."sdk:ts:test"]
 run = "npm test"
 dir = "sdk/ts"
-depends = ["sdk:ts:install"]
+depends = ["sdk:ts:install", "build"]
 
 [tasks."sdk:generate-types"]
 run = ["cd ts && node scripts/generate-types.mjs"]

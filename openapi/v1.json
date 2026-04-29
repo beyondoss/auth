@@ -3994,7 +3994,13 @@
       },
       "ConfigResponse": {
         "type": "object",
+        "required": [
+          "jwt_enabled"
+        ],
         "properties": {
+          "jwt_enabled": {
+            "type": "boolean"
+          },
           "session_idle_timeout_seconds": {
             "type": [
               "integer",
@@ -5378,6 +5384,12 @@
         "type": "object",
         "description": "Partial config update. Only fields explicitly set are updated.\nSend `\"session_idle_timeout_seconds\": null` to clear the idle timeout.",
         "properties": {
+          "jwt_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "session_idle_timeout_seconds": {
             "type": [
               "integer",

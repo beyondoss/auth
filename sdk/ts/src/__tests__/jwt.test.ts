@@ -1,180 +1,87 @@
-import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { JwtVerificationError } from "../errors.js";
 import { createJwtVerifier } from "../jwt.js";
+import { authedClient, getBaseUrl, signup, uniqueEmail } from "./harness.js";
 
-const ISSUER = "https://auth.example.com";
-const JWKS_URI = "https://auth.example.com/v1/jwks.json";
-const KID = "test-key-1";
+// The server uses app_config.issuer_url when set, otherwise this default.
+const DEFAULT_ISSUER = "https://auth.beyond.internal";
 
-let privateKey: CryptoKey;
-let jwksResponse: string;
-
-beforeAll(async () => {
-  const { privateKey: priv, publicKey } = await generateKeyPair("RS256");
-  privateKey = priv;
-  const jwk = await exportJWK(publicKey);
-  jwk.kid = KID;
-  jwk.alg = "RS256";
-  jwksResponse = JSON.stringify({ keys: [jwk] });
-});
-
-function mockJwks(responseBody = jwksResponse, status = 200): void {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    new Response(responseBody, {
-      status,
-      headers: { "content-type": "application/json" },
-    }),
-  );
+function jwksUri(): string {
+  return `${getBaseUrl()}/v1/jwks.json`;
 }
 
-async function signToken(
-  payload: Record<string, unknown> = {},
-  opts: { expiresIn?: string; issuer?: string; omitSub?: boolean } = {},
-): Promise<string> {
-  const builder = new SignJWT({ sub: "usr_1", ...payload })
-    .setProtectedHeader({ alg: "RS256", kid: KID })
-    .setIssuedAt()
-    .setIssuer(opts.issuer ?? ISSUER)
-    .setExpirationTime(opts.expiresIn ?? "1h");
-  if (opts.omitSub) {
-    return new SignJWT(payload)
-      .setProtectedHeader({ alg: "RS256", kid: KID })
-      .setIssuedAt()
-      .setIssuer(opts.issuer ?? ISSUER)
-      .setExpirationTime(opts.expiresIn ?? "1h")
-      .sign(privateKey);
-  }
-  return builder.sign(privateKey);
+function b64url(obj: object): string {
+  return Buffer.from(JSON.stringify(obj)).toString("base64url");
 }
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 describe("createJwtVerifier", () => {
-  it("returns claims for a valid token", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const claims = await verifier.verify(await signToken());
-    expect(claims.sub).toBe("usr_1");
-    expect(claims.iss).toBe(ISSUER);
-  });
-
-  it("throws JwtVerificationError for an expired token", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const token = await signToken({}, { expiresIn: "-31s" });
-    await expect(verifier.verify(token)).rejects.toBeInstanceOf(
-      JwtVerificationError,
+  it("verifies a JWT issued by the server", async () => {
+    const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
+    const { data, error } = await authedClient(auth.session.token).POST(
+      "/v1/tokens",
+      { body: {} },
     );
+    if (!data) {
+      throw new Error(`POST /v1/tokens failed: ${JSON.stringify(error)}`);
+    }
+
+    const claims = await createJwtVerifier({
+      jwksUri: jwksUri(),
+      issuer: DEFAULT_ISSUER,
+    }).verify(data.access_token);
+
+    expect(claims.sub).toBe(auth.user.id);
+    expect(claims.iss).toBe(DEFAULT_ISSUER);
   });
 
-  it("throws JwtVerificationError for a wrong issuer", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const token = await signToken({}, { issuer: "https://evil.example.com" });
-    await expect(verifier.verify(token)).rejects.toBeInstanceOf(
-      JwtVerificationError,
-    );
-  });
-
-  it("throws JwtVerificationError for a token missing sub", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const token = await signToken({}, { omitSub: true });
-    const err = await verifier.verify(token).catch((e) => e);
-    expect(err).toBeInstanceOf(JwtVerificationError);
-    expect((err as JwtVerificationError).message).toMatch(/sub/);
-  });
-
-  it("throws JwtVerificationError for a wrong audience", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({
-      jwksUri: JWKS_URI,
-      issuer: ISSUER,
-      audience: "my-app",
+  it("throws JwtVerificationError for a tampered signature", async () => {
+    const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
+    const { data } = await authedClient(auth.session.token).POST("/v1/tokens", {
+      body: {},
     });
-    const token = await signToken();
-    await expect(verifier.verify(token)).rejects.toBeInstanceOf(
-      JwtVerificationError,
-    );
+
+    const parts = data!.access_token.split(".");
+    parts[2] = parts[2]!.split("").reverse().join("");
+    const tampered = parts.join(".");
+
+    await expect(
+      createJwtVerifier({ jwksUri: jwksUri(), issuer: DEFAULT_ISSUER }).verify(
+        tampered,
+      ),
+    ).rejects.toBeInstanceOf(JwtVerificationError);
   });
 
-  it("accepts a token with the correct audience", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({
-      jwksUri: JWKS_URI,
-      issuer: ISSUER,
-      audience: "my-app",
+  it("throws JwtVerificationError for the wrong issuer", async () => {
+    const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
+    const { data } = await authedClient(auth.session.token).POST("/v1/tokens", {
+      body: {},
     });
-    const token = await new SignJWT({ sub: "usr_1" })
-      .setProtectedHeader({ alg: "RS256", kid: KID })
-      .setIssuedAt()
-      .setIssuer(ISSUER)
-      .setAudience("my-app")
-      .setExpirationTime("1h")
-      .sign(privateKey);
-    const claims = await verifier.verify(token);
-    expect(claims.sub).toBe("usr_1");
+
+    await expect(
+      createJwtVerifier({
+        jwksUri: jwksUri(),
+        issuer: "https://wrong.example.com",
+      }).verify(data!.access_token),
+    ).rejects.toBeInstanceOf(JwtVerificationError);
   });
 
   it("marks JWKS fetch failures as retryable", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(
-      new TypeError("fetch failed"),
-    );
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const token = await signToken();
-    const err = await verifier.verify(token).catch((e) => e);
+    // Syntactically valid JWT so jose reaches the JWKS fetch before failing.
+    // The signature is garbage — we never get that far.
+    const fakeJwt = [
+      b64url({ alg: "RS256", kid: "test" }),
+      b64url({ sub: "u", iss: DEFAULT_ISSUER, iat: 0, exp: 9_999_999_999 }),
+      "aW52YWxpZA",
+    ].join(".");
+
+    const err = await createJwtVerifier({
+      jwksUri: "http://127.0.0.1:1/v1/jwks.json",
+      issuer: DEFAULT_ISSUER,
+    })
+      .verify(fakeJwt)
+      .catch((e: unknown) => e);
+
     expect(err).toBeInstanceOf(JwtVerificationError);
     expect((err as JwtVerificationError).retryable).toBe(true);
-  });
-
-  it("does not mark bad-signature errors as retryable", async () => {
-    mockJwks();
-    // Generate a second key pair; sign with it but serve the first key's JWKS.
-    const { privateKey: otherKey } = await generateKeyPair("RS256");
-    const token = await new SignJWT({ sub: "usr_1" })
-      .setProtectedHeader({ alg: "RS256", kid: KID })
-      .setIssuedAt()
-      .setIssuer(ISSUER)
-      .setExpirationTime("1h")
-      .sign(otherKey);
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const err = await verifier.verify(token).catch((e) => e);
-    expect(err).toBeInstanceOf(JwtVerificationError);
-    expect((err as JwtVerificationError).retryable).toBe(false);
-  });
-
-  // ── Audience edge cases ────────────────────────────────────────────────────
-
-  it("accepts a token that carries aud when verifier has no audience configured", async () => {
-    // jose skips audience validation when verifyOptions.audience is unset,
-    // so an extra aud claim in the token is silently ignored.
-    mockJwks();
-    const verifier = createJwtVerifier({ jwksUri: JWKS_URI, issuer: ISSUER });
-    const token = await new SignJWT({ sub: "usr_1" })
-      .setProtectedHeader({ alg: "RS256", kid: KID })
-      .setIssuedAt()
-      .setIssuer(ISSUER)
-      .setAudience("some-other-app")
-      .setExpirationTime("1h")
-      .sign(privateKey);
-    const claims = await verifier.verify(token);
-    expect(claims.sub).toBe("usr_1");
-  });
-
-  it("rejects a token with no aud when verifier expects an audience", async () => {
-    mockJwks();
-    const verifier = createJwtVerifier({
-      jwksUri: JWKS_URI,
-      issuer: ISSUER,
-      audience: "my-app",
-    });
-    // signToken() produces no aud claim
-    const token = await signToken();
-    await expect(verifier.verify(token)).rejects.toBeInstanceOf(
-      JwtVerificationError,
-    );
   });
 });

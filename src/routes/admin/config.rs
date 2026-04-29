@@ -15,9 +15,10 @@ use crate::{error::AuthError, http::AppState};
     )
 )]
 pub async fn get(State(state): State<AppState>) -> Result<Json<ConfigResponse>, AuthError> {
-    let timeout = state.app_config.read().await.session_idle_timeout_seconds;
+    let cfg = state.app_config.read().await;
     Ok(Json(ConfigResponse {
-        session_idle_timeout_seconds: timeout,
+        session_idle_timeout_seconds: cfg.session_idle_timeout_seconds,
+        jwt_enabled: cfg.jwt_enabled,
     }))
 }
 
@@ -27,11 +28,13 @@ pub async fn get(State(state): State<AppState>) -> Result<Json<ConfigResponse>, 
 pub struct UpdateConfigRequest {
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub session_idle_timeout_seconds: Option<Option<i32>>,
+    pub jwt_enabled: Option<bool>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ConfigResponse {
     pub session_idle_timeout_seconds: Option<i32>,
+    pub jwt_enabled: bool,
 }
 
 /// Distinguish "field absent" from "field present with null".
@@ -68,11 +71,22 @@ pub async fn patch(
         state.app_config.write().await.session_idle_timeout_seconds = timeout;
     }
 
-    let timeout = state.app_config.read().await.session_idle_timeout_seconds;
+    if let Some(enabled) = req.jwt_enabled {
+        sqlx::query("UPDATE auth.app_config SET jwt_enabled = $1 WHERE id = true")
+            .bind(enabled)
+            .execute(&state.pool)
+            .await
+            .map_err(AuthError::from)?;
+
+        state.app_config.write().await.jwt_enabled = enabled;
+    }
+
+    let cfg = state.app_config.read().await;
     Ok((
         StatusCode::OK,
         Json(ConfigResponse {
-            session_idle_timeout_seconds: timeout,
+            session_idle_timeout_seconds: cfg.session_idle_timeout_seconds,
+            jwt_enabled: cfg.jwt_enabled,
         }),
     ))
 }

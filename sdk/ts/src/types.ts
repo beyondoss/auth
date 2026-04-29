@@ -961,6 +961,7 @@ export interface components {
       results: boolean[];
     };
     ConfigResponse: {
+      jwt_enabled: boolean;
       /** Format: int32 */
       session_idle_timeout_seconds?: number | null;
     };
@@ -1364,6 +1365,7 @@ export interface components {
      *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
      */
     UpdateConfigRequest: {
+      jwt_enabled?: boolean | null;
       /** Format: int32 */
       session_idle_timeout_seconds?: number | null;
     };

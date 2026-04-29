@@ -45,7 +45,7 @@ jobs:
           docker cp target/release/libauthz_extension.so \
             "${POSTGRES_CONTAINER}:${PGLIB}/authz_extension.so"
       - name: migrate
-        run: cargo sqlx migrate run
+        run: mise run migrate
       - name: install rust components
         run: rustup component add rustfmt clippy
       - name: fmt
@@ -56,19 +56,12 @@ jobs:
         run: cargo test
       - name: sdk:ts typecheck
         run: mise run sdk:ts:typecheck
-      - name: sdk:ts test
-        run: mise run sdk:ts:test
       - name: build
-        run: cargo build --release
-      # E2E tests go here once they exist — the release binary is built above
-      # and Postgres is already running. Start the server, run, then stop:
-      #
-      # - name: sdk:ts e2e
-      #   run: |
-      #     ./target/release/beyond-auth &
-      #     SERVER_PID=$!
-      #     trap "kill $SERVER_PID" EXIT
-      #     mise run sdk:ts:e2e
+        run: mise run build:release
+      - name: sdk:ts test
+        env:
+          BEYOND_AUTH_BINARY: ${{ github.workspace }}/target/release/beyond-auth
+        run: mise run sdk:ts:test
       - name: audit
         run: |
           cargo install cargo-audit --quiet

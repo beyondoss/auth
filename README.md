@@ -33,7 +33,7 @@ beyond-auth migrate --database-url "postgres://..."
 ### From source
 
 ```sh
-cargo build --release
+mise run build:release
 ./target/release/beyond-auth serve \
   --database-url "postgres://user:pass@host:5432/dbname" \
   --signing-key-encryption-key "$(openssl rand -base64 32)"
