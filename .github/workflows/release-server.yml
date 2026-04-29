@@ -1,0 +1,96 @@
+name: Release Server
+on:
+  push:
+    tags: ["server/v*"]
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: "true"
+permissions:
+  contents: write
+jobs:
+  build-binary:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: Swatinem/rust-cache@v2
+      - name: build
+        run: cargo build --release --bin beyond-auth
+      - name: package
+        run: |
+          VERSION=${GITHUB_REF_NAME#server/v}
+          tar -czf beyond-auth-v${VERSION}-linux-${{ matrix.arch }}.tar.gz \
+            -C target/release beyond-auth
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.arch }}
+          path: beyond-auth-*.tar.gz
+  build-extension:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+            pg: 17
+          - os: ubuntu-latest
+            arch: amd64
+            pg: 18
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            pg: 17
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            pg: 18
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: Swatinem/rust-cache@v2
+      - name: install postgres dev headers
+        run: |
+          sudo apt-get install -y gnupg2 lsb-release
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-server-dev-${{ matrix.pg }} libclang-dev clang
+      - name: build extension
+        env:
+          PGRX_PG_CONFIG_PATH: /usr/lib/postgresql/${{ matrix.pg }}/bin/pg_config
+        run: |
+          cargo build --release --no-default-features --features pg${{ matrix.pg }} \
+            -p authz_extension
+      - name: package
+        run: |
+          VERSION=${GITHUB_REF_NAME#server/v}
+          tar -czf authz_extension-v${VERSION}-pg${{ matrix.pg }}-linux-${{ matrix.arch }}.tar.gz \
+            -C target/release libauthz_extension.so
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-pg${{ matrix.pg }}-${{ matrix.arch }}
+          path: authz_extension-*.tar.gz
+  release:
+    needs: [build-binary, build-extension]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            beyond-auth-*.tar.gz \
+            authz_extension-*.tar.gz

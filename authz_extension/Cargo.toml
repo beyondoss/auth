@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [features]
-default = ["pg17"]
+default = []
 pg17 = ["pgrx/pg17"]
 pg18 = ["pgrx/pg18"]
 
