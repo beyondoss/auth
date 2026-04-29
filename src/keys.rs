@@ -83,7 +83,7 @@ pub async fn validate(
     .map_err(AuthError::from)?;
 
     Ok(row.map(|r| AuthContext {
-        source: AuthSource::Key(r.key_id),
+        source: AuthSource::Key,
         token_id: r.token_id,
         is_impersonated: false,
         user: User {

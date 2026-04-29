@@ -23,21 +23,14 @@ pub struct Session {
 #[derive(Debug, Clone)]
 pub enum AuthSource {
     Session(Uuid),
-    Key(Uuid),
+    Key,
 }
 
 impl AuthSource {
     pub fn session_id(&self) -> Option<Uuid> {
         match self {
             AuthSource::Session(id) => Some(*id),
-            AuthSource::Key(_) => None,
-        }
-    }
-
-    pub fn key_id(&self) -> Option<Uuid> {
-        match self {
-            AuthSource::Key(id) => Some(*id),
-            AuthSource::Session(_) => None,
+            AuthSource::Key => None,
         }
     }
 }
