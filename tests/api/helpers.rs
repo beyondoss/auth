@@ -49,6 +49,7 @@ pub fn test_env() -> &'static TestEnv {
                 let so_path = [
                     "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
                     "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
+                    "target/release/libauthz_extension.so",
                 ]
                 .iter()
                 .map(|p| manifest_dir.join(p))
