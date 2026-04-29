@@ -346,6 +346,7 @@ pub struct Subject {
 #[derive(serde::Deserialize, Debug)]
 pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
+    #[allow(dead_code)]
     pub has_more: bool,
     pub next_page: Option<String>,
 }
