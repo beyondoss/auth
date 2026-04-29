@@ -20,6 +20,7 @@ mod keys;
 mod metrics;
 mod mfa;
 mod middleware;
+mod mmds;
 mod oauth;
 mod one_time_token;
 mod orgs;

@@ -2,8 +2,15 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct ServeConfig {
+    /// If set, secrets (DATABASE_URL, SIGNING_KEY_ENCRYPTION_KEY, ADMIN_SECRET)
+    /// are fetched from the Firecracker Metadata Service at this endpoint
+    /// (e.g. `http://169.254.169.254`) instead of environment variables.
+    /// Env vars act as per-key fallbacks when a key is absent from MMDS.
+    #[arg(long, env = "MMDS_ENDPOINT")]
+    pub mmds_endpoint: Option<String>,
+
     #[arg(long, env = "DATABASE_URL")]
-    pub database_url: String,
+    pub database_url: Option<String>,
 
     #[arg(long, env = "ADDRESS", default_value = "0.0.0.0:8080")]
     pub address: String,
@@ -19,7 +26,7 @@ pub struct ServeConfig {
 
     /// Base64url-encoded 32-byte key used to AES-256-GCM encrypt signing key material at rest.
     #[arg(long, env = "SIGNING_KEY_ENCRYPTION_KEY")]
-    pub signing_key_encryption_key: String,
+    pub signing_key_encryption_key: Option<String>,
 
     /// Comma-separated old keys for zero-downtime KEK rotation. When set,
     /// decryption falls back to these keys in order if the current key fails.
@@ -30,7 +37,7 @@ pub struct ServeConfig {
 
     /// Secret token required for admin endpoints (e.g. PUT /v1/admin/oauth-providers).
     #[arg(long, env = "ADMIN_SECRET")]
-    pub admin_secret: String,
+    pub admin_secret: Option<String>,
 
     /// WebAuthn relying party ID (e.g. "example.com").
     #[arg(long, env = "WEBAUTHN_RP_ID")]
@@ -65,6 +72,7 @@ pub struct ServeConfig {
 impl std::fmt::Debug for ServeConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ServeConfig")
+            .field("mmds_endpoint", &self.mmds_endpoint)
             .field("database_url", &"[redacted]")
             .field("address", &self.address)
             .field("log_level", &self.log_level)
@@ -92,8 +100,22 @@ impl std::fmt::Debug for ServeConfig {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Args)]
 pub struct MigrateConfig {
+    /// If set, DATABASE_URL is fetched from MMDS at this endpoint instead of
+    /// the environment variable.
+    #[arg(long, env = "MMDS_ENDPOINT")]
+    pub mmds_endpoint: Option<String>,
+
     #[arg(long, env = "DATABASE_URL")]
-    pub database_url: String,
+    pub database_url: Option<String>,
+}
+
+impl std::fmt::Debug for MigrateConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MigrateConfig")
+            .field("mmds_endpoint", &self.mmds_endpoint)
+            .field("database_url", &"[redacted]")
+            .finish()
+    }
 }

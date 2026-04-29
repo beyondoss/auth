@@ -14,6 +14,7 @@ mod jwt;
 mod keys;
 mod metrics;
 mod mfa;
+mod mmds;
 mod middleware;
 mod oauth;
 mod one_time_token;

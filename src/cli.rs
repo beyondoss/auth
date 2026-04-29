@@ -10,7 +10,7 @@ use crate::{
     app_config,
     config::{MigrateConfig, ServeConfig},
     crypto::LocalKeyEncryptor,
-    db, http, routes, signing_keys, telemetry, token_gc,
+    db, http, mmds, routes, signing_keys, telemetry, token_gc,
 };
 
 #[derive(Parser)]
@@ -44,8 +44,72 @@ pub async fn run() -> Result<()> {
     }
 }
 
+/// Resolved secret values — sourced from MMDS (primary) or env vars (fallback).
+struct Secrets {
+    database_url: String,
+    signing_key_encryption_key: String,
+    signing_key_encryption_key_old: Option<String>,
+    admin_secret: String,
+}
+
+/// Fetch secrets from MMDS if `mmds_endpoint` is configured, otherwise require
+/// them from environment variables. MMDS values take priority; per-key fallback
+/// to the env var value allows gradual migration.
+async fn resolve_secrets(
+    mmds_endpoint: Option<&str>,
+    database_url: Option<String>,
+    signing_key_encryption_key: Option<String>,
+    signing_key_encryption_key_old: Option<String>,
+    admin_secret: Option<String>,
+) -> Result<Secrets> {
+    if let Some(endpoint) = mmds_endpoint {
+        let env = mmds::fetch(endpoint)
+            .await
+            .context("failed to fetch secrets from MMDS")?;
+        Ok(Secrets {
+            database_url: env
+                .get("DATABASE_URL")
+                .map(str::to_owned)
+                .or(database_url)
+                .context("DATABASE_URL not found in MMDS or environment")?,
+            signing_key_encryption_key: env
+                .get("SIGNING_KEY_ENCRYPTION_KEY")
+                .map(str::to_owned)
+                .or(signing_key_encryption_key)
+                .context("SIGNING_KEY_ENCRYPTION_KEY not found in MMDS or environment")?,
+            signing_key_encryption_key_old: env
+                .get("SIGNING_KEY_ENCRYPTION_KEY_OLD")
+                .map(str::to_owned)
+                .or(signing_key_encryption_key_old),
+            admin_secret: env
+                .get("ADMIN_SECRET")
+                .map(str::to_owned)
+                .or(admin_secret)
+                .context("ADMIN_SECRET not found in MMDS or environment")?,
+        })
+    } else {
+        Ok(Secrets {
+            database_url: database_url
+                .context("DATABASE_URL is required (set env var or configure MMDS_ENDPOINT)")?,
+            signing_key_encryption_key: signing_key_encryption_key
+                .context("SIGNING_KEY_ENCRYPTION_KEY is required")?,
+            signing_key_encryption_key_old,
+            admin_secret: admin_secret.context("ADMIN_SECRET is required")?,
+        })
+    }
+}
+
 async fn serve(cfg: ServeConfig) -> Result<()> {
-    if cfg.admin_secret.is_empty() {
+    let secrets = resolve_secrets(
+        cfg.mmds_endpoint.as_deref(),
+        cfg.database_url,
+        cfg.signing_key_encryption_key,
+        cfg.signing_key_encryption_key_old,
+        cfg.admin_secret,
+    )
+    .await?;
+
+    if secrets.admin_secret.is_empty() {
         anyhow::bail!("ADMIN_SECRET must not be empty");
     }
 
@@ -80,10 +144,10 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     // Hold the guard for the lifetime of serve() — dropped on shutdown.
     let _otel_guard = telemetry::init(&otel_config, vec![], &cfg.log_level)?;
 
-    db::migrate(&cfg.database_url).await?;
-    let pool = db::connect(&cfg.database_url).await?;
+    db::migrate(&secrets.database_url).await?;
+    let pool = db::connect(&secrets.database_url).await?;
 
-    let old_key_strs: Vec<&str> = cfg
+    let old_key_strs: Vec<&str> = secrets
         .signing_key_encryption_key_old
         .as_deref()
         .unwrap_or("")
@@ -91,7 +155,8 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .collect();
-    let enc_key = LocalKeyEncryptor::from_base64(&cfg.signing_key_encryption_key, &old_key_strs)?;
+    let enc_key =
+        LocalKeyEncryptor::from_base64(&secrets.signing_key_encryption_key, &old_key_strs)?;
 
     signing_keys::ensure_app_config(&pool).await?;
     let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
@@ -142,7 +207,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         app_config: Arc::new(RwLock::new(app_config)),
         authz_schema: Arc::new(RwLock::new(compiled_authz)),
         metrics: crate::metrics::Metrics::new(),
-        admin_secret: http::AdminSecret::new(cfg.admin_secret.clone()),
+        admin_secret: http::AdminSecret::new(secrets.admin_secret),
         http_client,
         oauth: Arc::new(RwLock::new(oauth)),
         webauthn: Arc::new(webauthn),
@@ -162,7 +227,21 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
 
 async fn migrate(cfg: MigrateConfig) -> Result<()> {
     telemetry::init_simple("info");
-    db::migrate(&cfg.database_url).await?;
+
+    let database_url = if let Some(endpoint) = cfg.mmds_endpoint.as_deref() {
+        let env = mmds::fetch(endpoint)
+            .await
+            .context("failed to fetch secrets from MMDS")?;
+        env.get("DATABASE_URL")
+            .map(str::to_owned)
+            .or(cfg.database_url)
+            .context("DATABASE_URL not found in MMDS or environment")?
+    } else {
+        cfg.database_url
+            .context("DATABASE_URL is required (set env var or configure MMDS_ENDPOINT)")?
+    };
+
+    db::migrate(&database_url).await?;
     tracing::info!("migrations applied successfully");
     Ok(())
 }
