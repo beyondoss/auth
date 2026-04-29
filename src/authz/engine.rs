@@ -522,10 +522,14 @@ pub async fn ensure_partition(
         "CREATE TABLE IF NOT EXISTS auth.authz_relations_{object_type} \
          PARTITION OF auth.authz_relations FOR VALUES IN ('{object_type}')"
     );
-    sqlx::query(&sql)
-        .execute(pool)
-        .await
-        .map_err(AuthError::from)?;
+    match sqlx::query(&sql).execute(pool).await {
+        Ok(_) => {}
+        // IF NOT EXISTS is not atomic for partition DDL: two concurrent connections
+        // can both pass the existence check and race to create the table. The loser
+        // gets 42P07 (duplicate_table) — treat it as success.
+        Err(sqlx::Error::Database(db)) if db.code().as_deref() == Some("42P07") => {}
+        Err(e) => return Err(AuthError::from(e)),
+    }
     cache.insert(object_type.to_string(), ());
     Ok(())
 }
