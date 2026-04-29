@@ -24,14 +24,49 @@ pub struct TestEnv {
 
 static TEST_ENV: OnceLock<TestEnv> = OnceLock::new();
 
+/// Remove any running containers left behind by a previous test run that exited
+/// without a signal (e.g. normal test completion). Runs synchronously at startup
+/// so the new container starts with a clean slate.
+fn cleanup_orphaned_testcontainers() {
+    let Ok(out) = std::process::Command::new("docker")
+        .args([
+            "ps",
+            "-q",
+            "--filter",
+            "label=org.testcontainers.managed-by=testcontainers",
+        ])
+        .output()
+    else {
+        return;
+    };
+
+    let ids: Vec<&str> = std::str::from_utf8(&out.stdout)
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect();
+
+    if !ids.is_empty() {
+        let _ = std::process::Command::new("docker")
+            .arg("rm")
+            .arg("-f")
+            .args(&ids)
+            .status();
+    }
+}
+
 /// Returns a reference to the shared test environment, initializing it on first call.
 ///
 /// Spins up a Postgres testcontainer, runs all migrations, and starts the auth
 /// server in-process on a random port. Subsequent calls return the cached value
 /// immediately; the background thread keeps the container and server alive until
-/// the process exits.
+/// the process receives SIGINT (Ctrl+C), at which point it drops the container
+/// and exits with code 130.
+///
+/// Any containers orphaned by a previous run that exited without a signal are
+/// removed at startup via `cleanup_orphaned_testcontainers`.
 pub fn test_env() -> &'static TestEnv {
     TEST_ENV.get_or_init(|| {
+        cleanup_orphaned_testcontainers();
         let (tx, rx) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
@@ -107,11 +142,16 @@ pub fn test_env() -> &'static TestEnv {
                 })
                 .expect("failed to send TestEnv");
 
-                // Park the runtime to keep the server task and container alive.
+                // Keep the server task and container alive until Ctrl+C.
+                // On signal, the select arm drops _server and _container, which
+                // synchronously calls the Docker API to stop+remove the container
+                // before the process exits with the conventional 130 exit code.
                 let _server = server;
                 let _container = container;
-                std::future::pending::<()>().await
+                tokio::signal::ctrl_c().await.ok();
             });
+
+            std::process::exit(130);
         });
 
         rx.recv()
