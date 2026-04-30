@@ -1,6 +1,6 @@
 mod app_config;
 mod authz;
-mod cli;
+pub mod cli;
 mod config;
 mod crypto;
 mod db;
