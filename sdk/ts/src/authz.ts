@@ -197,11 +197,13 @@ function parseError(error: unknown, response: Response): never {
   const message = body.error?.message ?? response.statusText;
   if (
     code === "unauthorized"
+    || code === "token_invalid"
     || code === "authz_not_enabled"
     || code === "authz_unknown_resource"
     || code === "authz_unknown_permission"
   ) {
-    throw new AuthzError(code, message, response.status);
+    const authzCode: AuthzError["code"] = code === "token_invalid" ? "session_invalid" : code as AuthzError["code"];
+    throw new AuthzError(authzCode, message, response.status);
   }
   throw new AuthServiceError(code ?? "unknown_error", message, response.status);
 }

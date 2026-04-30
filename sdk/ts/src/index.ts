@@ -35,6 +35,12 @@ export {
   type TraceArgs,
 } from "./authz.js";
 export {
+  type ApiKeyContext,
+  createApiKeyVerifier,
+  type ApiKeyVerifier,
+  type ApiKeyVerifierOptions,
+} from "./api-key.js";
+export {
   type AdminClientOptions,
   type AuthClientOptions,
   type components,
@@ -54,6 +60,7 @@ export {
   type AuthResponse,
   type BeginPasskeyAuthResponse,
   createAuthFlowClient,
+  isStepUpResponse,
   type MagicLinkResponse,
   type PasswordResetResponse,
   type SignInRequest,

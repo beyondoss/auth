@@ -32,6 +32,7 @@ export class AuthServiceError extends Error {
  * `code` narrows the failure:
  * - `unauthorized` — subject is not reachable from the object via the permission's
  *   role OR-chain, or the session token is invalid
+ * - `session_invalid` — the session token is invalid, expired, or revoked — re-authenticate.
  * - `authz_not_enabled` — no schema has been PUT; the authz engine is off
  * - `authz_unknown_resource` — the resource type is not defined in the current schema
  * - `authz_unknown_permission` — the permission is not defined for this resource type
@@ -50,6 +51,7 @@ export class AuthServiceError extends Error {
 export class AuthzError extends Error {
   readonly code:
     | "unauthorized"
+    | "session_invalid"
     | "authz_not_enabled"
     | "authz_unknown_resource"
     | "authz_unknown_permission";

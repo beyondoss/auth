@@ -15,10 +15,11 @@ import { issueToken } from "./token.js";
 
 export type { MagicLinkResponse } from "./magic-link.js";
 export type { PasswordResetResponse } from "./password-reset.js";
-export type {
-  BeginPasskeyAuthResponse,
-  SignInRequest,
-  StepUpResponse,
+export {
+  isStepUpResponse,
+  type BeginPasskeyAuthResponse,
+  type SignInRequest,
+  type StepUpResponse,
 } from "./sign-in.js";
 export type { AuthResponse } from "./sign-up.js";
 export type { TokenResponse } from "./token.js";

@@ -349,7 +349,7 @@ describe("checkSession", () => {
     );
   });
 
-  it("throws AuthzError(unauthorized) for a revoked session token", async () => {
+  it("throws AuthzError(session_invalid) for a revoked session token", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const doc = uid();
     await authz.createRelation({
@@ -380,9 +380,10 @@ describe("checkSession", () => {
         permission: "read",
       }),
     ).rejects.toSatisfy(
-      (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
+      (e: unknown) => e instanceof AuthzError && e.code === "session_invalid",
     );
   });
+
 });
 
 // ── lookup ────────────────────────────────────────────────────────────────────

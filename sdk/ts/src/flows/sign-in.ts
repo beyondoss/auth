@@ -74,3 +74,23 @@ export async function finishPasskeyAuth(
   if (error !== undefined) throwServiceError(error, response);
   return camelize(data!) as AuthResponse;
 }
+
+/**
+ * Type guard — returns `true` when `signIn` returned a step-up challenge
+ * rather than a completed session.
+ *
+ * @example
+ * ```ts
+ * const result = await flows.signIn({ grantType: 'password', email, password })
+ * if (isStepUpResponse(result)) {
+ *   // TOTP required — redirect to /verify-totp with result.stepUpToken
+ * } else {
+ *   // result.session.token — set cookie and proceed
+ * }
+ * ```
+ */
+export function isStepUpResponse(
+  result: AuthResponse | StepUpResponse,
+): result is StepUpResponse {
+  return "stepUpToken" in result;
+}

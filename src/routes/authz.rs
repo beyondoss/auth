@@ -369,7 +369,7 @@ pub async fn check_permission(
         idle_timeout,
     )
     .await?
-    .ok_or(AuthError::Unauthorized)?;
+    .ok_or(AuthError::TokenInvalid)?;
 
     let subject_id: Arc<str> = Arc::from(subject_id.as_str());
     state
@@ -434,7 +434,7 @@ pub async fn batch_check_permissions(
             let resolved =
                 engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
                     .await?
-                    .ok_or(AuthError::Unauthorized)?;
+                    .ok_or(AuthError::TokenInvalid)?;
             let arc: Arc<str> = Arc::from(resolved.as_str());
             state.authz_cache.insert_session(parsed.id, arc.clone());
             arc
@@ -544,7 +544,7 @@ pub async fn post_checks(
             let resolved =
                 engine::resolve_session(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
                     .await?
-                    .ok_or(AuthError::Unauthorized)?;
+                    .ok_or(AuthError::TokenInvalid)?;
             let arc: Arc<str> = Arc::from(resolved.as_str());
             state.authz_cache.insert_session(parsed.id, arc.clone());
             arc
