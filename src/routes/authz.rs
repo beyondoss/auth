@@ -806,6 +806,9 @@ pub async fn delete_relation(
     State(state): State<AppState>,
     Json(req): Json<RelationRequest>,
 ) -> Result<StatusCode, AuthError> {
+    validate_ident(&req.object.object_type).map_err(|e| AuthError::AuthzSchemaInvalid {
+        message: e.to_string(),
+    })?;
     {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;

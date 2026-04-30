@@ -160,7 +160,8 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
 
     signing_keys::ensure_app_config(&pool).await?;
     let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
-    let jwks = signing_keys::render_jwks(&loaded_key);
+    let all_keys = signing_keys::load_all_keys_for_jwks(&pool, &enc_key).await?;
+    let jwks = signing_keys::render_jwks(&all_keys);
     let app_config = app_config::load(&pool)
         .await
         .map_err(|e| anyhow::anyhow!("failed to load app_config: {e}"))?;

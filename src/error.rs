@@ -42,7 +42,7 @@ pub enum AuthError {
     #[error("conflict")]
     Conflict,
 
-    #[error("password must be at least 8 characters")]
+    #[error("password must be at least 12 characters")]
     PasswordTooShort,
 
     #[error("password must be at most 128 characters")]

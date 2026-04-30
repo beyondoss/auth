@@ -20,6 +20,7 @@ pub async fn create(
     context: Option<serde_json::Value>,
 ) -> Result<CreatedToken, AuthError> {
     let token = Token::new(prefix);
+    let mut tx = pool.begin().await.map_err(AuthError::from)?;
 
     // Invalidate any outstanding tokens of the same kind for this user before issuing a new one.
     // A re-request (e.g. "resend magic link") must not leave the previous token redeemable.
@@ -28,7 +29,7 @@ pub async fn create(
         user_id,
         token.prefix.as_str(),
     )
-    .execute(pool)
+    .execute(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
 
@@ -43,9 +44,11 @@ pub async fn create(
         ttl_seconds,
         context,
     )
-    .fetch_one(pool)
+    .fetch_one(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
+
+    tx.commit().await.map_err(AuthError::from)?;
 
     Ok(CreatedToken { token, expires_at })
 }

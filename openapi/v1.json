@@ -15,6 +15,7 @@
         "tags": [
           "system"
         ],
+        "summary": "Health check. Performs a lightweight database ping. Returns 200 when healthy,\n503 when the database is unreachable.",
         "operationId": "healthz",
         "responses": {
           "200": {
@@ -67,6 +68,7 @@
           {
             "name": "relation",
             "in": "query",
+            "description": "The relation to expand (e.g. `\"owner\"`).",
             "required": true,
             "schema": {
               "type": "string"
@@ -102,6 +104,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Get the current runtime configuration.",
         "operationId": "get_admin_config",
         "responses": {
           "200": {
@@ -180,6 +183,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Create an impersonation session for any user. Returns a session token that behaves like\na normal session but carries an `impersonated` flag in issued JWTs. Use this for admin\nsupport workflows — not for production automation.",
         "operationId": "create_impersonation",
         "requestBody": {
           "content": {
@@ -220,6 +224,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Look up a user by primary email address. Returns 400 if the `email` query parameter\nis omitted.",
         "operationId": "search",
         "parameters": [
           {
@@ -274,6 +279,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Look up a user by ID.",
         "operationId": "get_by_id",
         "parameters": [
           {
@@ -441,6 +447,7 @@
           {
             "name": "permission",
             "in": "query",
+            "description": "Permission name as defined in the authz schema (e.g. `\"read\"`, `\"edit\"`).",
             "required": true,
             "schema": {
               "type": "string"
@@ -449,6 +456,7 @@
           {
             "name": "resource_type",
             "in": "query",
+            "description": "Resource type as defined in the authz schema.",
             "required": true,
             "schema": {
               "type": "string"
@@ -457,6 +465,7 @@
           {
             "name": "resource_id",
             "in": "query",
+            "description": "ID of the resource instance to check against.",
             "required": true,
             "schema": {
               "type": "string"
@@ -518,6 +527,7 @@
           {
             "name": "user",
             "in": "query",
+            "description": "Explicit subject to list objects for. Defaults to the current session user.",
             "required": false,
             "schema": {
               "type": [
@@ -557,6 +567,7 @@
           {
             "name": "after",
             "in": "query",
+            "description": "Opaque pagination cursor from a previous response's `next_page`.",
             "required": false,
             "schema": {
               "type": [
@@ -814,6 +825,7 @@
           {
             "name": "permission",
             "in": "query",
+            "description": "The permission to expand (e.g. `\"edit\"`). Resolves through the role hierarchy.",
             "required": true,
             "schema": {
               "type": "string"
@@ -870,6 +882,7 @@
           {
             "name": "user",
             "in": "query",
+            "description": "Subject ID to trace access for.",
             "required": true,
             "schema": {
               "type": "string"
@@ -939,6 +952,7 @@
         "tags": [
           "emails"
         ],
+        "summary": "List all email addresses associated with the authenticated user.",
         "operationId": "list_emails",
         "responses": {
           "200": {
@@ -975,6 +989,7 @@
         "tags": [
           "emails"
         ],
+        "summary": "Initiate a primary email address change. Returns a one-time token that the caller must\nexchange via `POST /v1/sessions` with `grant_type=email_change`. The address is not\nchanged until the token is consumed. Returns 409 if the address is already registered.",
         "operationId": "add",
         "requestBody": {
           "content": {
@@ -1030,6 +1045,7 @@
         "tags": [
           "emails"
         ],
+        "summary": "Confirm email ownership using the token issued by `POST /v1/emails/{id}/verifications`.\nUnauthenticated — the token itself identifies the user and email. Single-use; expires in 24 hours.",
         "operationId": "confirm_verification",
         "requestBody": {
           "content": {
@@ -1080,6 +1096,7 @@
         "tags": [
           "emails"
         ],
+        "summary": "Promote a verified email address to primary. The address must belong to the authenticated\nuser and must already be verified. Returns 404 if not found or not yet verified.",
         "operationId": "make_primary",
         "parameters": [
           {
@@ -1128,6 +1145,7 @@
         "tags": [
           "emails"
         ],
+        "summary": "Remove a non-primary email address. Returns 409 if the caller tries to delete their\nprimary address — use `PUT /v1/emails/{id}` to promote another address first.",
         "operationId": "remove",
         "parameters": [
           {
@@ -1188,6 +1206,7 @@
         "tags": [
           "emails"
         ],
+        "summary": "Issue a verification token for an unverified email address. The caller is expected to\ndeliver this token to the user (e.g. via email) and have them confirm it via\n`POST /v1/emails/verifications`. Returns 404 if the address doesn't exist or is already verified.",
         "operationId": "create_verification",
         "parameters": [
           {
@@ -1245,6 +1264,7 @@
         "tags": [
           "identities"
         ],
+        "summary": "List all authentication methods (identities) attached to the authenticated user.\nEach identity represents one way the user can log in: a password, or a linked OAuth provider.",
         "operationId": "list_identities",
         "responses": {
           "200": {
@@ -1278,6 +1298,7 @@
         "tags": [
           "identities"
         ],
+        "summary": "Add a password identity to an account that has none. Useful when a user signed up via\nOAuth and wants to enable password login. Returns 409 if a password identity already exists.",
         "operationId": "add_password",
         "requestBody": {
           "content": {
@@ -1343,6 +1364,7 @@
         "tags": [
           "identities"
         ],
+        "summary": "Unlink an authentication method. Returns 409 if this is the last identity — at least\none must remain so the user can still log in.",
         "operationId": "unlink",
         "parameters": [
           {
@@ -1401,6 +1423,7 @@
         "tags": [
           "identities"
         ],
+        "summary": "Change the password for a password identity. Requires the current password. On success,\nall sessions except the current one are revoked.",
         "operationId": "update",
         "parameters": [
           {
@@ -1471,6 +1494,7 @@
         "tags": [
           "invitations"
         ],
+        "summary": "Look up an invitation by ID and token. Unauthenticated — intended for pre-acceptance\ndisplay (show the org name and role before asking the user to log in). Returns 404 if\nthe invitation doesn't exist, is expired, or the token is wrong.",
         "operationId": "view_invitation",
         "parameters": [
           {
@@ -1522,6 +1546,7 @@
         "tags": [
           "invitations"
         ],
+        "summary": "Accept an invitation. The authenticated user is added to the org with the invitation's\nrole. The invitation token is consumed and cannot be reused. Returns 409 if already a member.",
         "operationId": "accept_invitation",
         "parameters": [
           {
@@ -1581,6 +1606,7 @@
         "tags": [
           "invitations"
         ],
+        "summary": "Decline an invitation. The token is consumed and the invitation is removed.\nUnauthenticated — the token in the query string is sufficient.",
         "operationId": "decline_invitation",
         "parameters": [
           {
@@ -1625,6 +1651,7 @@
         "tags": [
           "system"
         ],
+        "summary": "The active JWT signing public keys in JWK Set format. Cached for 1 hour (`Cache-Control: public, max-age=3600`).\nUse this endpoint to verify JWTs issued by `POST /v1/tokens`.",
         "operationId": "jwks",
         "responses": {
           "200": {
@@ -1653,6 +1680,7 @@
         "tags": [
           "keys"
         ],
+        "summary": "List all API keys for the authenticated user. Bearer token values are never returned\n— only metadata (ID, name, created/used/expires timestamps).",
         "operationId": "list_keys",
         "responses": {
           "200": {
@@ -1686,6 +1714,7 @@
         "tags": [
           "keys"
         ],
+        "summary": "Create an API key for the authenticated user. The full bearer token is returned in\n`key` and is shown only once — store it immediately. Subsequent reads return only metadata.",
         "operationId": "create_key",
         "requestBody": {
           "content": {
@@ -1731,6 +1760,7 @@
         "tags": [
           "keys"
         ],
+        "summary": "Get metadata for a single API key.",
         "operationId": "get_key",
         "parameters": [
           {
@@ -1786,6 +1816,7 @@
         "tags": [
           "keys"
         ],
+        "summary": "Revoke an API key. The key is immediately invalid for authentication.",
         "operationId": "delete",
         "parameters": [
           {
@@ -1836,6 +1867,7 @@
         "tags": [
           "magic-links"
         ],
+        "summary": "Issue a passwordless magic-link token for the given email address. The caller is\nresponsible for delivering the token to the user (e.g. via email). The token is\nexchanged for a session via `POST /v1/sessions` with `grant_type=magic_link`.\nExpires in 15 minutes. Returns 404 if no account exists for the address.",
         "operationId": "create_magic_link",
         "requestBody": {
           "content": {
@@ -1876,6 +1908,7 @@
         "tags": [
           "oauth"
         ],
+        "summary": "Apple Sign-In callback. Apple uses a POST form submission instead of a GET redirect,\nso this is a separate endpoint. Behavior is identical to `GET /v1/oauth/{provider}/callback`.",
         "operationId": "apple_callback",
         "requestBody": {
           "content": {
@@ -1916,6 +1949,7 @@
         "tags": [
           "oauth"
         ],
+        "summary": "Start an OAuth authorization flow. Returns the provider's authorization URL.\nIf the caller includes a valid session Bearer token, the resulting identity will be\nlinked to that account instead of creating a new session.",
         "operationId": "authorize",
         "parameters": [
           {
@@ -1966,6 +2000,7 @@
         "tags": [
           "oauth"
         ],
+        "summary": "OAuth authorization callback. Exchanges the provider code for a profile, then either\ncreates a new session (login) or links the identity to the authenticated user (link flow).\nWhen TOTP is enrolled, returns a step-up challenge instead of a session token.\nReturns 409 if the OAuth identity is already claimed by a different user.",
         "operationId": "callback",
         "parameters": [
           {
@@ -2035,6 +2070,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "List all orgs the authenticated user is a member of, cursor-paginated.",
         "operationId": "list_orgs",
         "parameters": [
           {
@@ -2083,6 +2119,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Create a new organization. The authenticated user becomes the owner.\nReturns 409 if the slug is already taken.",
         "operationId": "create_org",
         "requestBody": {
           "content": {
@@ -2128,6 +2165,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Get an org by ID. Returns 403 if the authenticated user is not a member.",
         "operationId": "get_org",
         "parameters": [
           {
@@ -2183,6 +2221,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Soft-delete an org. Requires owner role. Returns 409 if this is the user's personal org\n(personal orgs are deleted via `DELETE /v1/users/me`).",
         "operationId": "delete_org",
         "parameters": [
           {
@@ -2241,6 +2280,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Update an org. Requires owner role. Only fields present in the body are changed.",
         "operationId": "update_org",
         "parameters": [
           {
@@ -2318,6 +2358,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "List pending invitations for an org, cursor-paginated. Requires owner.\nTokens are not included in list responses — only in creation and resend responses.",
         "operationId": "list_invitations",
         "parameters": [
           {
@@ -2386,6 +2427,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Create an invitation. Requires owner. The response includes a one-time `token` — deliver\nit to the invitee so they can call `POST /v1/invitations/{id}/acceptances`. Returns 409\nif a pending invitation already exists for the same email.",
         "operationId": "create_invitation",
         "parameters": [
           {
@@ -2453,6 +2495,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Revoke an invitation. The token is immediately invalidated. Requires owner.",
         "operationId": "revoke_invitation",
         "parameters": [
           {
@@ -2513,6 +2556,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Re-issue an invitation token. Invalidates the previous token and returns a fresh one.\nUse this when the original token expires or is lost. Requires owner.",
         "operationId": "resend_invitation",
         "parameters": [
           {
@@ -2580,6 +2624,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "List members of an org, cursor-paginated. Requires membership.",
         "operationId": "list_members",
         "parameters": [
           {
@@ -2660,6 +2705,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Remove a member from an org. A user can remove themselves with only membership; removing\nanother member requires owner. Returns 409 if removing would leave the org with no owners.",
         "operationId": "remove_member",
         "parameters": [
           {
@@ -2728,6 +2774,7 @@
         "tags": [
           "orgs"
         ],
+        "summary": "Update a member's role. Requires owner. Returns 409 if the change would leave the org\nwith no owners.",
         "operationId": "update_member",
         "parameters": [
           {
@@ -2808,6 +2855,7 @@
         "tags": [
           "passkeys"
         ],
+        "summary": "Begin WebAuthn passkey authentication (discoverable credential flow). Returns `options`\nfor `navigator.credentials.get()` and a `state_token`. Complete authentication by\nposting `state_token` + credential to `POST /v1/sessions` with `grant_type=passkey`.\nUnauthenticated — no bearer token required.",
         "operationId": "begin_passkey_authentication",
         "responses": {
           "200": {
@@ -2828,6 +2876,7 @@
         "tags": [
           "passkeys"
         ],
+        "summary": "Begin WebAuthn passkey registration. Returns a `options` object to pass directly to\n`navigator.credentials.create()` and a `state_token` to include in the subsequent\n`POST /v1/passkeys` finish call. Two-step: begin here, finish with `POST /v1/passkeys`.",
         "operationId": "begin_passkey_registration",
         "responses": {
           "201": {
@@ -2863,6 +2912,7 @@
         "tags": [
           "passkey"
         ],
+        "summary": "List all registered passkey credentials for the authenticated user.",
         "operationId": "list_passkeys",
         "responses": {
           "200": {
@@ -2899,6 +2949,7 @@
         "tags": [
           "passkeys"
         ],
+        "summary": "Complete passkey registration. Submit the `state_token` from `POST /v1/passkey-registrations`\nand the `PublicKeyCredential` response from `navigator.credentials.create()`.\nThe registered credential can then be used to authenticate via `POST /v1/passkey-authentications`.",
         "operationId": "create_passkey",
         "requestBody": {
           "content": {
@@ -2944,6 +2995,7 @@
         "tags": [
           "passkeys"
         ],
+        "summary": "Delete a registered passkey credential. The credential can no longer be used to authenticate.",
         "operationId": "delete_passkey",
         "parameters": [
           {
@@ -2982,6 +3034,7 @@
         "tags": [
           "passkeys"
         ],
+        "summary": "Update the nickname of a registered passkey credential.",
         "operationId": "update_passkey",
         "parameters": [
           {
@@ -3032,6 +3085,7 @@
         "tags": [
           "password-resets"
         ],
+        "summary": "Issue a password-reset token for the given email address. The caller is responsible\nfor delivering the token to the user. The token is exchanged — along with a new password\n— via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all\nexisting sessions. Expires in 1 hour. Returns 404 if no account exists or the account\nhas no password identity.",
         "operationId": "create_password_reset",
         "requestBody": {
           "content": {
@@ -3072,6 +3126,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "List all active sessions for the authenticated user. The current session is included.",
         "operationId": "list_sessions",
         "responses": {
           "200": {
@@ -3105,6 +3160,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Authenticate and create a session. The `grant_type` field in the request body selects\nthe credential flow. On success, returns 201 with a session token. When the account has\nTOTP enrolled and the grant type supports MFA, returns 200 with a `step_up_token` —\nthe caller must then re-POST with `grant_type=totp_step_up` to complete authentication.",
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -3163,6 +3219,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Revoke all sessions for the authenticated user. Use `except_current=true` to keep\nthe current session active (e.g. \"sign out everywhere else\").",
         "operationId": "delete_all_sessions",
         "parameters": [
           {
@@ -3202,6 +3259,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Return details about the session that authenticated the current request.",
         "operationId": "get_current",
         "responses": {
           "200": {
@@ -3245,6 +3303,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Revoke the session that authenticated the current request. The bearer token becomes\nimmediately invalid. Idempotent — safe to call if the session is already gone.",
         "operationId": "delete_current",
         "responses": {
           "204": {
@@ -3273,6 +3332,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Revoke a specific session by ID. The caller can only revoke their own sessions;\nattempting to revoke another user's session returns 404 (not 403) to prevent enumeration.",
         "operationId": "delete_by_id",
         "parameters": [
           {
@@ -3380,6 +3440,7 @@
         "tags": [
           "totp"
         ],
+        "summary": "Begin TOTP enrollment. Returns the secret and a QR code data URL. Enrollment is not\nactive until confirmed via `POST /v1/totp/confirmations`. Calling this again before\nconfirming replaces the pending enrollment.",
         "operationId": "begin_enrollment",
         "responses": {
           "200": {
@@ -3413,6 +3474,7 @@
         "tags": [
           "totp"
         ],
+        "summary": "Disable TOTP for the authenticated user. Future logins will no longer require a step-up\nchallenge. All recovery codes are also invalidated.",
         "operationId": "disable",
         "responses": {
           "204": {
@@ -3441,6 +3503,7 @@
         "tags": [
           "totp"
         ],
+        "summary": "Confirm TOTP enrollment by verifying a live code from the authenticator app. After this\ncall, TOTP is active and future logins will require a step-up challenge.",
         "operationId": "confirm_enrollment",
         "requestBody": {
           "content": {
@@ -3479,6 +3542,7 @@
         "tags": [
           "totp"
         ],
+        "summary": "Regenerate TOTP recovery codes. Requires a valid TOTP code to prove the authenticator\napp is still accessible. All existing recovery codes are invalidated and replaced.",
         "operationId": "regenerate_recovery_codes",
         "requestBody": {
           "content": {
@@ -3534,6 +3598,7 @@
         "tags": [
           "users"
         ],
+        "summary": "Register a new user with email and password. Creates the user, a personal org, and\na session in a single transaction. Returns 409 if the email is already registered.",
         "operationId": "signup",
         "requestBody": {
           "content": {
@@ -3584,6 +3649,7 @@
         "tags": [
           "users"
         ],
+        "summary": "Return the authenticated user's profile, primary email, and personal org.",
         "operationId": "get_me",
         "responses": {
           "200": {
@@ -3617,6 +3683,7 @@
         "tags": [
           "users"
         ],
+        "summary": "Soft-delete the authenticated user and their personal org. All active sessions are\ninvalidated immediately. This action is permanent — deleted accounts cannot be recovered.",
         "operationId": "delete_me",
         "responses": {
           "204": {
@@ -3643,6 +3710,7 @@
         "tags": [
           "users"
         ],
+        "summary": "Update the authenticated user's profile. Only fields present in the request body are changed.",
         "operationId": "update_me",
         "requestBody": {
           "content": {
@@ -3708,6 +3776,7 @@
     "schemas": {
       "AddPasswordRequest": {
         "type": "object",
+        "description": "Request to add a password identity to an account that currently has none\n(e.g. a user who signed up via OAuth and wants to add password login).",
         "required": [
           "password"
         ],
@@ -3719,17 +3788,20 @@
       },
       "AddRequest": {
         "type": "object",
+        "description": "Request to initiate a primary email address change.",
         "required": [
           "email"
         ],
         "properties": {
           "email": {
-            "type": "string"
+            "type": "string",
+            "description": "The new email address to switch to. Must not already be registered to any user."
           }
         }
       },
       "AdminUserResponse": {
         "type": "object",
+        "description": "Full user record returned to admin callers.",
         "required": [
           "id",
           "primary_org_id",
@@ -3746,7 +3818,8 @@
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Set when the user has been soft-deleted; null for active accounts."
           },
           "email": {
             "type": [
@@ -3798,6 +3871,7 @@
       },
       "AuthResponse": {
         "type": "object",
+        "description": "Returned on successful login or signup. Contains the new session alongside the user,\nprimary email, and personal org context.",
         "required": [
           "user",
           "email",
@@ -3859,23 +3933,27 @@
       },
       "BatchRequest": {
         "type": "object",
+        "description": "Batch of relation tuples to write and/or delete in a single transaction.",
         "properties": {
           "deletes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RelationRequest"
-            }
+            },
+            "description": "Relation tuples to delete. Missing deletes are silently ignored."
           },
           "writes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RelationRequest"
-            }
+            },
+            "description": "Relation tuples to create. Duplicate writes are silently ignored."
           }
         }
       },
       "BatchResponse": {
         "type": "object",
+        "description": "Result counts from a batch relation operation.",
         "required": [
           "written",
           "deleted"
@@ -3912,6 +3990,7 @@
       },
       "CallbackResponse": {
         "type": "object",
+        "description": "Session token returned after a successful OAuth login callback.",
         "required": [
           "token",
           "expires_at"
@@ -3922,18 +4001,21 @@
             "format": "date-time"
           },
           "token": {
-            "type": "string"
+            "type": "string",
+            "description": "Opaque session bearer token. Use as `Authorization: Bearer <token>`."
           }
         }
       },
       "CheckResponse": {
         "type": "object",
+        "description": "Result of a single permission check.",
         "required": [
           "allowed"
         ],
         "properties": {
           "allowed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "True if the subject has the requested permission on the resource."
           }
         }
       },
@@ -3946,13 +4028,16 @@
         ],
         "properties": {
           "permission": {
-            "type": "string"
+            "type": "string",
+            "description": "Permission name as defined in the authz schema."
           },
           "resource_id": {
-            "type": "string"
+            "type": "string",
+            "description": "ID of the resource instance to check against."
           },
           "resource_type": {
-            "type": "string"
+            "type": "string",
+            "description": "Resource type as defined in the authz schema."
           },
           "user": {
             "type": [
@@ -3994,46 +4079,54 @@
       },
       "ConfigResponse": {
         "type": "object",
+        "description": "Current runtime configuration values.",
         "required": [
           "jwt_enabled"
         ],
         "properties": {
           "jwt_enabled": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether `POST /v1/tokens` is enabled for JWT issuance."
           },
           "session_idle_timeout_seconds": {
             "type": [
               "integer",
               "null"
             ],
-            "format": "int32"
+            "format": "int32",
+            "description": "Seconds of inactivity before a session expires. Null means no idle timeout."
           }
         }
       },
       "ConfirmRequest": {
         "type": "object",
+        "description": "Request body for TOTP confirmation and recovery-code regeneration.",
         "required": [
           "code"
         ],
         "properties": {
           "code": {
-            "type": "string"
+            "type": "string",
+            "description": "Current 6-digit TOTP code from the authenticator app."
           }
         }
       },
       "ConfirmVerificationRequest": {
         "type": "object",
+        "description": "Token-based confirmation of email ownership.",
         "required": [
           "token"
         ],
         "properties": {
           "token": {
-            "type": "string"
+            "type": "string",
+            "description": "The plaintext verification token from `POST /v1/emails/{id}/verifications`."
           }
         }
       },
       "ConfirmVerificationResponse": {
         "type": "object",
+        "description": "Returned when email verification succeeds.",
         "required": [
           "verified_at"
         ],
@@ -4046,6 +4139,7 @@
       },
       "CreateInvitationRequest": {
         "type": "object",
+        "description": "Request to create an invitation to the org.",
         "required": [
           "role"
         ],
@@ -4054,15 +4148,18 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Email address to address the invitation to. Omit for an open link invitation\nthat any user can accept."
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "description": "Role the invitee will receive on acceptance."
           }
         }
       },
       "CreateOrgRequest": {
         "type": "object",
+        "description": "Request to create a new organization.",
         "required": [
           "name"
         ],
@@ -4075,7 +4172,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "URL-safe identifier. Defaults to a slugified version of `name` if omitted."
           }
         }
       },
@@ -4150,6 +4248,7 @@
       },
       "CurrentSessionResponse": {
         "type": "object",
+        "description": "Details of the session that authenticated the current request.",
         "required": [
           "id",
           "token_id",
@@ -4167,35 +4266,41 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Session ID."
           },
           "ip_address": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "IP address recorded at session creation, if available."
           },
           "last_used_at": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Time the bearer token was last presented, updated on each authenticated request."
           },
           "token_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "ID of the underlying bearer token used to authenticate this request."
           },
           "user_agent": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "User-Agent recorded at session creation, if available."
           }
         }
       },
       "EmailBody": {
         "type": "object",
+        "description": "Primary email address for the user.",
         "required": [
           "id",
           "email"
@@ -4213,12 +4318,14 @@
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Null if the address has not been verified."
           }
         }
       },
       "EmailRecord": {
         "type": "object",
+        "description": "An email address belonging to the authenticated user.",
         "required": [
           "id",
           "email",
@@ -4233,19 +4340,22 @@
             "format": "uuid"
           },
           "is_primary": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "True for the address that appears in `AuthResponse.email` and receives system emails."
           },
           "verified_at": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Null if the address has not been verified yet."
           }
         }
       },
       "EnrollmentResponse": {
         "type": "object",
+        "description": "TOTP enrollment data returned when starting enrollment. Pass `provisioning_uri` or\n`qr_data_url` to an authenticator app, then confirm enrollment with a live TOTP code.",
         "required": [
           "factor_id",
           "secret_b32",
@@ -4256,22 +4366,27 @@
         "properties": {
           "factor_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Opaque factor identifier."
           },
           "provisioning_uri": {
-            "type": "string"
+            "type": "string",
+            "description": "`otpauth://` URI for QR code generation or direct authenticator import."
           },
           "qr_data_url": {
-            "type": "string"
+            "type": "string",
+            "description": "Data URL (`data:image/png;base64,…`) of the provisioning QR code."
           },
           "recovery_codes": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Single-use recovery codes. Store these securely — they are shown only once."
           },
           "secret_b32": {
-            "type": "string"
+            "type": "string",
+            "description": "Raw TOTP secret in base32 — for manual entry into an authenticator app."
           }
         }
       },
@@ -4329,16 +4444,19 @@
       },
       "HealthzResponse": {
         "type": "object",
+        "description": "Health check response.",
         "required": [
           "status",
           "version"
         ],
         "properties": {
           "status": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"ok\"` when healthy, `\"degraded\"` when the database is unreachable."
           },
           "version": {
-            "type": "string"
+            "type": "string",
+            "description": "Service version from `CARGO_PKG_VERSION`."
           }
         }
       },
@@ -4414,6 +4532,7 @@
       },
       "InvitationResponse": {
         "type": "object",
+        "description": "An org invitation. On creation, `token` is populated — it is never returned again.",
         "required": [
           "id",
           "org_id",
@@ -4430,7 +4549,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Email address the invitation is addressed to, if any. Null for open link invitations."
           },
           "expires_at": {
             "type": "string",
@@ -4445,19 +4565,21 @@
             "format": "uuid"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "description": "Role the invitee will receive on acceptance."
           },
           "token": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Plaintext token — only present on creation, never returned again."
+            "description": "Plaintext token — only present on creation, never returned again. Deliver this to the invitee."
           }
         }
       },
       "InvitationViewResponse": {
         "type": "object",
+        "description": "Public view of an invitation, shown to the invitee before they accept or decline.",
         "required": [
           "id",
           "org_id",
@@ -4482,12 +4604,14 @@
             "type": "string"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "description": "The role the invitee will receive on acceptance."
           }
         }
       },
       "InvitationsResponse": {
         "type": "object",
+        "description": "Cursor-paginated list of pending org invitations.",
         "required": [
           "invitations",
           "has_more"
@@ -4506,7 +4630,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Opaque cursor — pass as `after` to retrieve the next page."
           }
         }
       },
@@ -4528,6 +4653,7 @@
       },
       "Jwk": {
         "type": "object",
+        "description": "A single JSON Web Key (Ed25519 public key in JWK format).",
         "required": [
           "kty",
           "crv",
@@ -4538,27 +4664,34 @@
         ],
         "properties": {
           "alg": {
-            "type": "string"
+            "type": "string",
+            "description": "Algorithm — always `\"EdDSA\"`."
           },
           "crv": {
-            "type": "string"
+            "type": "string",
+            "description": "Curve — always `\"Ed25519\"`."
           },
           "kid": {
-            "type": "string"
+            "type": "string",
+            "description": "Key ID matching the `kid` claim in issued JWTs."
           },
           "kty": {
-            "type": "string"
+            "type": "string",
+            "description": "Key type — always `\"OKP\"` for Ed25519."
           },
           "use": {
-            "type": "string"
+            "type": "string",
+            "description": "Intended use — always `\"sig\"`."
           },
           "x": {
-            "type": "string"
+            "type": "string",
+            "description": "Base64url-encoded public key bytes."
           }
         }
       },
       "JwkSet": {
         "type": "object",
+        "description": "JSON Web Key Set — the public keys used to verify JWTs issued by this service.",
         "required": [
           "keys"
         ],
@@ -4620,6 +4753,7 @@
       },
       "LinkCallbackResponse": {
         "type": "object",
+        "description": "Returned when an OAuth callback links a provider identity to an existing account\nrather than creating a new session.",
         "required": [
           "linked"
         ],
@@ -4633,6 +4767,7 @@
         "oneOf": [
           {
             "type": "object",
+            "description": "Email + password login. If TOTP is enrolled, returns 200 with a `step_up_token`\ninstead of a session — caller must complete MFA via `totp_step_up`.",
             "required": [
               "email",
               "password",
@@ -4655,6 +4790,7 @@
           },
           {
             "type": "object",
+            "description": "Exchanges a token issued by `POST /v1/magic-links`. Single-use; expires in 15 min.",
             "required": [
               "token",
               "grant_type"
@@ -4667,12 +4803,14 @@
                 ]
               },
               "token": {
-                "type": "string"
+                "type": "string",
+                "description": "The plaintext token from the magic-link response."
               }
             }
           },
           {
             "type": "object",
+            "description": "Exchanges a password-reset token, sets the new password, and creates a session.\nAll existing sessions are invalidated.",
             "required": [
               "token",
               "new_password",
@@ -4689,12 +4827,14 @@
                 "type": "string"
               },
               "token": {
-                "type": "string"
+                "type": "string",
+                "description": "The plaintext token from the password-reset response."
               }
             }
           },
           {
             "type": "object",
+            "description": "Exchanges an email-change token, promotes the new address to primary, and creates\na session. All existing sessions are invalidated.",
             "required": [
               "token",
               "grant_type"
@@ -4707,12 +4847,14 @@
                 ]
               },
               "token": {
-                "type": "string"
+                "type": "string",
+                "description": "The plaintext token from the email-change (`POST /v1/emails`) response."
               }
             }
           },
           {
             "type": "object",
+            "description": "Completes a TOTP MFA step-up. Present after a 200 response with `step_up_required`.",
             "required": [
               "step_up_token",
               "code",
@@ -4720,7 +4862,8 @@
             ],
             "properties": {
               "code": {
-                "type": "string"
+                "type": "string",
+                "description": "Six-digit TOTP code from the authenticator app."
               },
               "grant_type": {
                 "type": "string",
@@ -4729,12 +4872,14 @@
                 ]
               },
               "step_up_token": {
-                "type": "string"
+                "type": "string",
+                "description": "The `step_up_token` from the preceding 200 step-up response."
               }
             }
           },
           {
             "type": "object",
+            "description": "Completes MFA using a single-use TOTP recovery code. Consumes the code permanently.",
             "required": [
               "step_up_token",
               "code",
@@ -4742,7 +4887,8 @@
             ],
             "properties": {
               "code": {
-                "type": "string"
+                "type": "string",
+                "description": "One of the recovery codes issued at TOTP enrollment or last regeneration."
               },
               "grant_type": {
                 "type": "string",
@@ -4751,12 +4897,14 @@
                 ]
               },
               "step_up_token": {
-                "type": "string"
+                "type": "string",
+                "description": "The `step_up_token` from the preceding 200 step-up response."
               }
             }
           },
           {
             "type": "object",
+            "description": "Completes a WebAuthn passkey authentication flow.",
             "required": [
               "state_token",
               "credential",
@@ -4764,7 +4912,8 @@
             ],
             "properties": {
               "credential": {
-                "type": "object"
+                "type": "object",
+                "description": "WebAuthn `PublicKeyCredential` response from the browser's `navigator.credentials.get()`."
               },
               "grant_type": {
                 "type": "string",
@@ -4773,25 +4922,30 @@
                 ]
               },
               "state_token": {
-                "type": "string"
+                "type": "string",
+                "description": "The `state_token` from the `POST /v1/passkey-authentications` response."
               }
             }
           }
-        ]
+        ],
+        "description": "Credential payload for session creation. The `grant_type` field discriminates the variant."
       },
       "MagicLinkRequest": {
         "type": "object",
+        "description": "Request to issue a magic-link login token for a user.",
         "required": [
           "email"
         ],
         "properties": {
           "email": {
-            "type": "string"
+            "type": "string",
+            "description": "The user's primary email address."
           }
         }
       },
       "MagicLinkResponse": {
         "type": "object",
+        "description": "Magic-link token response. Pass `token` to `POST /v1/sessions` with\n`grant_type=magic_link` to authenticate.",
         "required": [
           "token",
           "expires_at"
@@ -4809,6 +4963,7 @@
       },
       "MeResponse": {
         "type": "object",
+        "description": "Current authenticated user context.",
         "required": [
           "user",
           "email",
@@ -4819,7 +4974,8 @@
             "$ref": "#/components/schemas/EmailBody"
           },
           "org": {
-            "$ref": "#/components/schemas/OrgBody"
+            "$ref": "#/components/schemas/OrgBody",
+            "description": "The user's personal org. Multi-org memberships are listed via `GET /v1/orgs`."
           },
           "user": {
             "$ref": "#/components/schemas/UserBody"
@@ -4828,6 +4984,7 @@
       },
       "MemberResponse": {
         "type": "object",
+        "description": "An org membership record.",
         "required": [
           "user_id",
           "role",
@@ -4839,7 +4996,8 @@
             "format": "date-time"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "description": "Role within this org, e.g. `\"owner\"` or `\"member\"`."
           },
           "user_id": {
             "type": "string",
@@ -4849,6 +5007,7 @@
       },
       "MembersResponse": {
         "type": "object",
+        "description": "Cursor-paginated list of org members.",
         "required": [
           "members",
           "has_more"
@@ -4867,12 +5026,14 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Opaque cursor — pass as `after` to retrieve the next page."
           }
         }
       },
       "ObjectsResponse": {
         "type": "object",
+        "description": "Cursor-paginated list of resource IDs the subject can access.",
         "required": [
           "object_ids",
           "has_more"
@@ -4885,7 +5046,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Opaque cursor — pass as `after` for the next page."
           },
           "object_ids": {
             "type": "array",
@@ -4897,6 +5059,7 @@
       },
       "OrgBody": {
         "type": "object",
+        "description": "The user's personal org.",
         "required": [
           "id",
           "name",
@@ -4917,12 +5080,14 @@
             "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "URL-safe identifier, unique across all orgs."
           }
         }
       },
       "OrgResponse": {
         "type": "object",
+        "description": "An organization the authenticated user is a member of.",
         "required": [
           "id",
           "name",
@@ -4945,17 +5110,21 @@
               "null"
             ]
           },
-          "metadata": {},
+          "metadata": {
+            "description": "Arbitrary JSON metadata."
+          },
           "name": {
             "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "URL-safe identifier, unique across all orgs."
           }
         }
       },
       "OrgsResponse": {
         "type": "object",
+        "description": "Cursor-paginated list of orgs.",
         "required": [
           "orgs",
           "has_more"
@@ -4968,7 +5137,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Opaque cursor — pass as `after` to retrieve the next page."
           },
           "orgs": {
             "type": "array",
@@ -4980,6 +5150,7 @@
       },
       "OttTokenResponse": {
         "type": "object",
+        "description": "One-time token response for flows that require a follow-up session grant.",
         "required": [
           "token",
           "expires_at"
@@ -4997,17 +5168,20 @@
       },
       "PasswordResetRequest": {
         "type": "object",
+        "description": "Request to issue a password-reset token for a user.",
         "required": [
           "email"
         ],
         "properties": {
           "email": {
-            "type": "string"
+            "type": "string",
+            "description": "The user's primary email address."
           }
         }
       },
       "PasswordResetResponse": {
         "type": "object",
+        "description": "Password-reset token response. Pass `token` to `POST /v1/sessions` with\n`grant_type=password_reset` along with the new password to complete the reset.",
         "required": [
           "token",
           "expires_at"
@@ -5025,6 +5199,7 @@
       },
       "RecoveryCodesResponse": {
         "type": "object",
+        "description": "Freshly generated TOTP recovery codes.",
         "required": [
           "recovery_codes"
         ],
@@ -5033,7 +5208,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "New single-use recovery codes. All previous codes are immediately invalidated."
           }
         }
       },
@@ -5062,21 +5238,25 @@
       },
       "RelationObject": {
         "type": "object",
+        "description": "The resource side of a relation tuple.",
         "required": [
           "type",
           "id"
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Unique identifier for this resource instance."
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "description": "Resource type as defined in the authz schema."
           }
         }
       },
       "RelationRequest": {
         "type": "object",
+        "description": "A relation tuple: `(object, relation, subject)`.",
         "required": [
           "object",
           "relation",
@@ -5087,7 +5267,8 @@
             "$ref": "#/components/schemas/RelationObject"
           },
           "relation": {
-            "type": "string"
+            "type": "string",
+            "description": "The relation name as defined in the authz schema (e.g. `\"owner\"`, `\"member\"`)."
           },
           "subject": {
             "$ref": "#/components/schemas/RelationSubject"
@@ -5096,24 +5277,28 @@
       },
       "RelationSubject": {
         "type": "object",
+        "description": "The subject (actor) side of a relation tuple.",
         "required": [
           "id"
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Subject ID — typically a user ID or another resource ID for subject sets."
           },
           "relation": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "For subject sets: the relation on the subject resource that grants membership."
           },
           "type": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "For subject sets: the type of the subject resource. Omit for direct user subjects."
           }
         }
       },
@@ -5181,6 +5366,7 @@
       },
       "SessionBody": {
         "type": "object",
+        "description": "Session credential returned on login or signup.",
         "required": [
           "id",
           "token",
@@ -5254,6 +5440,7 @@
       },
       "SessionsResponse": {
         "type": "object",
+        "description": "Paginated list of active sessions for the authenticated user.",
         "required": [
           "sessions"
         ],
@@ -5268,6 +5455,7 @@
       },
       "SignupRequest": {
         "type": "object",
+        "description": "Registration request. Creates a user, a personal org, and a session in one call.",
         "required": [
           "email",
           "password"
@@ -5277,7 +5465,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Display name for the user's personal org. Defaults to the local part of the email."
           },
           "email": {
             "type": "string"
@@ -5307,21 +5496,25 @@
       },
       "Subject": {
         "type": "object",
+        "description": "A subject (actor) with the relation through which they hold access.",
         "required": [
           "id",
           "relation"
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Subject ID."
           },
           "relation": {
-            "type": "string"
+            "type": "string",
+            "description": "The direct relation through which this subject was found."
           }
         }
       },
       "SubjectsResponse": {
         "type": "object",
+        "description": "Subjects who hold the queried relation or permission on a resource.",
         "required": [
           "subjects"
         ],
@@ -5364,61 +5557,70 @@
       },
       "TraceResponse": {
         "type": "object",
+        "description": "Trace result explaining why a permission check returned its outcome.",
         "required": [
           "allowed",
           "subjects"
         ],
         "properties": {
           "allowed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the specified user has the permission on the resource."
           },
           "subjects": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Subject"
-            }
+            },
+            "description": "All subjects found during expansion — check if `user` appears here to understand the grant."
           }
         }
       },
       "UpdateConfigRequest": {
         "type": "object",
-        "description": "Partial config update. Only fields explicitly set are updated.\nSend `\"session_idle_timeout_seconds\": null` to clear the idle timeout.",
+        "description": "Partial config update. Only fields explicitly set are updated.\nSend `\"session_idle_timeout_seconds\": null` to clear the idle timeout.\nPartial config update. Only fields present in the body are changed.\nSend `\"session_idle_timeout_seconds\": null` to clear the idle timeout.",
         "properties": {
           "jwt_enabled": {
             "type": [
               "boolean",
               "null"
-            ]
+            ],
+            "description": "When true, `POST /v1/tokens` issues JWT access tokens."
           },
           "session_idle_timeout_seconds": {
             "type": [
               "integer",
               "null"
             ],
-            "format": "int32"
+            "format": "int32",
+            "description": "Seconds of inactivity before a session is considered expired. Send `null` to disable."
           }
         }
       },
       "UpdateCredentialRequest": {
         "type": "object",
+        "description": "Request to rename a registered passkey credential.",
         "required": [
           "nickname"
         ],
         "properties": {
           "nickname": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable label shown in credential lists."
           }
         }
       },
       "UpdateIdentityRequest": {
         "type": "object",
+        "description": "Request to change the password for an existing password identity.\nRequires the current password as proof of possession.",
         "required": [
           "current_password",
           "new_password"
         ],
         "properties": {
           "current_password": {
-            "type": "string"
+            "type": "string",
+            "description": "The existing password — must be correct or the request is rejected with 401."
           },
           "new_password": {
             "type": "string"
@@ -5427,6 +5629,7 @@
       },
       "UpdateMeRequest": {
         "type": "object",
+        "description": "Partial update for the user's personal org. All fields are optional; omitted fields\nare left unchanged.",
         "properties": {
           "image_url": {
             "type": [
@@ -5434,34 +5637,41 @@
               "null"
             ]
           },
-          "metadata": {},
+          "metadata": {
+            "description": "Arbitrary JSON merged into the org's metadata field (full replacement, not merge)."
+          },
           "name": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Display name for the user and their personal org."
           },
           "slug": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "URL-safe org identifier. Must be unique. Returns 409 if already taken."
           }
         }
       },
       "UpdateMemberRequest": {
         "type": "object",
+        "description": "Request to change a member's role.",
         "required": [
           "role"
         ],
         "properties": {
           "role": {
-            "type": "string"
+            "type": "string",
+            "description": "New role for the member, e.g. `\"owner\"` or `\"member\"`."
           }
         }
       },
       "UpdateOrgRequest": {
         "type": "object",
+        "description": "Partial org update. Omitted fields are left unchanged.",
         "properties": {
           "image_url": {
             "type": [
@@ -5469,7 +5679,9 @@
               "null"
             ]
           },
-          "metadata": {},
+          "metadata": {
+            "description": "Full replacement of the org's metadata field."
+          },
           "name": {
             "type": [
               "string",
@@ -5480,12 +5692,14 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "URL-safe identifier. Returns 409 if already taken."
           }
         }
       },
       "UserBody": {
         "type": "object",
+        "description": "Core user fields.",
         "required": [
           "id",
           "primary_org_id",
@@ -5508,13 +5722,17 @@
               "null"
             ]
           },
-          "metadata": {},
+          "metadata": {
+            "description": "Arbitrary JSON metadata stored on the personal org."
+          },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Display name (mirrors the personal org name)."
           },
           "primary_org_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "ID of the user's personal org. Always present; created at signup."
           }
         }
       }

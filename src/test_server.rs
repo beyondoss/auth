@@ -38,7 +38,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         .await?;
     let enc_key = LocalKeyEncryptor::from_base64(ENC_KEY, &[])?;
     let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
-    let jwks = signing_keys::render_jwks(&loaded_key);
+    let jwks = signing_keys::render_jwks(std::slice::from_ref(&loaded_key));
     let app_config = app_config::load(&pool).await?;
     let compiled_authz = app_config::compile_authz_schema(&app_config).ok().flatten();
 

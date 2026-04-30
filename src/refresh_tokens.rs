@@ -105,7 +105,13 @@ pub async fn validate(
 }
 
 /// Mark `old_token_id` as replaced and create a successor in the same family.
+///
+/// The UPDATE is guarded by `AND replaced_at IS NULL` to make rotation atomic
+/// against concurrent requests presenting the same token. If another request
+/// already rotated the token, 0 rows are affected: the entire family is revoked
+/// (replay-theft response) and `Err(AuthError::Unauthorized)` is returned.
 pub async fn rotate(
+    pool: &PgPool,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     old_token_id: Uuid,
     new_token: &Token,
@@ -113,13 +119,19 @@ pub async fn rotate(
     family_id: Uuid,
     ttl_seconds: i32,
 ) -> Result<(), AuthError> {
-    sqlx::query!(
-        "UPDATE auth.refresh_tokens SET replaced_at = now() WHERE token_id = $1",
+    let result = sqlx::query!(
+        "UPDATE auth.refresh_tokens SET replaced_at = now()
+         WHERE token_id = $1 AND replaced_at IS NULL",
         old_token_id,
     )
     .execute(tx.as_mut())
     .await
     .map_err(AuthError::from)?;
+
+    if result.rows_affected() == 0 {
+        revoke_family(pool, family_id).await?;
+        return Err(AuthError::Unauthorized);
+    }
 
     create(tx, new_token, session_id, family_id, ttl_seconds).await
 }

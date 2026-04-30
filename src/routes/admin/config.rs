@@ -70,21 +70,25 @@ pub async fn patch(
     Json(req): Json<UpdateConfigRequest>,
 ) -> Result<(StatusCode, Json<ConfigResponse>), AuthError> {
     if let Some(timeout) = req.session_idle_timeout_seconds {
-        sqlx::query("UPDATE auth.app_config SET session_idle_timeout_seconds = $1 WHERE id = true")
-            .bind(timeout)
-            .execute(&state.pool)
-            .await
-            .map_err(AuthError::from)?;
+        sqlx::query!(
+            "UPDATE auth.app_config SET session_idle_timeout_seconds = $1 WHERE id = true",
+            timeout,
+        )
+        .execute(&state.pool)
+        .await
+        .map_err(AuthError::from)?;
 
         state.app_config.write().await.session_idle_timeout_seconds = timeout;
     }
 
     if let Some(enabled) = req.jwt_enabled {
-        sqlx::query("UPDATE auth.app_config SET jwt_enabled = $1 WHERE id = true")
-            .bind(enabled)
-            .execute(&state.pool)
-            .await
-            .map_err(AuthError::from)?;
+        sqlx::query!(
+            "UPDATE auth.app_config SET jwt_enabled = $1 WHERE id = true",
+            enabled,
+        )
+        .execute(&state.pool)
+        .await
+        .map_err(AuthError::from)?;
 
         state.app_config.write().await.jwt_enabled = enabled;
     }

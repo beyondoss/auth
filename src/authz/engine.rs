@@ -341,10 +341,16 @@ pub async fn parallel_batch_check(
     if rows.is_empty() {
         return Ok(vec![]);
     }
-    let subject_ids: Vec<String> = rows.iter().map(|(s, _, _, _)| s.clone()).collect();
-    let relations: Vec<String> = rows.iter().map(|(_, r, _, _)| r.clone()).collect();
-    let object_types: Vec<String> = rows.iter().map(|(_, _, t, _)| t.clone()).collect();
-    let object_ids: Vec<String> = rows.iter().map(|(_, _, _, o)| o.clone()).collect();
+    let mut subject_ids = Vec::with_capacity(rows.len());
+    let mut relations = Vec::with_capacity(rows.len());
+    let mut object_types = Vec::with_capacity(rows.len());
+    let mut object_ids = Vec::with_capacity(rows.len());
+    for (s, r, t, o) in rows {
+        subject_ids.push(s.clone());
+        relations.push(r.clone());
+        object_types.push(t.clone());
+        object_ids.push(o.clone());
+    }
     let (bools,): (Vec<bool>,) = sqlx::query_as(
         "SELECT auth.authz_check_parallel_batch($1::text[], $2::text[], $3::text[], $4::text[])",
     )

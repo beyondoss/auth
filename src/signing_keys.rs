@@ -139,20 +139,64 @@ async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -
     Ok(())
 }
 
-pub fn render_jwks(key: &LoadedKey) -> String {
-    let x = URL_SAFE_NO_PAD.encode(key.signing_key.verifying_key().as_bytes());
+/// Load all signing keys (active + inactive) ordered by creation date descending.
+/// Keys that cannot be decrypted are skipped with a warning rather than failing startup.
+pub async fn load_all_keys_for_jwks(
+    pool: &PgPool,
+    enc: &dyn KeyEncryptor,
+) -> anyhow::Result<Vec<LoadedKey>> {
+    let rows =
+        sqlx::query!("SELECT id, private_key_enc FROM auth.signing_keys ORDER BY created_at DESC",)
+            .fetch_all(pool)
+            .await
+            .context("failed to query signing keys")?;
 
-    serde_json::to_string(&json!({
-        "keys": [{
-            "kty": "OKP",
-            "crv": "Ed25519",
-            "kid": key.id.to_string(),
-            "use": "sig",
-            "alg": "EdDSA",
-            "x": x,
-        }]
-    }))
-    .expect("JWKS serialization is infallible")
+    let mut keys = Vec::with_capacity(rows.len());
+    for row in rows {
+        match enc.decrypt_with_fallback(&row.private_key_enc, row.id.as_bytes()) {
+            Ok((pem_bytes, _)) => {
+                let pem_bytes = Zeroizing::new(pem_bytes);
+                match std::str::from_utf8(&pem_bytes)
+                    .ok()
+                    .and_then(|pem| SigningKey::from_pkcs8_pem(pem).ok())
+                {
+                    Some(signing_key) => keys.push(LoadedKey {
+                        id: row.id,
+                        signing_key,
+                    }),
+                    None => {
+                        tracing::warn!(kid = %row.id, "failed to parse signing key PEM, omitting from JWKS")
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(kid = %row.id, error = %e, "failed to decrypt signing key, omitting from JWKS")
+            }
+        }
+    }
+    Ok(keys)
+}
+
+/// Render a JWK Set from one or more signing keys. All keys are included so that
+/// JWT consumers can verify tokens signed by any key in the set, including keys
+/// that have been retired (status = 'inactive').
+pub fn render_jwks(keys: &[LoadedKey]) -> String {
+    let jwk_values: Vec<_> = keys
+        .iter()
+        .map(|key| {
+            let x = URL_SAFE_NO_PAD.encode(key.signing_key.verifying_key().as_bytes());
+            json!({
+                "kty": "OKP",
+                "crv": "Ed25519",
+                "kid": key.id.to_string(),
+                "use": "sig",
+                "alg": "EdDSA",
+                "x": x,
+            })
+        })
+        .collect();
+
+    serde_json::to_string(&json!({ "keys": jwk_values })).expect("JWKS serialization is infallible")
 }
 
 #[cfg(test)]
@@ -167,7 +211,7 @@ mod tests {
             id,
             signing_key: SigningKey::generate(&mut OsRng),
         };
-        let jwks: serde_json::Value = serde_json::from_str(&render_jwks(&loaded)).unwrap();
+        let jwks: serde_json::Value = serde_json::from_str(&render_jwks(&[loaded])).unwrap();
         let key = &jwks["keys"][0];
         assert_eq!(key["kty"], "OKP");
         assert_eq!(key["crv"], "Ed25519");
@@ -176,5 +220,17 @@ mod tests {
         assert_eq!(key["kid"], id.to_string());
         // Ed25519 public key is 32 bytes → 43 chars base64url no-pad
         assert_eq!(key["x"].as_str().unwrap().len(), 43);
+    }
+
+    #[test]
+    fn render_jwks_includes_all_keys() {
+        let keys: Vec<LoadedKey> = (0..3)
+            .map(|_| LoadedKey {
+                id: Uuid::now_v7(),
+                signing_key: SigningKey::generate(&mut OsRng),
+            })
+            .collect();
+        let jwks: serde_json::Value = serde_json::from_str(&render_jwks(&keys)).unwrap();
+        assert_eq!(jwks["keys"].as_array().unwrap().len(), 3);
     }
 }
