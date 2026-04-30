@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use tracing;
 use uuid::Uuid;
 
-use crate::error::AuthError;
+use crate::{authz::schema::ValidIdent, error::AuthError};
 
 // ── Write / delete relations ──────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ use crate::error::AuthError;
 pub async fn write_relation(
     pool: &PgPool,
     partition_cache: &Cache<String, ()>,
-    object_type: &str,
+    object_type: &ValidIdent,
     object_id: &str,
     relation: &str,
     subject_id: &str,
@@ -29,7 +29,7 @@ pub async fn write_relation(
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT DO NOTHING
         "#,
-        object_type,
+        object_type.as_str(),
         object_id,
         relation,
         subject_id,
@@ -75,7 +75,7 @@ pub async fn delete_relation(
 }
 
 pub struct BatchOp {
-    pub object_type: String,
+    pub object_type: ValidIdent,
     pub object_id: String,
     pub relation: String,
     pub subject_id: String,
@@ -108,49 +108,75 @@ pub async fn batch_relations(
     let mut written = 0u64;
     let mut deleted = 0u64;
 
-    for op in writes {
-        let r = sqlx::query!(
-            r#"
-            INSERT INTO auth.authz_relations
+    // Non-macro batch INSERT/DELETE: execute-only, no row data accessed.
+    if !writes.is_empty() {
+        let w_object_type: Vec<&str> = writes.iter().map(|o| o.object_type.as_str()).collect();
+        let w_object_id: Vec<&str> = writes.iter().map(|o| o.object_id.as_str()).collect();
+        let w_relation: Vec<&str> = writes.iter().map(|o| o.relation.as_str()).collect();
+        let w_subject_id: Vec<&str> = writes.iter().map(|o| o.subject_id.as_str()).collect();
+        let w_subj_set_type: Vec<Option<&str>> = writes
+            .iter()
+            .map(|o| o.subject_set_type.as_deref())
+            .collect();
+        let w_subj_set_rel: Vec<Option<&str>> = writes
+            .iter()
+            .map(|o| o.subject_set_relation.as_deref())
+            .collect();
+        let r = sqlx::query(
+            "INSERT INTO auth.authz_relations
                 (object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT DO NOTHING
-            "#,
-            op.object_type,
-            op.object_id,
-            op.relation,
-            op.subject_id,
-            op.subject_set_type,
-            op.subject_set_relation,
+             SELECT * FROM UNNEST(
+                $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
+             )
+             ON CONFLICT DO NOTHING",
         )
+        .bind(&w_object_type)
+        .bind(&w_object_id)
+        .bind(&w_relation)
+        .bind(&w_subject_id)
+        .bind(&w_subj_set_type)
+        .bind(&w_subj_set_rel)
         .execute(tx.as_mut())
         .await
         .map_err(AuthError::from)?;
-        written += r.rows_affected();
+        written = r.rows_affected();
     }
 
-    for op in deletes {
-        let r = sqlx::query!(
-            r#"
-            DELETE FROM auth.authz_relations
-            WHERE object_type            = $1
-              AND object_id              = $2
-              AND relation               = $3
-              AND subject_id             = $4
-              AND subject_set_type     IS NOT DISTINCT FROM $5
-              AND subject_set_relation IS NOT DISTINCT FROM $6
-            "#,
-            op.object_type,
-            op.object_id,
-            op.relation,
-            op.subject_id,
-            op.subject_set_type,
-            op.subject_set_relation,
+    if !deletes.is_empty() {
+        let d_object_type: Vec<&str> = deletes.iter().map(|o| o.object_type.as_str()).collect();
+        let d_object_id: Vec<&str> = deletes.iter().map(|o| o.object_id.as_str()).collect();
+        let d_relation: Vec<&str> = deletes.iter().map(|o| o.relation.as_str()).collect();
+        let d_subject_id: Vec<&str> = deletes.iter().map(|o| o.subject_id.as_str()).collect();
+        let d_subj_set_type: Vec<Option<&str>> = deletes
+            .iter()
+            .map(|o| o.subject_set_type.as_deref())
+            .collect();
+        let d_subj_set_rel: Vec<Option<&str>> = deletes
+            .iter()
+            .map(|o| o.subject_set_relation.as_deref())
+            .collect();
+        let r = sqlx::query(
+            "DELETE FROM auth.authz_relations
+             USING UNNEST(
+                $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
+             ) AS d(object_type, object_id, relation, subject_id, subject_set_type, subject_set_relation)
+             WHERE auth.authz_relations.object_type            = d.object_type
+               AND auth.authz_relations.object_id              = d.object_id
+               AND auth.authz_relations.relation               = d.relation
+               AND auth.authz_relations.subject_id             = d.subject_id
+               AND auth.authz_relations.subject_set_type     IS NOT DISTINCT FROM d.subject_set_type
+               AND auth.authz_relations.subject_set_relation IS NOT DISTINCT FROM d.subject_set_relation",
         )
+        .bind(&d_object_type)
+        .bind(&d_object_id)
+        .bind(&d_relation)
+        .bind(&d_subject_id)
+        .bind(&d_subj_set_type)
+        .bind(&d_subj_set_rel)
         .execute(tx.as_mut())
         .await
         .map_err(AuthError::from)?;
-        deleted += r.rows_affected();
+        deleted = r.rows_affected();
     }
 
     tx.commit().await.map_err(AuthError::from)?;
@@ -513,15 +539,15 @@ pub async fn enumerate_via_parent(
 ///
 /// Called JIT from the write path: first write of a type pays the DDL cost
 /// (one CREATE TABLE IF NOT EXISTS), all subsequent writes hit the in-memory
-/// `HashSet` cache and skip the round-trip entirely. `object_type` must be
-/// validated by `validate_ident` (a-z, 0-9, _) — that invariant is what makes
-/// the format-string interpolation safe.
+/// `HashSet` cache and skip the round-trip entirely. `object_type` is a
+/// `ValidIdent` so the format-string interpolation is a structural guarantee,
+/// not a call-site invariant.
 pub async fn ensure_partition(
     pool: &PgPool,
-    object_type: &str,
+    object_type: &ValidIdent,
     cache: &Cache<String, ()>,
 ) -> Result<(), AuthError> {
-    if cache.get(object_type).is_some() {
+    if cache.get(object_type.as_str()).is_some() {
         return Ok(());
     }
     let sql = format!(
@@ -536,6 +562,6 @@ pub async fn ensure_partition(
         Err(sqlx::Error::Database(db)) if db.code().as_deref() == Some("42P07") => {}
         Err(e) => return Err(AuthError::from(e)),
     }
-    cache.insert(object_type.to_string(), ());
+    cache.insert(object_type.as_str().to_owned(), ());
     Ok(())
 }

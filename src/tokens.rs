@@ -45,6 +45,7 @@ pub struct Token {
     pub prefix: TokenPrefix,
     pub id: Uuid,
     secret: Zeroizing<[u8; 32]>,
+    secret_hash: [u8; 32],
 }
 
 impl Token {
@@ -52,12 +53,18 @@ impl Token {
         let id = Uuid::now_v7();
         let mut secret = Zeroizing::new([0u8; 32]);
         OsRng.fill_bytes(secret.as_mut());
-        Self { prefix, id, secret }
+        let secret_hash = sha256_bytes(secret.as_ref());
+        Self {
+            prefix,
+            id,
+            secret,
+            secret_hash,
+        }
     }
 
     /// SHA-256 of the secret bytes as raw bytes. Bind to bytea columns in the DB.
     pub fn secret_hash(&self) -> [u8; 32] {
-        sha256_bytes(self.secret.as_ref())
+        self.secret_hash
     }
 }
 

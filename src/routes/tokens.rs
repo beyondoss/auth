@@ -120,7 +120,6 @@ pub async fn issue(
             let new_rt_str = new_rt.to_string();
             let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
             refresh_tokens::rotate(
-                &state.pool,
                 &mut tx,
                 validated.token_id,
                 &new_rt,

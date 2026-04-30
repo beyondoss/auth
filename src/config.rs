@@ -59,6 +59,10 @@ pub struct ServeConfig {
     #[arg(long, env = "OAUTH_ALLOWED_REDIRECT_ORIGINS")]
     pub oauth_allowed_redirect_origins: Option<String>,
 
+    /// Maximum number of connections in the Postgres connection pool.
+    #[arg(long, env = "DATABASE_POOL_SIZE", default_value_t = 16)]
+    pub database_pool_size: u32,
+
     /// Maximum number of (subject, resource, permission) entries in the in-process authz check cache.
     #[arg(long, env = "AUTHZ_CACHE_SIZE", default_value_t = 100_000)]
     pub authz_cache_size: usize,
@@ -94,6 +98,7 @@ impl std::fmt::Debug for ServeConfig {
                 "oauth_allowed_redirect_origins",
                 &self.oauth_allowed_redirect_origins,
             )
+            .field("database_pool_size", &self.database_pool_size)
             .field("authz_cache_size", &self.authz_cache_size)
             .field("authz_cache_ttl_secs", &self.authz_cache_ttl_secs)
             .finish()

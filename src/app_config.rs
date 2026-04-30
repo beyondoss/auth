@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::{
@@ -50,7 +51,7 @@ pub fn compile_authz_schema(cfg: &AppConfig) -> Result<Option<CompiledSchema>, S
     cfg.authz_schema
         .as_ref()
         .map(|v| {
-            serde_json::from_value::<AuthzSchema>(v.clone())
+            AuthzSchema::deserialize(v)
                 .map_err(|e| SchemaError::ParseError(e.to_string()))
                 .and_then(|s| compile(&s))
         })
@@ -62,7 +63,7 @@ pub fn compile_authz_schema(cfg: &AppConfig) -> Result<Option<CompiledSchema>, S
 pub fn authz_resource_names(cfg: &AppConfig) -> Vec<String> {
     cfg.authz_schema
         .as_ref()
-        .and_then(|v| serde_json::from_value::<AuthzSchema>(v.clone()).ok())
+        .and_then(|v| AuthzSchema::deserialize(v).ok())
         .map(|s| s.resources.into_iter().map(|r| r.name).collect())
         .unwrap_or_default()
 }

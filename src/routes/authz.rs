@@ -270,7 +270,8 @@ fn resolve_or_chain(
 
 fn into_batch_op(r: RelationRequest) -> BatchOp {
     BatchOp {
-        object_type: r.object.object_type,
+        // object_type was already validated by the caller before this fn is invoked.
+        object_type: validate_ident(&r.object.object_type).expect("object_type already validated"),
         object_id: r.object.id,
         relation: r.relation,
         subject_id: r.subject.id,
@@ -764,9 +765,10 @@ pub async fn write_relation(
     State(state): State<AppState>,
     Json(req): Json<RelationRequest>,
 ) -> Result<StatusCode, AuthError> {
-    validate_ident(&req.object.object_type).map_err(|e| AuthError::AuthzSchemaInvalid {
-        message: e.to_string(),
-    })?;
+    let object_type =
+        validate_ident(&req.object.object_type).map_err(|e| AuthError::AuthzSchemaInvalid {
+            message: e.to_string(),
+        })?;
     {
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
@@ -774,7 +776,7 @@ pub async fn write_relation(
     engine::write_relation(
         &state.pool,
         &state.partition_cache,
-        &req.object.object_type,
+        &object_type,
         &req.object.id,
         &req.relation,
         &req.subject.id,
@@ -782,11 +784,9 @@ pub async fn write_relation(
         req.subject.relation.as_deref(),
     )
     .await?;
-    state.authz_cache.invalidate_for_write(
-        &req.object.object_type,
-        &req.object.id,
-        &req.subject.id,
-    );
+    state
+        .authz_cache
+        .invalidate_for_write(object_type.as_str(), &req.object.id, &req.subject.id);
     Ok(StatusCode::CREATED)
 }
 
@@ -862,9 +862,11 @@ pub async fn batch_relations(
     let write_ops: Vec<_> = req.writes.into_iter().map(into_batch_op).collect();
     let delete_ops: Vec<_> = req.deletes.into_iter().map(into_batch_op).collect();
     for op in write_ops.iter().chain(delete_ops.iter()) {
-        state
-            .authz_cache
-            .invalidate_for_write(&op.object_type, &op.object_id, &op.subject_id);
+        state.authz_cache.invalidate_for_write(
+            op.object_type.as_str(),
+            &op.object_id,
+            &op.subject_id,
+        );
     }
     let result =
         engine::batch_relations(&state.pool, &state.partition_cache, write_ops, delete_ops).await?;

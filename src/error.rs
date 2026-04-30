@@ -131,6 +131,8 @@ pub enum AuthError {
     #[error("database error: {message}")]
     Db {
         message: String,
+        /// Constraint name from the database error, if any.
+        constraint: Option<String>,
         #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
@@ -167,6 +169,7 @@ impl AuthError {
     ) -> Self {
         Self::Db {
             message: msg.into(),
+            constraint: None,
             source: Some(Box::new(source)),
         }
     }
@@ -175,10 +178,17 @@ impl AuthError {
 impl From<sqlx::Error> for AuthError {
     fn from(e: sqlx::Error) -> Self {
         match &e {
-            sqlx::Error::Database(db) if db.constraint().is_some() => Self::Db {
-                message: format!("constraint violation: {}", db.constraint().unwrap_or("")),
-                source: Some(Box::new(e)),
-            },
+            sqlx::Error::Database(db) if db.constraint().is_some() => {
+                let constraint = db.constraint().map(str::to_owned);
+                Self::Db {
+                    message: format!(
+                        "constraint violation: {}",
+                        constraint.as_deref().unwrap_or("")
+                    ),
+                    constraint,
+                    source: Some(Box::new(e)),
+                }
+            }
             _ => Self::db("database error", e),
         }
     }

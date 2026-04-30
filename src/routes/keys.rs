@@ -143,10 +143,6 @@ pub async fn delete(
     Extension(ctx): Extension<AuthContext>,
     Path(key_id): Path<Uuid>,
 ) -> Result<StatusCode, AuthError> {
-    let deleted = keys::delete(&state.pool, ctx.user.id, key_id).await?;
-    if deleted {
-        Ok(StatusCode::NO_CONTENT)
-    } else {
-        Err(AuthError::NotFound)
-    }
+    keys::delete(&state.pool, ctx.user.id, key_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

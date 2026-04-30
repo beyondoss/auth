@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
 /// App connection pool — every connection gets search_path = auth, public.
-pub async fn connect(database_url: &str) -> Result<PgPool> {
+pub async fn connect(database_url: &str, max_connections: u32) -> Result<PgPool> {
     PgPoolOptions::new()
-        .max_connections(16)
+        .max_connections(max_connections)
         .after_connect(|conn, _| {
             Box::pin(async move {
                 // Literal constant, no user input, no row access — intentionally untyped.

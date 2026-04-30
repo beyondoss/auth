@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::PgPool; // used by `validate` and `revoke_family`
 use uuid::Uuid;
 
 use crate::{error::AuthError, tokens::Token};
@@ -106,12 +106,11 @@ pub async fn validate(
 
 /// Mark `old_token_id` as replaced and create a successor in the same family.
 ///
-/// The UPDATE is guarded by `AND replaced_at IS NULL` to make rotation atomic
-/// against concurrent requests presenting the same token. If another request
-/// already rotated the token, 0 rows are affected: the entire family is revoked
-/// (replay-theft response) and `Err(AuthError::Unauthorized)` is returned.
+/// The UPDATE is guarded by `AND replaced_at IS NULL`. If 0 rows are affected a
+/// concurrent request beat us to the rotation — return `Unauthorized` so the caller
+/// can surface the error. Family revocation for true theft is handled by `validate`,
+/// which runs before `rotate` and revokes the family when `replaced_at IS NOT NULL`.
 pub async fn rotate(
-    pool: &PgPool,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     old_token_id: Uuid,
     new_token: &Token,
@@ -129,7 +128,6 @@ pub async fn rotate(
     .map_err(AuthError::from)?;
 
     if result.rows_affected() == 0 {
-        revoke_family(pool, family_id).await?;
         return Err(AuthError::Unauthorized);
     }
 

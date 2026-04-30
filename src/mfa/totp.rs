@@ -135,15 +135,12 @@ pub async fn enroll(
     )
     .execute(tx.as_mut())
     .await
-    .map_err(|e: sqlx::Error| {
-        if let sqlx::Error::Database(ref db) = e
-            && db
-                .constraint()
-                .is_some_and(|c| c.contains("totp_factors_user_id_idx"))
-        {
-            return AuthError::Conflict;
-        }
-        AuthError::from(e)
+    .map_err(|e| match AuthError::from(e) {
+        AuthError::Db {
+            constraint: Some(ref c),
+            ..
+        } if c == "totp_factors_user_id_idx" => AuthError::Conflict,
+        e => e,
     })?;
 
     let codes = generate_recovery_codes();
@@ -405,7 +402,7 @@ pub async fn regenerate_recovery_codes(
 }
 
 pub async fn disable(pool: &PgPool, user_id: Uuid) -> Result<(), AuthError> {
-    let result = sqlx::query!(
+    sqlx::query!(
         "UPDATE auth.totp_factors SET deleted_at = now()
          WHERE user_id = $1 AND deleted_at IS NULL",
         user_id,
@@ -413,10 +410,5 @@ pub async fn disable(pool: &PgPool, user_id: Uuid) -> Result<(), AuthError> {
     .execute(pool)
     .await
     .map_err(AuthError::from)?;
-
-    if result.rows_affected() == 0 {
-        return Err(AuthError::NotFound);
-    }
-
     Ok(())
 }

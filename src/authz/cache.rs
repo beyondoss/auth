@@ -38,11 +38,11 @@ impl VersionTable {
     }
 
     fn get(&self, h: u64) -> u64 {
-        self.slots[h as usize & self.mask].load(Ordering::Relaxed)
+        self.slots[h as usize & self.mask].load(Ordering::Acquire)
     }
 
     fn bump(&self, h: u64) {
-        self.slots[h as usize & self.mask].fetch_add(1, Ordering::Relaxed);
+        self.slots[h as usize & self.mask].fetch_add(1, Ordering::Release);
     }
 }
 
@@ -99,12 +99,12 @@ impl AuthzCache {
     }
 
     pub fn insert_check(&self, key: CheckKey, allowed: bool) {
-        let obj_ver = self
-            .obj_versions
-            .get(hash_one((&key.resource_type, &key.resource_id)));
-        let subj_ver = self.subj_versions.get(hash_one(&key.subject_id));
+        let obj_hash = hash_one((&key.resource_type, &key.resource_id));
+        let subj_hash = hash_one(&key.subject_id);
+        let obj_ver = self.obj_versions.get(obj_hash);
+        let subj_ver = self.subj_versions.get(subj_hash);
         self.checks.insert(
-            key,
+            key.clone(),
             CheckEntry {
                 allowed,
                 obj_ver,
@@ -112,6 +112,13 @@ impl AuthzCache {
                 computed_at: Instant::now(),
             },
         );
+        // If a write invalidated between our version-read and our insert, evict immediately
+        // so we don't serve a stale decision.
+        if self.obj_versions.get(obj_hash) != obj_ver
+            || self.subj_versions.get(subj_hash) != subj_ver
+        {
+            self.checks.remove(&key);
+        }
     }
 
     pub fn invalidate_for_write(&self, object_type: &str, object_id: &str, subject_id: &str) {

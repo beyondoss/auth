@@ -145,7 +145,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     let _otel_guard = telemetry::init(&otel_config, vec![], &cfg.log_level)?;
 
     db::migrate(&secrets.database_url).await?;
-    let pool = db::connect(&secrets.database_url).await?;
+    let pool = db::connect(&secrets.database_url, cfg.database_pool_size).await?;
 
     let old_key_strs: Vec<&str> = secrets
         .signing_key_encryption_key_old

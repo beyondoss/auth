@@ -185,7 +185,7 @@ fn make_slug(base: &str) -> String {
 }
 
 fn is_identity_conflict(e: &AuthError) -> bool {
-    matches!(e, AuthError::Db { message, .. } if message.contains("identities_provider_subject_idx"))
+    matches!(e, AuthError::Db { constraint: Some(c), .. } if c == "identities_provider_subject_idx")
 }
 
 /// Link an OAuth identity to an existing user. Idempotent if already linked to the same user.

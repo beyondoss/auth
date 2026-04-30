@@ -127,6 +127,17 @@ async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -
         .to_pkcs8_pem(LineEnding::LF)
         .context("failed to encode signing key for re-encryption")?;
     let encrypted = enc.encrypt(pem.as_bytes(), key.id.as_bytes())?;
+
+    // Advisory lock scoped to this key's UUID so only one replica re-encrypts at a time.
+    // The lock is released automatically when the connection returns to the pool.
+    // Non-macro: system function call, execute-only.
+    let lock_key = i64::from_ne_bytes(key.id.as_bytes()[..8].try_into().unwrap());
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(lock_key)
+        .execute(pool)
+        .await
+        .context("failed to acquire advisory lock for re-encryption")?;
+
     sqlx::query!(
         "UPDATE auth.signing_keys SET private_key_enc = $1 WHERE id = $2",
         encrypted,
@@ -135,6 +146,13 @@ async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -
     .execute(pool)
     .await
     .context("failed to re-encrypt signing key")?;
+
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(lock_key)
+        .execute(pool)
+        .await
+        .context("failed to release advisory lock")?;
+
     tracing::info!(kid = %key.id, "re-encrypted signing key with current KEK");
     Ok(())
 }
