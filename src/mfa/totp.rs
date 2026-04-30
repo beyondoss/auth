@@ -64,14 +64,16 @@ pub fn generate_secret() -> (Vec<u8>, String) {
     (bytes, encoded)
 }
 
-pub fn qr_data_url(uri: &str) -> String {
-    let code = QrCode::new(uri.as_bytes()).expect("QR code from otpauth URI is infallible");
+pub fn qr_data_url(uri: &str) -> Result<String, AuthError> {
+    let code = QrCode::new(uri.as_bytes()).map_err(|e| {
+        AuthError::internal_with("qr generation", std::io::Error::other(e.to_string()))
+    })?;
     let svg = code
         .render::<svg::Color<'_>>()
         .min_dimensions(200, 200)
         .build();
     let b64 = STANDARD.encode(svg.as_bytes());
-    format!("data:image/svg+xml;base64,{b64}")
+    Ok(format!("data:image/svg+xml;base64,{b64}"))
 }
 
 pub fn generate_recovery_codes() -> [String; 10] {
@@ -162,7 +164,7 @@ pub async fn enroll(
     tx.commit().await.map_err(AuthError::from)?;
 
     let uri = make_totp_labeled(&secret_bytes, email, issuer)?.get_url();
-    let qr = qr_data_url(&uri);
+    let qr = qr_data_url(&uri)?;
 
     Ok(EnrollResponse {
         factor_id,
