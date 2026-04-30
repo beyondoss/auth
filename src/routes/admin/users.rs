@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::{error::AuthError, http::AppState};
 
+/// Full user record returned to admin callers.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct AdminUserResponse {
     pub id: Uuid,
@@ -17,6 +18,7 @@ pub struct AdminUserResponse {
     pub email: Option<String>,
     pub email_verified_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// Set when the user has been soft-deleted; null for active accounts.
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
@@ -26,6 +28,8 @@ pub struct SearchQuery {
     pub email: Option<String>,
 }
 
+/// Look up a user by primary email address. Returns 400 if the `email` query parameter
+/// is omitted.
 #[utoipa::path(
     get,
     path = "/v1/admin/users",
@@ -131,6 +135,7 @@ pub async fn delete_sessions(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Look up a user by ID.
 #[utoipa::path(
     get,
     path = "/v1/admin/users/{id}",

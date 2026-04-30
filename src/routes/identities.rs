@@ -27,19 +27,26 @@ pub struct IdentitiesResponse {
 
 // ── Request types ─────────────────────────────────────────────────────────────
 
+/// Request to add a password identity to an account that currently has none
+/// (e.g. a user who signed up via OAuth and wants to add password login).
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddPasswordRequest {
     pub password: String,
 }
 
+/// Request to change the password for an existing password identity.
+/// Requires the current password as proof of possession.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateIdentityRequest {
+    /// The existing password — must be correct or the request is rejected with 401.
     pub current_password: String,
     pub new_password: String,
 }
 
 // ── GET /v1/identities ────────────────────────────────────────────────────────
 
+/// List all authentication methods (identities) attached to the authenticated user.
+/// Each identity represents one way the user can log in: a password, or a linked OAuth provider.
 #[utoipa::path(
     get,
     operation_id = "list_identities",
@@ -80,6 +87,8 @@ pub async fn list(
 
 // ── POST /v1/identities ───────────────────────────────────────────────────────
 
+/// Add a password identity to an account that has none. Useful when a user signed up via
+/// OAuth and wants to enable password login. Returns 409 if a password identity already exists.
 #[utoipa::path(
     post,
     path = "/v1/identities",
@@ -130,6 +139,8 @@ pub async fn add_password(
 
 // ── PATCH /v1/identities/{id} ─────────────────────────────────────────────────
 
+/// Change the password for a password identity. Requires the current password. On success,
+/// all sessions except the current one are revoked.
 #[utoipa::path(
     patch,
     path = "/v1/identities/{id}",
@@ -191,6 +202,8 @@ pub async fn update(
 
 // ── DELETE /v1/identities/{id} ────────────────────────────────────────────────
 
+/// Unlink an authentication method. Returns 409 if this is the last identity — at least
+/// one must remain so the user can still log in.
 #[utoipa::path(
     delete,
     path = "/v1/identities/{id}",

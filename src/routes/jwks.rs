@@ -8,22 +8,32 @@ use utoipa::ToSchema;
 
 use crate::http::AppState;
 
+/// JSON Web Key Set — the public keys used to verify JWTs issued by this service.
 #[derive(Serialize, ToSchema)]
 pub struct JwkSet {
     keys: Vec<Jwk>,
 }
 
+/// A single JSON Web Key (Ed25519 public key in JWK format).
 #[derive(Serialize, ToSchema)]
 pub struct Jwk {
+    /// Key type — always `"OKP"` for Ed25519.
     kty: String,
+    /// Curve — always `"Ed25519"`.
     crv: String,
+    /// Key ID matching the `kid` claim in issued JWTs.
     kid: String,
+    /// Intended use — always `"sig"`.
     #[serde(rename = "use")]
     use_: String,
+    /// Algorithm — always `"EdDSA"`.
     alg: String,
+    /// Base64url-encoded public key bytes.
     x: String,
 }
 
+/// The active JWT signing public keys in JWK Set format. Cached for 1 hour (`Cache-Control: public, max-age=3600`).
+/// Use this endpoint to verify JWTs issued by `POST /v1/tokens`.
 #[utoipa::path(
     get,
     path = "/v1/jwks.json",

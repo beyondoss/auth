@@ -18,54 +18,68 @@ use crate::{
 
 // ── Shared response types ────────────────────────────────────────────────────
 
+/// An organization the authenticated user is a member of.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgResponse {
     pub id: Uuid,
     pub name: String,
+    /// URL-safe identifier, unique across all orgs.
     pub slug: String,
     pub image_url: Option<String>,
+    /// Arbitrary JSON metadata.
     pub metadata: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Cursor-paginated list of orgs.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgsResponse {
     pub orgs: Vec<OrgResponse>,
     pub has_more: bool,
+    /// Opaque cursor — pass as `after` to retrieve the next page.
     pub next_page: Option<String>,
 }
 
+/// An org membership record.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MemberResponse {
     pub user_id: Uuid,
+    /// Role within this org, e.g. `"owner"` or `"member"`.
     pub role: String,
     pub joined_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Cursor-paginated list of org members.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MembersResponse {
     pub members: Vec<MemberResponse>,
     pub has_more: bool,
+    /// Opaque cursor — pass as `after` to retrieve the next page.
     pub next_page: Option<String>,
 }
 
+/// An org invitation. On creation, `token` is populated — it is never returned again.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvitationResponse {
     pub id: Uuid,
     pub org_id: Uuid,
+    /// Email address the invitation is addressed to, if any. Null for open link invitations.
     pub email: Option<String>,
+    /// Role the invitee will receive on acceptance.
     pub role: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub expires_at: chrono::DateTime<chrono::Utc>,
-    /// Plaintext token — only present on creation, never returned again.
+    /// Plaintext token — only present on creation, never returned again. Deliver this to the invitee.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 }
 
+/// Cursor-paginated list of pending org invitations.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvitationsResponse {
     pub invitations: Vec<InvitationResponse>,
     pub has_more: bool,
+    /// Opaque cursor — pass as `after` to retrieve the next page.
     pub next_page: Option<String>,
 }
 
@@ -96,34 +110,47 @@ pub struct PageQuery {
     pub limit: Option<i64>,
 }
 
+/// Request to create a new organization.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateOrgRequest {
     pub name: String,
+    /// URL-safe identifier. Defaults to a slugified version of `name` if omitted.
     pub slug: Option<String>,
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Partial org update. Omitted fields are left unchanged.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateOrgRequest {
     pub name: Option<String>,
+    /// URL-safe identifier. Returns 409 if already taken.
     pub slug: Option<String>,
     pub image_url: Option<String>,
+    /// Full replacement of the org's metadata field.
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Request to change a member's role.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateMemberRequest {
+    /// New role for the member, e.g. `"owner"` or `"member"`.
     pub role: String,
 }
 
+/// Request to create an invitation to the org.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateInvitationRequest {
+    /// Email address to address the invitation to. Omit for an open link invitation
+    /// that any user can accept.
     pub email: Option<String>,
+    /// Role the invitee will receive on acceptance.
     pub role: String,
 }
 
 // ── POST /v1/orgs ─────────────────────────────────────────────────────────────
 
+/// Create a new organization. The authenticated user becomes the owner.
+/// Returns 409 if the slug is already taken.
 #[utoipa::path(
     post,
     path = "/v1/orgs",
@@ -165,6 +192,7 @@ pub async fn create_org(
 
 // ── GET /v1/orgs ──────────────────────────────────────────────────────────────
 
+/// List all orgs the authenticated user is a member of, cursor-paginated.
 #[utoipa::path(
     get,
     path = "/v1/orgs",
@@ -201,6 +229,7 @@ pub async fn list_orgs(
 
 // ── GET /v1/orgs/{id} ────────────────────────────────────────────────────────
 
+/// Get an org by ID. Returns 403 if the authenticated user is not a member.
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}",
@@ -225,6 +254,7 @@ pub async fn get_org(
 
 // ── PATCH /v1/orgs/{id} ──────────────────────────────────────────────────────
 
+/// Update an org. Requires owner role. Only fields present in the body are changed.
 #[utoipa::path(
     patch,
     path = "/v1/orgs/{id}",
@@ -260,6 +290,8 @@ pub async fn update_org(
 
 // ── DELETE /v1/orgs/{id} ─────────────────────────────────────────────────────
 
+/// Soft-delete an org. Requires owner role. Returns 409 if this is the user's personal org
+/// (personal orgs are deleted via `DELETE /v1/users/me`).
 #[utoipa::path(
     delete,
     path = "/v1/orgs/{id}",
@@ -285,6 +317,7 @@ pub async fn delete_org(
 
 // ── GET /v1/orgs/{id}/members ────────────────────────────────────────────────
 
+/// List members of an org, cursor-paginated. Requires membership.
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/members",
@@ -327,6 +360,8 @@ pub async fn list_members(
 
 // ── PATCH /v1/orgs/{id}/members/{member_id} ──────────────────────────────────
 
+/// Update a member's role. Requires owner. Returns 409 if the change would leave the org
+/// with no owners.
 #[utoipa::path(
     patch,
     path = "/v1/orgs/{id}/members/{member_id}",
@@ -357,6 +392,8 @@ pub async fn update_member(
 
 // ── DELETE /v1/orgs/{id}/members/{member_id} ─────────────────────────────────
 
+/// Remove a member from an org. A user can remove themselves with only membership; removing
+/// another member requires owner. Returns 409 if removing would leave the org with no owners.
 #[utoipa::path(
     delete,
     path = "/v1/orgs/{id}/members/{member_id}",
@@ -390,6 +427,9 @@ pub async fn remove_member(
 
 // ── POST /v1/orgs/{id}/invitations ───────────────────────────────────────────
 
+/// Create an invitation. Requires owner. The response includes a one-time `token` — deliver
+/// it to the invitee so they can call `POST /v1/invitations/{id}/acceptances`. Returns 409
+/// if a pending invitation already exists for the same email.
 #[utoipa::path(
     post,
     path = "/v1/orgs/{id}/invitations",
@@ -441,6 +481,8 @@ pub async fn create_invitation(
 
 // ── GET /v1/orgs/{id}/invitations ────────────────────────────────────────────
 
+/// List pending invitations for an org, cursor-paginated. Requires owner.
+/// Tokens are not included in list responses — only in creation and resend responses.
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/invitations",
@@ -492,6 +534,8 @@ pub async fn list_invitations(
 
 // ── POST /v1/orgs/{id}/invitations/{inv_id}/resends ──────────────────────────
 
+/// Re-issue an invitation token. Invalidates the previous token and returns a fresh one.
+/// Use this when the original token expires or is lost. Requires owner.
 #[utoipa::path(
     post,
     path = "/v1/orgs/{id}/invitations/{inv_id}/resends",
@@ -536,6 +580,7 @@ pub async fn resend_invitation(
 
 // ── DELETE /v1/orgs/{id}/invitations/{inv_id} ────────────────────────────────
 
+/// Revoke an invitation. The token is immediately invalidated. Requires owner.
 #[utoipa::path(
     delete,
     path = "/v1/orgs/{id}/invitations/{inv_id}",

@@ -6,12 +6,16 @@ use crate::{email, error::AuthError, http::AppState, one_time_token, tokens::Tok
 
 const TTL_SECONDS: i32 = 3600; // 1 hour
 
+/// Request to issue a password-reset token for a user.
 #[derive(Deserialize, utoipa::ToSchema)]
 #[schema(as = PasswordResetRequest)]
 pub struct CreateRequest {
+    /// The user's primary email address.
     pub email: String,
 }
 
+/// Password-reset token response. Pass `token` to `POST /v1/sessions` with
+/// `grant_type=password_reset` along with the new password to complete the reset.
 #[derive(Serialize, utoipa::ToSchema)]
 #[schema(as = PasswordResetResponse)]
 pub struct CreateResponse {
@@ -22,6 +26,11 @@ pub struct CreateResponse {
 
 // ── POST /v1/password-resets ──────────────────────────────────────────────────
 
+/// Issue a password-reset token for the given email address. The caller is responsible
+/// for delivering the token to the user. The token is exchanged — along with a new password
+/// — via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all
+/// existing sessions. Expires in 1 hour. Returns 404 if no account exists or the account
+/// has no password identity.
 #[utoipa::path(
     post,
     path = "/v1/password-resets",

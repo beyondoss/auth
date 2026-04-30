@@ -10,11 +10,13 @@ use crate::{error::AuthError, http::AppState, invitations, orgs, sessions::AuthC
 
 // ── Response types ───────────────────────────────────────────────────────────
 
+/// Public view of an invitation, shown to the invitee before they accept or decline.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct InvitationViewResponse {
     pub id: Uuid,
     pub org_id: Uuid,
     pub org_name: String,
+    /// The role the invitee will receive on acceptance.
     pub role: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
@@ -28,6 +30,9 @@ pub struct TokenQuery {
 
 // ── GET /v1/invitations/{id}?token=… (unauthenticated) ──────────────────────
 
+/// Look up an invitation by ID and token. Unauthenticated — intended for pre-acceptance
+/// display (show the org name and role before asking the user to log in). Returns 404 if
+/// the invitation doesn't exist, is expired, or the token is wrong.
 #[utoipa::path(
     get,
     path = "/v1/invitations/{id}",
@@ -60,6 +65,8 @@ pub async fn view_invitation(
 
 // ── POST /v1/invitations/{id}/acceptances (authenticated) ───────────────────
 
+/// Accept an invitation. The authenticated user is added to the org with the invitation's
+/// role. The invitation token is consumed and cannot be reused. Returns 409 if already a member.
 #[utoipa::path(
     post,
     path = "/v1/invitations/{id}/acceptances",
@@ -95,6 +102,8 @@ pub async fn accept_invitation(
 
 // ── POST /v1/invitations/{id}/declinations (token-only, unauthenticated) ────
 
+/// Decline an invitation. The token is consumed and the invitation is removed.
+/// Unauthenticated — the token in the query string is sufficient.
 #[utoipa::path(
     post,
     path = "/v1/invitations/{id}/declinations",

@@ -21,13 +21,17 @@ use crate::{
 
 // ── Request / response shapes ────────────────────────────────────────────────
 
+/// Registration request. Creates a user, a personal org, and a session in one call.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct SignupRequest {
     pub email: String,
     pub password: String,
+    /// Display name for the user's personal org. Defaults to the local part of the email.
     pub display_name: Option<String>,
 }
 
+/// Returned on successful login or signup. Contains the new session alongside the user,
+/// primary email, and personal org context.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AuthResponse {
     pub user: UserBody,
@@ -36,38 +40,49 @@ pub struct AuthResponse {
     pub session: SessionBody,
 }
 
+/// Current authenticated user context.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MeResponse {
     pub user: UserBody,
     pub email: EmailBody,
+    /// The user's personal org. Multi-org memberships are listed via `GET /v1/orgs`.
     pub org: OrgBody,
 }
 
+/// Core user fields.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UserBody {
     pub id: Uuid,
+    /// ID of the user's personal org. Always present; created at signup.
     pub primary_org_id: Uuid,
+    /// Display name (mirrors the personal org name).
     pub name: String,
     pub image_url: Option<String>,
+    /// Arbitrary JSON metadata stored on the personal org.
     pub metadata: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Primary email address for the user.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EmailBody {
     pub id: Uuid,
     pub email: String,
+    /// Null if the address has not been verified.
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// The user's personal org.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgBody {
     pub id: Uuid,
     pub name: String,
+    /// URL-safe identifier, unique across all orgs.
     pub slug: String,
     pub image_url: Option<String>,
 }
 
+/// Session credential returned on login or signup.
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SessionBody {
     pub id: Uuid,
@@ -114,6 +129,8 @@ pub fn make_auth_response(
 
 // ── DELETE /v1/users/me ───────────────────────────────────────────────────────
 
+/// Soft-delete the authenticated user and their personal org. All active sessions are
+/// invalidated immediately. This action is permanent — deleted accounts cannot be recovered.
 #[utoipa::path(
     delete,
     path = "/v1/users/me",
@@ -164,6 +181,8 @@ pub async fn delete_me(
 
 // ── POST /v1/users ────────────────────────────────────────────────────────────
 
+/// Register a new user with email and password. Creates the user, a personal org, and
+/// a session in a single transaction. Returns 409 if the email is already registered.
 #[utoipa::path(
     post,
     path = "/v1/users",
@@ -230,6 +249,7 @@ pub async fn signup(
 
 // ── GET /v1/users/me ──────────────────────────────────────────────────────────
 
+/// Return the authenticated user's profile, primary email, and personal org.
 #[utoipa::path(
     get,
     path = "/v1/users/me",
@@ -266,14 +286,20 @@ pub async fn get_me(Extension(ctx): Extension<AuthContext>) -> Json<MeResponse> 
 
 // ── PATCH /v1/users/me ────────────────────────────────────────────────────────
 
+/// Partial update for the user's personal org. All fields are optional; omitted fields
+/// are left unchanged.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateMeRequest {
+    /// Display name for the user and their personal org.
     pub name: Option<String>,
+    /// URL-safe org identifier. Must be unique. Returns 409 if already taken.
     pub slug: Option<String>,
     pub image_url: Option<String>,
+    /// Arbitrary JSON merged into the org's metadata field (full replacement, not merge).
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Update the authenticated user's profile. Only fields present in the request body are changed.
 #[utoipa::path(
     patch,
     path = "/v1/users/me",

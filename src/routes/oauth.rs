@@ -41,12 +41,16 @@ pub struct AuthorizeResponse {
     pub url: String,
 }
 
+/// Session token returned after a successful OAuth login callback.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct CallbackResponse {
+    /// Opaque session bearer token. Use as `Authorization: Bearer <token>`.
     pub token: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Returned when an OAuth callback links a provider identity to an existing account
+/// rather than creating a new session.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct LinkCallbackResponse {
     pub linked: bool,
@@ -106,6 +110,9 @@ async fn try_session_user_id(state: &AppState, headers: &HeaderMap) -> Option<Uu
 
 // ── GET /v1/oauth/{provider} ──────────────────────────────────────────────────
 
+/// Start an OAuth authorization flow. Returns the provider's authorization URL.
+/// If the caller includes a valid session Bearer token, the resulting identity will be
+/// linked to that account instead of creating a new session.
 #[utoipa::path(
     get,
     path = "/v1/oauth/{provider}",
@@ -154,6 +161,10 @@ pub async fn authorize(
 
 // ── GET /v1/oauth/{provider}/callback ─────────────────────────────────────────
 
+/// OAuth authorization callback. Exchanges the provider code for a profile, then either
+/// creates a new session (login) or links the identity to the authenticated user (link flow).
+/// When TOTP is enrolled, returns a step-up challenge instead of a session token.
+/// Returns 409 if the OAuth identity is already claimed by a different user.
 #[utoipa::path(
     get,
     path = "/v1/oauth/{provider}/callback",
@@ -233,6 +244,8 @@ pub async fn callback(
 
 // ── POST /v1/oauth/apple/callback ─────────────────────────────────────────────
 
+/// Apple Sign-In callback. Apple uses a POST form submission instead of a GET redirect,
+/// so this is a separate endpoint. Behavior is identical to `GET /v1/oauth/{provider}/callback`.
 #[utoipa::path(
     post,
     path = "/v1/oauth/apple/callback",

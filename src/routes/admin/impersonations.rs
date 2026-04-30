@@ -17,6 +17,9 @@ pub struct ImpersonateRequest {
     pub user_id: Uuid,
 }
 
+/// Create an impersonation session for any user. Returns a session token that behaves like
+/// a normal session but carries an `impersonated` flag in issued JWTs. Use this for admin
+/// support workflows — not for production automation.
 #[utoipa::path(
     post,
     operation_id = "create_impersonation",

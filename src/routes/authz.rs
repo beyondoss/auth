@@ -41,47 +41,65 @@ type PathBatch = HashMap<
 pub struct CheckQuery {
     /// Explicit subject to check as. Defaults to the current session user.
     pub user: Option<String>,
+    /// Permission name as defined in the authz schema (e.g. `"read"`, `"edit"`).
     pub permission: String,
+    /// Resource type as defined in the authz schema.
     pub resource_type: String,
+    /// ID of the resource instance to check against.
     pub resource_id: String,
 }
 
+/// Result of a single permission check.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CheckResponse {
+    /// True if the subject has the requested permission on the resource.
     pub allowed: bool,
 }
 
+/// A relation tuple: `(object, relation, subject)`.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RelationRequest {
     pub object: RelationObject,
+    /// The relation name as defined in the authz schema (e.g. `"owner"`, `"member"`).
     pub relation: String,
     pub subject: RelationSubject,
 }
 
+/// The resource side of a relation tuple.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RelationObject {
+    /// Resource type as defined in the authz schema.
     #[serde(rename = "type")]
     pub object_type: String,
+    /// Unique identifier for this resource instance.
     pub id: String,
 }
 
+/// The subject (actor) side of a relation tuple.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RelationSubject {
+    /// Subject ID — typically a user ID or another resource ID for subject sets.
     pub id: String,
+    /// For subject sets: the type of the subject resource. Omit for direct user subjects.
     #[serde(rename = "type", default)]
     pub subject_type: Option<String>,
+    /// For subject sets: the relation on the subject resource that grants membership.
     #[serde(default)]
     pub relation: Option<String>,
 }
 
+/// Batch of relation tuples to write and/or delete in a single transaction.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct BatchRequest {
+    /// Relation tuples to create. Duplicate writes are silently ignored.
     #[serde(default)]
     pub writes: Vec<RelationRequest>,
+    /// Relation tuples to delete. Missing deletes are silently ignored.
     #[serde(default)]
     pub deletes: Vec<RelationRequest>,
 }
 
+/// Result counts from a batch relation operation.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BatchResponse {
     pub written: u64,
@@ -117,8 +135,11 @@ pub struct ChecksRequest {
 pub struct ChecksItem {
     /// Explicit subject to check as. Defaults to the current session user.
     pub user: Option<String>,
+    /// Permission name as defined in the authz schema.
     pub permission: String,
+    /// Resource type as defined in the authz schema.
     pub resource_type: String,
+    /// ID of the resource instance to check against.
     pub resource_id: String,
 }
 
@@ -132,6 +153,7 @@ pub struct ChecksResponse {
 pub struct SubjectsQuery {
     pub object_type: String,
     pub object_id: String,
+    /// The relation to expand (e.g. `"owner"`).
     pub relation: String,
 }
 
@@ -139,47 +161,60 @@ pub struct SubjectsQuery {
 pub struct SubjectsByPermissionQuery {
     pub resource_type: String,
     pub resource_id: String,
+    /// The permission to expand (e.g. `"edit"`). Resolves through the role hierarchy.
     pub permission: String,
 }
 
+/// Subjects who hold the queried relation or permission on a resource.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SubjectsResponse {
     pub subjects: Vec<Subject>,
 }
 
+/// A subject (actor) with the relation through which they hold access.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Subject {
+    /// Subject ID.
     pub id: String,
+    /// The direct relation through which this subject was found.
     pub relation: String,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct ObjectsQuery {
+    /// Explicit subject to list objects for. Defaults to the current session user.
     pub user: Option<String>,
     pub permission: String,
     pub resource_type: String,
     pub limit: Option<i64>,
+    /// Opaque pagination cursor from a previous response's `next_page`.
     pub after: Option<String>,
 }
 
+/// Cursor-paginated list of resource IDs the subject can access.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
     pub has_more: bool,
+    /// Opaque cursor — pass as `after` for the next page.
     pub next_page: Option<String>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct TraceQuery {
+    /// Subject ID to trace access for.
     pub user: String,
     pub permission: String,
     pub resource_type: String,
     pub resource_id: String,
 }
 
+/// Trace result explaining why a permission check returned its outcome.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TraceResponse {
+    /// Whether the specified user has the permission on the resource.
     pub allowed: bool,
+    /// All subjects found during expansion — check if `user` appears here to understand the grant.
     pub subjects: Vec<Subject>,
 }
 

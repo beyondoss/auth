@@ -20,33 +20,50 @@ use super::users::make_auth_response;
 
 // ── Request / response shapes ────────────────────────────────────────────────
 
+/// Credential payload for session creation. The `grant_type` field discriminates the variant.
 #[derive(Deserialize, utoipa::ToSchema)]
 #[serde(tag = "grant_type", rename_all = "snake_case")]
 pub enum LoginRequest {
-    Password {
-        email: String,
-        password: String,
-    },
+    /// Email + password login. If TOTP is enrolled, returns 200 with a `step_up_token`
+    /// instead of a session — caller must complete MFA via `totp_step_up`.
+    Password { email: String, password: String },
+    /// Exchanges a token issued by `POST /v1/magic-links`. Single-use; expires in 15 min.
     MagicLink {
+        /// The plaintext token from the magic-link response.
         token: String,
     },
+    /// Exchanges a password-reset token, sets the new password, and creates a session.
+    /// All existing sessions are invalidated.
     PasswordReset {
+        /// The plaintext token from the password-reset response.
         token: String,
         new_password: String,
     },
+    /// Exchanges an email-change token, promotes the new address to primary, and creates
+    /// a session. All existing sessions are invalidated.
     EmailChange {
+        /// The plaintext token from the email-change (`POST /v1/emails`) response.
         token: String,
     },
+    /// Completes a TOTP MFA step-up. Present after a 200 response with `step_up_required`.
     TotpStepUp {
+        /// The `step_up_token` from the preceding 200 step-up response.
         step_up_token: String,
+        /// Six-digit TOTP code from the authenticator app.
         code: String,
     },
+    /// Completes MFA using a single-use TOTP recovery code. Consumes the code permanently.
     TotpRecovery {
+        /// The `step_up_token` from the preceding 200 step-up response.
         step_up_token: String,
+        /// One of the recovery codes issued at TOTP enrollment or last regeneration.
         code: String,
     },
+    /// Completes a WebAuthn passkey authentication flow.
     Passkey {
+        /// The `state_token` from the `POST /v1/passkey-authentications` response.
         state_token: String,
+        /// WebAuthn `PublicKeyCredential` response from the browser's `navigator.credentials.get()`.
         #[schema(value_type = Object)]
         credential: webauthn_rs::prelude::PublicKeyCredential,
     },
@@ -61,24 +78,35 @@ pub struct StepUpResponse {
     pub step_up_token: String,
 }
 
+/// Paginated list of active sessions for the authenticated user.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct SessionsResponse {
     pub sessions: Vec<crate::sessions::SessionListItem>,
 }
 
+/// Details of the session that authenticated the current request.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct CurrentSessionResponse {
+    /// Session ID.
     pub id: Uuid,
+    /// ID of the underlying bearer token used to authenticate this request.
     pub token_id: Uuid,
+    /// IP address recorded at session creation, if available.
     pub ip_address: Option<String>,
+    /// User-Agent recorded at session creation, if available.
     pub user_agent: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub expires_at: chrono::DateTime<chrono::Utc>,
+    /// Time the bearer token was last presented, updated on each authenticated request.
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 // ── POST /v1/sessions ─────────────────────────────────────────────────────────
 
+/// Authenticate and create a session. The `grant_type` field in the request body selects
+/// the credential flow. On success, returns 201 with a session token. When the account has
+/// TOTP enrolled and the grant type supports MFA, returns 200 with a `step_up_token` —
+/// the caller must then re-POST with `grant_type=totp_step_up` to complete authentication.
 #[utoipa::path(
     post,
     path = "/v1/sessions",
@@ -476,6 +504,7 @@ const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$
 
 // ── GET /v1/sessions ──────────────────────────────────────────────────────────
 
+/// List all active sessions for the authenticated user. The current session is included.
 #[utoipa::path(
     get,
     path = "/v1/sessions",
@@ -497,6 +526,7 @@ pub async fn list(
 
 // ── GET /v1/sessions/current ──────────────────────────────────────────────────
 
+/// Return details about the session that authenticated the current request.
 #[utoipa::path(
     get,
     path = "/v1/sessions/current",
@@ -529,6 +559,8 @@ pub async fn get_current(
 
 // ── DELETE /v1/sessions/current ───────────────────────────────────────────────
 
+/// Revoke the session that authenticated the current request. The bearer token becomes
+/// immediately invalid. Idempotent — safe to call if the session is already gone.
 #[utoipa::path(
     delete,
     path = "/v1/sessions/current",
@@ -565,6 +597,8 @@ pub struct DeleteAllQuery {
     pub except_current: bool,
 }
 
+/// Revoke all sessions for the authenticated user. Use `except_current=true` to keep
+/// the current session active (e.g. "sign out everywhere else").
 #[utoipa::path(
     delete,
     path = "/v1/sessions",
@@ -629,6 +663,8 @@ pub async fn delete_all(
 
 // ── DELETE /v1/sessions/{id} ──────────────────────────────────────────────────
 
+/// Revoke a specific session by ID. The caller can only revoke their own sessions;
+/// attempting to revoke another user's session returns 404 (not 403) to prevent enumeration.
 #[utoipa::path(
     delete,
     path = "/v1/sessions/{id}",

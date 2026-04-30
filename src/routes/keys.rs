@@ -36,6 +36,8 @@ pub struct KeysResponse {
     pub keys: Vec<Key>,
 }
 
+/// Create an API key for the authenticated user. The full bearer token is returned in
+/// `key` and is shown only once — store it immediately. Subsequent reads return only metadata.
 #[utoipa::path(
     post,
     operation_id = "create_key",
@@ -77,6 +79,8 @@ pub async fn create(
     ))
 }
 
+/// List all API keys for the authenticated user. Bearer token values are never returned
+/// — only metadata (ID, name, created/used/expires timestamps).
 #[utoipa::path(
     get,
     operation_id = "list_keys",
@@ -96,6 +100,7 @@ pub async fn list(
     Ok(Json(KeysResponse { keys }))
 }
 
+/// Get metadata for a single API key.
 #[utoipa::path(
     get,
     operation_id = "get_key",
@@ -120,6 +125,7 @@ pub async fn get(
     Ok(Json(key))
 }
 
+/// Revoke an API key. The key is immediately invalid for authentication.
 #[utoipa::path(
     delete,
     path = "/v1/keys/{id}",

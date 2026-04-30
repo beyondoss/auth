@@ -4,12 +4,17 @@ use utoipa::ToSchema;
 
 use crate::http::AppState;
 
+/// Health check response.
 #[derive(Serialize, ToSchema)]
 pub struct HealthzResponse {
+    /// `"ok"` when healthy, `"degraded"` when the database is unreachable.
     status: &'static str,
+    /// Service version from `CARGO_PKG_VERSION`.
     version: &'static str,
 }
 
+/// Health check. Performs a lightweight database ping. Returns 200 when healthy,
+/// 503 when the database is unreachable.
 #[utoipa::path(
     get,
     path = "/healthz",

@@ -38,13 +38,18 @@ pub struct FinishRegistrationRequest {
     pub nickname: Option<String>,
 }
 
+/// Request to rename a registered passkey credential.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateCredentialRequest {
+    /// Human-readable label shown in credential lists.
     pub nickname: String,
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
+/// Begin WebAuthn passkey registration. Returns a `options` object to pass directly to
+/// `navigator.credentials.create()` and a `state_token` to include in the subsequent
+/// `POST /v1/passkeys` finish call. Two-step: begin here, finish with `POST /v1/passkeys`.
 #[utoipa::path(
     post,
     path = "/v1/passkey-registrations",
@@ -76,6 +81,9 @@ pub async fn begin_registration(
     ))
 }
 
+/// Complete passkey registration. Submit the `state_token` from `POST /v1/passkey-registrations`
+/// and the `PublicKeyCredential` response from `navigator.credentials.create()`.
+/// The registered credential can then be used to authenticate via `POST /v1/passkey-authentications`.
 #[utoipa::path(
     post,
     path = "/v1/passkeys",
@@ -113,6 +121,7 @@ pub async fn finish_registration(
     ))
 }
 
+/// List all registered passkey credentials for the authenticated user.
 #[utoipa::path(
     get,
     path = "/v1/passkeys",
@@ -132,6 +141,7 @@ pub async fn list_credentials(
     Ok(Json(creds))
 }
 
+/// Update the nickname of a registered passkey credential.
 #[utoipa::path(
     patch,
     path = "/v1/passkeys/{id}",
@@ -155,6 +165,7 @@ pub async fn update_credential(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Delete a registered passkey credential. The credential can no longer be used to authenticate.
 #[utoipa::path(
     delete,
     path = "/v1/passkeys/{id}",
@@ -176,6 +187,10 @@ pub async fn delete_credential(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Begin WebAuthn passkey authentication (discoverable credential flow). Returns `options`
+/// for `navigator.credentials.get()` and a `state_token`. Complete authentication by
+/// posting `state_token` + credential to `POST /v1/sessions` with `grant_type=passkey`.
+/// Unauthenticated — no bearer token required.
 #[utoipa::path(
     post,
     path = "/v1/passkey-authentications",

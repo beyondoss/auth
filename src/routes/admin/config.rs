@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{error::AuthError, http::AppState};
 
+/// Get the current runtime configuration.
 #[utoipa::path(
     get,
     operation_id = "get_admin_config",
@@ -24,16 +25,23 @@ pub async fn get(State(state): State<AppState>) -> Result<Json<ConfigResponse>, 
 
 /// Partial config update. Only fields explicitly set are updated.
 /// Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
+/// Partial config update. Only fields present in the body are changed.
+/// Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateConfigRequest {
+    /// Seconds of inactivity before a session is considered expired. Send `null` to disable.
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub session_idle_timeout_seconds: Option<Option<i32>>,
+    /// When true, `POST /v1/tokens` issues JWT access tokens.
     pub jwt_enabled: Option<bool>,
 }
 
+/// Current runtime configuration values.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ConfigResponse {
+    /// Seconds of inactivity before a session expires. Null means no idle timeout.
     pub session_idle_timeout_seconds: Option<i32>,
+    /// Whether `POST /v1/tokens` is enabled for JWT issuance.
     pub jwt_enabled: bool,
 }
 

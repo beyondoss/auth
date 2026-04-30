@@ -6,12 +6,16 @@ use crate::{email, error::AuthError, http::AppState, one_time_token, tokens::Tok
 
 const TTL_SECONDS: i32 = 900; // 15 minutes
 
+/// Request to issue a magic-link login token for a user.
 #[derive(Deserialize, utoipa::ToSchema)]
 #[schema(as = MagicLinkRequest)]
 pub struct CreateRequest {
+    /// The user's primary email address.
     pub email: String,
 }
 
+/// Magic-link token response. Pass `token` to `POST /v1/sessions` with
+/// `grant_type=magic_link` to authenticate.
 #[derive(Serialize, utoipa::ToSchema)]
 #[schema(as = MagicLinkResponse)]
 pub struct CreateResponse {
@@ -22,6 +26,10 @@ pub struct CreateResponse {
 
 // ── POST /v1/magic-links ──────────────────────────────────────────────────────
 
+/// Issue a passwordless magic-link token for the given email address. The caller is
+/// responsible for delivering the token to the user (e.g. via email). The token is
+/// exchanged for a session via `POST /v1/sessions` with `grant_type=magic_link`.
+/// Expires in 15 minutes. Returns 404 if no account exists for the address.
 #[utoipa::path(
     post,
     path = "/v1/magic-links",

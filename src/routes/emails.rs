@@ -17,14 +17,18 @@ const CHANGE_TTL_SECONDS: i32 = 86400; // 24 hours
 
 // ── GET /v1/emails ────────────────────────────────────────────────────────────
 
+/// An email address belonging to the authenticated user.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct EmailRecord {
     pub id: Uuid,
     pub email: String,
+    /// Null if the address has not been verified yet.
     pub verified_at: Option<DateTime<Utc>>,
+    /// True for the address that appears in `AuthResponse.email` and receives system emails.
     pub is_primary: bool,
 }
 
+/// List all email addresses associated with the authenticated user.
 #[utoipa::path(
     get,
     path = "/v1/emails",
@@ -71,11 +75,14 @@ pub async fn list(
 // Authenticated — initiates a primary email change. Confirmation is done via
 // POST /v1/sessions with grant_type=email_change.
 
+/// Request to initiate a primary email address change.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddRequest {
+    /// The new email address to switch to. Must not already be registered to any user.
     pub email: String,
 }
 
+/// One-time token response for flows that require a follow-up session grant.
 #[derive(Serialize, utoipa::ToSchema)]
 #[schema(as = OttTokenResponse)]
 pub struct TokenResponse {
@@ -84,6 +91,9 @@ pub struct TokenResponse {
     pub expires_at: DateTime<Utc>,
 }
 
+/// Initiate a primary email address change. Returns a one-time token that the caller must
+/// exchange via `POST /v1/sessions` with `grant_type=email_change`. The address is not
+/// changed until the token is consumed. Returns 409 if the address is already registered.
 #[utoipa::path(
     post,
     path = "/v1/emails",
@@ -133,6 +143,8 @@ pub async fn add(
 
 // ── DELETE /v1/emails/{id} ────────────────────────────────────────────────────
 
+/// Remove a non-primary email address. Returns 409 if the caller tries to delete their
+/// primary address — use `PUT /v1/emails/{id}` to promote another address first.
 #[utoipa::path(
     delete,
     path = "/v1/emails/{id}",
@@ -173,8 +185,9 @@ pub async fn remove(
 }
 
 // ── PUT /v1/emails/{id} ───────────────────────────────────────────────────────
-// Promote a verified email to primary.
 
+/// Promote a verified email address to primary. The address must belong to the authenticated
+/// user and must already be verified. Returns 404 if not found or not yet verified.
 #[utoipa::path(
     put,
     path = "/v1/emails/{id}",
@@ -214,8 +227,10 @@ pub async fn make_primary(
 }
 
 // ── POST /v1/emails/{id}/verifications ────────────────────────────────────────
-// Authenticated — issues a verification token for a specific email address.
 
+/// Issue a verification token for an unverified email address. The caller is expected to
+/// deliver this token to the user (e.g. via email) and have them confirm it via
+/// `POST /v1/emails/verifications`. Returns 404 if the address doesn't exist or is already verified.
 #[utoipa::path(
     post,
     path = "/v1/emails/{id}/verifications",
@@ -267,16 +282,21 @@ pub async fn create_verification(
 // ── POST /v1/emails/verifications ─────────────────────────────────────────────
 // Unauthenticated — confirms email ownership via the verification token.
 
+/// Token-based confirmation of email ownership.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ConfirmVerificationRequest {
+    /// The plaintext verification token from `POST /v1/emails/{id}/verifications`.
     pub token: String,
 }
 
+/// Returned when email verification succeeds.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ConfirmVerificationResponse {
     pub verified_at: DateTime<Utc>,
 }
 
+/// Confirm email ownership using the token issued by `POST /v1/emails/{id}/verifications`.
+/// Unauthenticated — the token itself identifies the user and email. Single-use; expires in 24 hours.
 #[utoipa::path(
     post,
     path = "/v1/emails/verifications",
