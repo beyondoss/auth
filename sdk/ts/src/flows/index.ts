@@ -2,7 +2,13 @@ import createFetchClient from "openapi-fetch";
 import type { paths } from "../types.js";
 import { requestMagicLink } from "./magic-link.js";
 import { requestPasswordReset } from "./password-reset.js";
-import { beginPasskeyAuth, signIn } from "./sign-in.js";
+import {
+  beginPasskeyAuth,
+  completeTotpRecovery,
+  completeTotpStepUp,
+  finishPasskeyAuth,
+  signIn,
+} from "./sign-in.js";
 import { signOut, signOutAll } from "./sign-out.js";
 import { signUp } from "./sign-up.js";
 import { issueToken } from "./token.js";
@@ -28,6 +34,15 @@ export interface AuthFlowClient {
   signUp: ReturnType<typeof createAuthFlowClient>["signUp"];
   signIn: ReturnType<typeof createAuthFlowClient>["signIn"];
   beginPasskeyAuth: ReturnType<typeof createAuthFlowClient>["beginPasskeyAuth"];
+  completeTotpStepUp: ReturnType<
+    typeof createAuthFlowClient
+  >["completeTotpStepUp"];
+  completeTotpRecovery: ReturnType<
+    typeof createAuthFlowClient
+  >["completeTotpRecovery"];
+  finishPasskeyAuth: ReturnType<
+    typeof createAuthFlowClient
+  >["finishPasskeyAuth"];
   signOut: ReturnType<typeof createAuthFlowClient>["signOut"];
   signOutAll: ReturnType<typeof createAuthFlowClient>["signOutAll"];
   requestMagicLink: ReturnType<typeof createAuthFlowClient>["requestMagicLink"];
@@ -59,11 +74,19 @@ export interface AuthFlowClient {
  * // Sign up
  * const { session } = await flows.signUp({ email, password })
  *
- * // Sign in — TypeScript narrows required fields by grantType
+ * // Sign in — grantType narrows required fields; TOTP-enrolled users get a StepUpResponse
  * const result = await flows.signIn({ grantType: 'password', email, password })
  * if ('stepUpRequired' in result) {
- *   // TOTP step-up needed — result.stepUpToken is available
+ *   // Complete TOTP step-up with a 6-digit code from the authenticator app
+ *   const auth = await flows.completeTotpStepUp(result.stepUpToken, totpCode)
+ *   // Or use a recovery code if the user lost their authenticator
+ *   const auth = await flows.completeTotpRecovery(result.stepUpToken, recoveryCode)
  * }
+ *
+ * // Passkey auth — begin returns WebAuthn options to pass to the browser
+ * const { options, stateToken } = await flows.beginPasskeyAuth()
+ * const credential = await navigator.credentials.get({ publicKey: options })
+ * const auth = await flows.finishPasskeyAuth(stateToken, credential)
  *
  * // Magic link round-trip
  * const { token } = await flows.requestMagicLink(email)
@@ -82,6 +105,14 @@ export function createAuthFlowClient(opts: AuthFlowClientOptions) {
     signUp: (body: Parameters<typeof signUp>[1]) => signUp(client, body),
     signIn: (body: Parameters<typeof signIn>[1]) => signIn(client, body),
     beginPasskeyAuth: () => beginPasskeyAuth(client),
+    completeTotpStepUp: (stepUpToken: string, code: string) =>
+      completeTotpStepUp(client, stepUpToken, code),
+    completeTotpRecovery: (stepUpToken: string, code: string) =>
+      completeTotpRecovery(client, stepUpToken, code),
+    finishPasskeyAuth: (
+      stateToken: string,
+      credential: Record<string, unknown>,
+    ) => finishPasskeyAuth(client, stateToken, credential),
     signOut: (token: string) => signOut(client, token),
     signOutAll: (token: string, opts?: Parameters<typeof signOutAll>[2]) =>
       signOutAll(client, token, opts),

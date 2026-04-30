@@ -34,3 +34,43 @@ export async function beginPasskeyAuth(
   if (error !== undefined) throwServiceError(error, response);
   return camelize(data!);
 }
+
+export async function completeTotpStepUp(
+  client: Client<paths>,
+  stepUpToken: string,
+  code: string,
+): Promise<AuthResponse> {
+  const { data, error, response } = await client.POST("/v1/sessions", {
+    body: { grant_type: "totp_step_up", step_up_token: stepUpToken, code },
+  });
+  if (error !== undefined) throwServiceError(error, response);
+  return camelize(data!) as AuthResponse;
+}
+
+export async function completeTotpRecovery(
+  client: Client<paths>,
+  stepUpToken: string,
+  code: string,
+): Promise<AuthResponse> {
+  const { data, error, response } = await client.POST("/v1/sessions", {
+    body: { grant_type: "totp_recovery", step_up_token: stepUpToken, code },
+  });
+  if (error !== undefined) throwServiceError(error, response);
+  return camelize(data!) as AuthResponse;
+}
+
+export async function finishPasskeyAuth(
+  client: Client<paths>,
+  stateToken: string,
+  credential: Record<string, unknown>,
+): Promise<AuthResponse> {
+  const { data, error, response } = await client.POST("/v1/sessions", {
+    body: {
+      grant_type: "passkey",
+      state_token: stateToken,
+      credential,
+    } as components["schemas"]["LoginRequest"],
+  });
+  if (error !== undefined) throwServiceError(error, response);
+  return camelize(data!) as AuthResponse;
+}
