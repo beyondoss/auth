@@ -63,4 +63,29 @@ export {
   type SessionVerifier,
   type SessionVerifierOptions,
 } from "./session.js";
+export {
+  type ApiKey,
+  type ApiKeyWithSecret,
+} from "./account/keys.js";
+export {
+  type EmailRecord,
+  type OttTokenResponse,
+} from "./account/emails.js";
+export {
+  type MeResponse,
+  type UpdateMeRequest,
+} from "./account/me.js";
+export {
+  type BeginPasskeyRegistrationResponse,
+  type FinishPasskeyRegistrationRequest,
+  type PasskeyRecord,
+  type RegisteredPasskey,
+} from "./account/passkeys.js";
+export {
+  type SessionListItem,
+} from "./account/sessions.js";
+export {
+  type RecoveryCodesResponse,
+  type TotpEnrollmentResponse,
+} from "./account/totp.js";
 export { type Camelize } from "./utils/camelize.js";

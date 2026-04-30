@@ -1,7 +1,14 @@
 import createFetchClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./types.js";
-import { camelize, snakenize } from "./utils/camelize.js";
+import { listPasskeys, beginPasskeyRegistration, finishPasskeyRegistration, updatePasskey, deletePasskey } from "./account/passkeys.js";
+import { getMe, updateMe, deleteMe } from "./account/me.js";
+import { listEmails, addEmail, deleteEmail, makeEmailPrimary, createEmailVerification } from "./account/emails.js";
+import { enrollTotp, confirmTotp, disableTotp, regenerateTotpRecoveryCodes } from "./account/totp.js";
+import { listSessions, getCurrentSession, deleteSessionById } from "./account/sessions.js";
+import { listKeys, createKey, getKey, deleteKey } from "./account/keys.js";
+import { snakenize } from "./utils/camelize.js";
 import type { Camelize } from "./utils/camelize.js";
+import { wrap } from "./utils/wrap.js";
 
 export type { paths };
 export type { components, operations } from "./types.js";
@@ -56,20 +63,6 @@ export interface AuthClientOptions<OrgRole extends string = string> {
 type InvitationBody<OrgRole extends string> =
   & Camelize<components["schemas"]["CreateInvitationRequest"]>
   & { role: OrgRole };
-
-// Wraps an openapi-fetch result, camelizing the data field.
-async function wrap<T, E>(
-  promise: Promise<{ data?: T; error?: E; response: Response }>,
-): Promise<
-  { data: Camelize<T> | undefined; error: E | undefined; response: Response }
-> {
-  const { data, error, response } = await promise;
-  return {
-    data: data !== undefined ? camelize(data) : undefined,
-    error,
-    response,
-  };
-}
 
 /**
  * Creates a typed auth client for use in browser and app contexts.
@@ -220,6 +213,49 @@ export function createAuthClient<
         wrap(raw.POST("/v1/invitations/{id}/declinations", {
           params: { path: { id: invId }, query: { token } },
         })),
+    },
+
+    passkeys: {
+      list: () => listPasskeys(raw),
+      beginRegistration: () => beginPasskeyRegistration(raw),
+      finishRegistration: (body: Parameters<typeof finishPasskeyRegistration>[1]) =>
+        finishPasskeyRegistration(raw, body),
+      update: (id: string, nickname: string) => updatePasskey(raw, id, nickname),
+      delete: (id: string) => deletePasskey(raw, id),
+    },
+
+    me: {
+      get: () => getMe(raw),
+      update: (body: Parameters<typeof updateMe>[1]) => updateMe(raw, body),
+      delete: () => deleteMe(raw),
+    },
+
+    emails: {
+      list: () => listEmails(raw),
+      add: (email: string) => addEmail(raw, email),
+      delete: (id: string) => deleteEmail(raw, id),
+      makePrimary: (id: string) => makeEmailPrimary(raw, id),
+      createVerification: (id: string) => createEmailVerification(raw, id),
+    },
+
+    totp: {
+      enroll: () => enrollTotp(raw),
+      confirm: (code: string) => confirmTotp(raw, code),
+      disable: () => disableTotp(raw),
+      regenerateRecoveryCodes: (code: string) => regenerateTotpRecoveryCodes(raw, code),
+    },
+
+    sessions: {
+      list: () => listSessions(raw),
+      getCurrent: () => getCurrentSession(raw),
+      deleteById: (id: string) => deleteSessionById(raw, id),
+    },
+
+    keys: {
+      list: () => listKeys(raw),
+      create: (name: string, expiresAt?: string) => createKey(raw, name, expiresAt),
+      get: (id: string) => getKey(raw, id),
+      delete: (id: string) => deleteKey(raw, id),
     },
   };
 }
