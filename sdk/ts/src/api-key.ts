@@ -51,7 +51,9 @@ export interface ApiKeyVerifier {
  * if (!ctx) return new Response('Unauthorized', { status: 401 })
  * ```
  */
-export function createApiKeyVerifier(opts: ApiKeyVerifierOptions): ApiKeyVerifier {
+export function createApiKeyVerifier(
+  opts: ApiKeyVerifierOptions,
+): ApiKeyVerifier {
   const client = createFetchClient<paths>({
     baseUrl: opts.baseUrl.replace(/\/+$/, ""),
   });

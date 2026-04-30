@@ -383,7 +383,6 @@ describe("checkSession", () => {
       (e: unknown) => e instanceof AuthzError && e.code === "session_invalid",
     );
   });
-
 });
 
 // ── lookup ────────────────────────────────────────────────────────────────────

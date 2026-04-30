@@ -13,6 +13,12 @@ export {
   type TotpEnrollmentResponse,
 } from "./account/totp.js";
 export {
+  type ApiKeyContext,
+  type ApiKeyVerifier,
+  type ApiKeyVerifierOptions,
+  createApiKeyVerifier,
+} from "./api-key.js";
+export {
   type AuthzClient,
   type AuthzClientOptions,
   type AuthzSchema,
@@ -34,12 +40,6 @@ export {
   type SchemaInput,
   type TraceArgs,
 } from "./authz.js";
-export {
-  type ApiKeyContext,
-  createApiKeyVerifier,
-  type ApiKeyVerifier,
-  type ApiKeyVerifierOptions,
-} from "./api-key.js";
 export {
   type AdminClientOptions,
   type AuthClientOptions,
