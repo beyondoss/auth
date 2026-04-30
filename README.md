@@ -38,6 +38,7 @@ mise run build:release
 
 | Flag / Env                                                            | Default                 | Description                                                                  |
 | --------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `--mmds-endpoint` / `MMDS_ENDPOINT`                                   | —                       | Firecracker MMDS endpoint (e.g. `http://169.254.169.254`). When set, secrets (`DATABASE_URL`, `SIGNING_KEY_ENCRYPTION_KEY`, `ADMIN_SECRET`) are fetched from MMDS instead of env vars; env vars remain as per-key fallbacks. |
 | `--database-url` / `DATABASE_URL`                                     | —                       | Postgres connection string. The service operates within the `auth` schema.   |
 | `--address` / `ADDRESS`                                               | `0.0.0.0:8080`          | Bind address                                                                 |
 | `--signing-key-encryption-key` / `SIGNING_KEY_ENCRYPTION_KEY`         | —                       | Base64url-encoded 32-byte AES-256-GCM key for signing key encryption at rest |
