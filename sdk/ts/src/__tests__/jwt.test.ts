@@ -84,4 +84,62 @@ describe("createJwtVerifier", () => {
     expect(err).toBeInstanceOf(JwtVerificationError);
     expect((err as JwtVerificationError).retryable).toBe(true);
   });
+
+  it("retries on transient JWKS failures and eventually throws", async () => {
+    const fakeJwt = [
+      b64url({ alg: "RS256", kid: "test" }),
+      b64url({ sub: "u", iss: DEFAULT_ISSUER, iat: 0, exp: 9_999_999_999 }),
+      "aW52YWxpZA",
+    ].join(".");
+
+    const err = await createJwtVerifier({
+      jwksUri: "http://127.0.0.1:1/v1/jwks.json",
+      issuer: DEFAULT_ISSUER,
+      retryAttempts: 2,
+      retryDelay: 10,
+    })
+      .verify(fakeJwt)
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(JwtVerificationError);
+    expect((err as JwtVerificationError).retryable).toBe(true);
+  });
+
+  it("does not retry non-retryable failures", async () => {
+    const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
+    const { data } = await authedClient(auth.session.token).POST("/v1/tokens", {
+      body: {},
+    });
+
+    const parts = data!.access_token.split(".");
+    parts[2] = parts[2]!.split("").reverse().join("");
+    const tampered = parts.join(".");
+
+    const err = await createJwtVerifier({
+      jwksUri: jwksUri(),
+      issuer: DEFAULT_ISSUER,
+      retryAttempts: 3,
+      retryDelay: 10,
+    })
+      .verify(tampered)
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(JwtVerificationError);
+    expect((err as JwtVerificationError).retryable).toBe(false);
+  });
+
+  it("succeeds normally when retryAttempts is configured", async () => {
+    const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
+    const { data } = await authedClient(auth.session.token).POST("/v1/tokens", {
+      body: {},
+    });
+
+    const claims = await createJwtVerifier({
+      jwksUri: jwksUri(),
+      issuer: DEFAULT_ISSUER,
+      retryAttempts: 2,
+    }).verify(data!.access_token);
+
+    expect(claims.sub).toBe(auth.user.id);
+  });
 });

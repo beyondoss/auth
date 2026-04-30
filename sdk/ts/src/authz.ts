@@ -376,6 +376,25 @@ export type LookupArgs<S extends SchemaInput = SchemaInput> = {
   };
 }[ResourceNames<S>];
 
+/**
+ * A single permission check without an explicit subject.
+ * Subject is resolved from the session token passed to {@link AuthzClient.checksSession}.
+ */
+export type ChecksSessionItem<S extends SchemaInput = SchemaInput> = {
+  [R in ResourceNames<S>]: {
+    resource: R;
+    id: string;
+    permission: PermissionsOf<S, R>;
+  };
+}[ResourceNames<S>];
+
+/** Args for {@link AuthzClient.checksSession}. */
+export type ChecksSessionArgs<S extends SchemaInput = SchemaInput> = {
+  /** Session token — resolved server-side to a subject for every check in the batch. */
+  token: string;
+  checks: ChecksSessionItem<S>[];
+};
+
 // ── Client interface ──────────────────────────────────────────────────────────
 
 /** A Zanzibar authz client scoped to an auth service instance. */
@@ -406,6 +425,31 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
   check(args: CheckArgs<S>): Promise<void>;
 
   /**
+   * Batch **Check** with explicit subjects — all N checks in a single request.
+   *
+   * Returns the input checks annotated with `allowed: boolean` in the same
+   * order. Never throws on denied checks — check each result's `allowed` field.
+   *
+   * No-op (returns `[]`) when the input is empty.
+   *
+   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
+   * @throws {AuthzError} `authz_unknown_resource` or `authz_unknown_permission`
+   *   if any check references a resource or permission not in the schema.
+   *
+   * @example
+   * ```ts
+   * const results = await authz.checks([
+   *   { resource: 'document', id: doc1, permission: 'read', subject: userId },
+   *   { resource: 'document', id: doc2, permission: 'write', subject: userId },
+   * ])
+   * const readable = results.filter(r => r.allowed).map(r => r.id)
+   * ```
+   */
+  checks(
+    checks: CheckArgs<S>[],
+  ): Promise<Array<CheckArgs<S> & { allowed: boolean }>>;
+
+  /**
    * Zanzibar **Check** with a session token — one database round-trip.
    *
    * Validates the session token and checks the permission in a single bundled
@@ -422,6 +466,32 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * ```
    */
   checkSession(args: CheckSessionArgs<S>): Promise<void>;
+
+  /**
+   * Batch **Check** with a session token — all N checks in a single request.
+   *
+   * Resolves each check against the session user. Returns the input checks
+   * annotated with `allowed: boolean` in the same order. Never throws on
+   * denied checks — check each result's `allowed` field.
+   *
+   * No-op (returns `[]`) when `checks` is empty.
+   *
+   * @throws {AuthzError} `unauthorized` if the session token is invalid or expired.
+   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
+   *
+   * @example
+   * ```ts
+   * // Filter a list to only documents the user can read
+   * const results = await authz.checksSession({
+   *   token,
+   *   checks: docIds.map(id => ({ resource: 'document', id, permission: 'read' })),
+   * })
+   * const readable = results.filter(r => r.allowed).map(r => r.id)
+   * ```
+   */
+  checksSession(
+    args: ChecksSessionArgs<S>,
+  ): Promise<Array<ChecksSessionItem<S> & { allowed: boolean }>>;
 
   // ── Tuple writes (admin) ─────────────────────────────────────────────────────
 
@@ -441,7 +511,7 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    */
   createRelations(relations: Relation<S>[]): Promise<void>;
 
-  /** Delete a single relation tuple. */
+  /** Delete a single relation tuple. Idempotent — no-op when the tuple does not exist. */
   deleteRelation(relation: Relation<S>): Promise<void>;
 
   /**
@@ -647,6 +717,44 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
       }
     },
 
+    async checks(checks) {
+      if (checks.length === 0) return [];
+      const { data, error, response } = await client.POST("/v1/authz/checks", {
+        body: {
+          checks: checks.map((c) => ({
+            resource_type: c.resource,
+            resource_id: c.id,
+            permission: c.permission,
+            user: c.subject,
+          })),
+        },
+      });
+      assertOk(error, response);
+      return checks.map((c, i) => ({
+        ...c,
+        allowed: data.results[i] ?? false,
+      }));
+    },
+
+    async checksSession({ token, checks }) {
+      if (checks.length === 0) return [];
+      const { data, error, response } = await client.POST("/v1/authz/checks", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: {
+          checks: checks.map((c) => ({
+            resource_type: c.resource,
+            resource_id: c.id,
+            permission: c.permission,
+          })),
+        },
+      });
+      assertOk(error, response);
+      return checks.map((c, i) => ({
+        ...c,
+        allowed: data.results[i] ?? false,
+      }));
+    },
+
     async checkSession({ token, resource, id, permission }) {
       const { data, error, response } = await client.GET(
         "/v1/authz/decisions",
@@ -689,6 +797,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: toWire(relation),
       });
+      if (response?.status === 404) return;
       assertOk(error, response);
     },
 

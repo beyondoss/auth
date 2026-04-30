@@ -24,6 +24,18 @@ export interface JwtVerifierOptions {
    * @defaultValue 30
    */
   clockSkewSeconds?: number;
+  /**
+   * Number of additional attempts after a transient failure (JWKS network error
+   * or timeout). Non-retryable failures (bad signature, expired token, wrong
+   * issuer) are never retried. Default: 0 (no retries).
+   */
+  retryAttempts?: number;
+  /**
+   * Base delay in milliseconds for exponential backoff between retry attempts.
+   * Actual delay for attempt N is `retryDelay * 2^(N-1)`.
+   * @defaultValue 100
+   */
+  retryDelay?: number;
 }
 
 /** Verified JWT claims. */
@@ -89,25 +101,42 @@ export function createJwtVerifier(opts: JwtVerifierOptions): JwtVerifier {
     verifyOptions.audience = opts.audience;
   }
 
+  const maxAttempts = 1 + (opts.retryAttempts ?? 0);
+  const retryDelay = opts.retryDelay ?? 100;
+
   return {
     async verify(token: string): Promise<JwtClaims> {
-      try {
-        const { payload } = await jwtVerify(token, jwks, verifyOptions);
-        if (!payload.sub) {
-          throw new JwtVerificationError("JWT is missing sub claim");
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>((res) =>
+            setTimeout(res, retryDelay * 2 ** (attempt - 1))
+          );
         }
-        return payload as JwtClaims;
-      } catch (err) {
-        if (err instanceof JwtVerificationError) throw err;
-        // JWKSTimeout = explicit JWKS fetch timeout; non-JOSEError = network failure.
-        const retryable = err instanceof joseErrors.JWKSTimeout
-          || !(err instanceof joseErrors.JOSEError);
-        throw new JwtVerificationError(
-          err instanceof Error ? err.message : "JWT verification failed",
-          err,
-          retryable,
-        );
+        try {
+          const { payload } = await jwtVerify(token, jwks, verifyOptions);
+          if (!payload.sub) {
+            throw new JwtVerificationError("JWT is missing sub claim");
+          }
+          return payload as JwtClaims;
+        } catch (err) {
+          if (err instanceof JwtVerificationError) {
+            if (err.retryable && attempt < maxAttempts - 1) continue;
+            throw err;
+          }
+          // JWKSTimeout = explicit JWKS fetch timeout; non-JOSEError = network failure.
+          const retryable = err instanceof joseErrors.JWKSTimeout
+            || !(err instanceof joseErrors.JOSEError);
+          const wrapped = new JwtVerificationError(
+            err instanceof Error ? err.message : "JWT verification failed",
+            err,
+            retryable,
+          );
+          if (retryable && attempt < maxAttempts - 1) continue;
+          throw wrapped;
+        }
       }
+      // unreachable — loop always throws or returns
+      throw new JwtVerificationError("JWT verification failed");
     },
   };
 }

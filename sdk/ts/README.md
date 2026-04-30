@@ -1,6 +1,6 @@
 # @beyond.dev/auth
 
-Verify sessions, validate JWTs, and enforce authorization — from TypeScript.
+Authenticate users, verify sessions, and enforce authorization — from TypeScript.
 
 ## Install
 
@@ -11,24 +11,128 @@ npm install @beyond.dev/auth
 ## Quick Start
 
 ```ts
-import { createSessionVerifier } from "@beyond.dev/auth";
+import {
+  createAuthFlowClient,
+  createSessionVerifier,
+  getSessionToken,
+} from "@beyond.dev/auth";
+import { sessionCookieAttrs } from "@beyond.dev/auth";
 
+const flows = createAuthFlowClient({ baseUrl: "http://auth:8080" });
 const verifier = createSessionVerifier({ baseUrl: "http://auth:8080" });
 
-const session = await verifier.verify(token);
+// Sign in
+const result = await flows.signIn({ grantType: "password", email, password });
+// result.session.token — store in a cookie, return to the client
+
+// On subsequent requests
+const token = getSessionToken(request); // checks cookies and Authorization header
+const session = await verifier.verify(token ?? "");
 if (!session) {
-  // token invalid or expired
+  // token invalid, expired, or revoked
 }
 // session.userId, session.metadata, ...
 ```
 
 ## What It Does
 
+- **Auth flows** — sign up, sign in, passkeys, magic links, password reset, MFA, sign out
 - **Session verification** — validate opaque session tokens against the auth service
 - **JWT verification** — verify access tokens with automatic JWKS caching and `kid`-based refresh
 - **Authorization** — Zanzibar-style relation checks, permission lookups, and auditing
 - **HTTP client** — fully typed REST client for managing sessions, keys, and users directly
 - **Next.js** — middleware for route protection, RSC helpers, and cookie utilities
+
+## Auth Flows
+
+`createAuthFlowClient` handles everything related to getting users in and out of your application. Create it once at startup and reuse it across requests.
+
+```ts
+import { createAuthFlowClient } from "@beyond.dev/auth";
+
+const flows = createAuthFlowClient({ baseUrl: "http://auth:8080" });
+```
+
+**Sign up:**
+
+```ts
+const { session } = await flows.signUp({ email, password });
+// session.token — store in a cookie
+```
+
+**Sign in with password:**
+
+```ts
+const result = await flows.signIn({ grantType: "password", email, password });
+
+if ("stepUpToken" in result) {
+  // User has TOTP enrolled — redirect to /verify-totp and pass result.stepUpToken
+} else {
+  // result.session.token
+}
+```
+
+**Complete a TOTP challenge:**
+
+```ts
+const { session } = await flows.completeTotpStepUp(stepUpToken, totpCode);
+// or, with a recovery code:
+const { session } = await flows.completeTotpRecovery(stepUpToken, recoveryCode);
+```
+
+**Magic link:**
+
+```ts
+// Step 1: send the link
+await flows.requestMagicLink(email);
+
+// Step 2: when the user clicks the link and lands with ?token=…
+const { session } = await flows.signIn({ grantType: "magic_link", token });
+```
+
+**Password reset:**
+
+```ts
+// Step 1: send the reset link
+await flows.requestPasswordReset(email);
+
+// Step 2: when the user submits the reset form
+const { session } = await flows.signIn({
+  grantType: "password_reset",
+  token,
+  newPassword,
+});
+```
+
+**Passkeys:**
+
+```ts
+// Step 1: get WebAuthn options
+const { options, stateToken } = await flows.beginPasskeyAuth();
+
+// Step 2: get credential from the browser (navigator.credentials.get)
+const { session } = await flows.finishPasskeyAuth(stateToken, credential);
+```
+
+**Sign out:**
+
+```ts
+await flows.signOut(sessionToken);
+// clear the session cookie on the response
+```
+
+**Sign out all sessions:**
+
+```ts
+await flows.signOutAll(sessionToken); // revokes all sessions including current
+await flows.signOutAll(sessionToken, { excludeCurrent: true }); // keep current session
+```
+
+**Issue a JWT from a session:**
+
+```ts
+const { token } = await flows.issueToken(sessionToken, { audience: "my-api" });
+```
 
 ## Session Verification
 
@@ -37,7 +141,6 @@ import { createSessionVerifier, getSessionToken } from "@beyond.dev/auth";
 
 const verifier = createSessionVerifier({ baseUrl: "http://auth:8080" });
 
-// From a request
 const token = getSessionToken(request); // checks Authorization header and cookies
 const session = await verifier.verify(token ?? "");
 ```
@@ -61,6 +164,15 @@ const claims = await jwtVerifier.verify(accessToken);
 ```
 
 JWKS keys cache for one hour. Unknown `kid` values trigger an immediate refresh.
+
+**Session verifier vs JWT verifier:**
+
+|                          | Session verifier            | JWT verifier                                       |
+| ------------------------ | --------------------------- | -------------------------------------------------- |
+| Round-trip per request   | Yes                         | No (cache hit)                                     |
+| Detects revocation       | Yes                         | No — JWT valid until expiry                        |
+| Requires auth service up | Always                      | Only on cache miss                                 |
+| Use when                 | Default; revocation matters | High request volume; short-lived tokens acceptable |
 
 ## Authorization
 
@@ -179,14 +291,17 @@ await authz.putSchema({
 ```ts
 import { createAdminClient, createAuthClient } from "@beyond.dev/auth";
 
-// Admin operations (uses admin secret)
+// Admin operations — create once at startup
 const admin = createAdminClient({ baseUrl: "http://auth:8080" });
 
-// User-scoped operations (uses session token)
+// User-scoped operations — create per request with the user's session token
 const client = createAuthClient({
   baseUrl: "http://auth:8080",
-  token: sessionToken,
+  token: sessionToken, // each user gets their own client instance
 });
+
+const orgs = await client.orgs.list();
+const me = await client.me.get();
 ```
 
 Both are fully typed wrappers over the auth service REST API.

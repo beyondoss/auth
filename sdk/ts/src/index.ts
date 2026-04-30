@@ -18,6 +18,8 @@ export {
   type AuthzSchema,
   type CheckArgs,
   type CheckSessionArgs,
+  type ChecksSessionArgs,
+  type ChecksSessionItem,
   createAuthzClient,
   defineSchema,
   type ExpandArgs,
