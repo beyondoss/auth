@@ -11,9 +11,9 @@ describe("createSessionVerifier", () => {
     );
     expect(ctx).not.toBeNull();
     expect(ctx!.id).toBe(auth.session.id);
-    expect(ctx!.token_id).toBeDefined();
-    expect(ctx!.created_at).toBeDefined();
-    expect(ctx!.expires_at).toBeDefined();
+    expect(ctx!.tokenId).toBeDefined();
+    expect(ctx!.createdAt).toBeDefined();
+    expect(ctx!.expiresAt).toBeDefined();
   });
 
   it("returns null for an invalid token", async () => {

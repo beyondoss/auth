@@ -1,5 +1,7 @@
 import createFetchClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./types.js";
+import { camelize, snakenize } from "./utils/camelize.js";
+import type { Camelize } from "./utils/camelize.js";
 
 export type { paths };
 export type { components, operations } from "./types.js";
@@ -52,8 +54,22 @@ export interface AuthClientOptions<OrgRole extends string = string> {
 }
 
 type InvitationBody<OrgRole extends string> =
-  & components["schemas"]["CreateInvitationRequest"]
+  & Camelize<components["schemas"]["CreateInvitationRequest"]>
   & { role: OrgRole };
+
+// Wraps an openapi-fetch result, camelizing the data field.
+async function wrap<T, E>(
+  promise: Promise<{ data?: T; error?: E; response: Response }>,
+): Promise<
+  { data: Camelize<T> | undefined; error: E | undefined; response: Response }
+> {
+  const { data, error, response } = await promise;
+  return {
+    data: data !== undefined ? camelize(data) : undefined,
+    error,
+    response,
+  };
+}
 
 /**
  * Creates a typed auth client for use in browser and app contexts.
@@ -70,9 +86,9 @@ type InvitationBody<OrgRole extends string> =
  * })
  *
  * // ✓ type-safe
- * await client.orgs.invite(orgId, { email: 'hi@example.com', role: 'admin' })
+ * await client.orgs.invitations.create(orgId, { email: 'hi@example.com', role: 'admin' })
  * // ✗ TypeScript error — 'superuser' is not assignable to 'admin' | 'billing' | 'member'
- * await client.orgs.invite(orgId, { email: 'hi@example.com', role: 'superuser' })
+ * await client.orgs.invitations.create(orgId, { email: 'hi@example.com', role: 'superuser' })
  * ```
  */
 export function createAuthClient<
@@ -97,92 +113,113 @@ export function createAuthClient<
     DELETE,
 
     identities: {
-      list: () => raw.GET("/v1/identities", {}),
+      list: () => wrap(raw.GET("/v1/identities", {})),
 
-      addPassword: (body: components["schemas"]["AddPasswordRequest"]) =>
-        raw.POST("/v1/identities", { body }),
+      addPassword: (
+        body: Camelize<components["schemas"]["AddPasswordRequest"]>,
+      ) =>
+        wrap(raw.POST("/v1/identities", {
+          body: body as components["schemas"]["AddPasswordRequest"],
+        })),
 
       update: (
         id: string,
-        body: components["schemas"]["UpdateIdentityRequest"],
-      ) => raw.PATCH("/v1/identities/{id}", { params: { path: { id } }, body }),
+        body: Camelize<components["schemas"]["UpdateIdentityRequest"]>,
+      ) =>
+        wrap(raw.PATCH("/v1/identities/{id}", {
+          params: { path: { id } },
+          body: snakenize(
+            body as Record<string, unknown>,
+          ) as components["schemas"]["UpdateIdentityRequest"],
+        })),
 
       unlink: (id: string) =>
-        raw.DELETE("/v1/identities/{id}", { params: { path: { id } } }),
+        wrap(raw.DELETE("/v1/identities/{id}", { params: { path: { id } } })),
     },
 
     orgs: {
-      list: () => raw.GET("/v1/orgs", {}),
+      list: () => wrap(raw.GET("/v1/orgs", {})),
 
-      create: (body: components["schemas"]["CreateOrgRequest"]) =>
-        raw.POST("/v1/orgs", { body }),
+      create: (body: Camelize<components["schemas"]["CreateOrgRequest"]>) =>
+        wrap(raw.POST("/v1/orgs", {
+          body: body as components["schemas"]["CreateOrgRequest"],
+        })),
 
       get: (orgId: string) =>
-        raw.GET("/v1/orgs/{id}", { params: { path: { id: orgId } } }),
+        wrap(raw.GET("/v1/orgs/{id}", { params: { path: { id: orgId } } })),
 
       update: (
         orgId: string,
-        body: components["schemas"]["UpdateOrgRequest"],
+        body: Camelize<components["schemas"]["UpdateOrgRequest"]>,
       ) =>
-        raw.PATCH("/v1/orgs/{id}", { params: { path: { id: orgId } }, body }),
+        wrap(raw.PATCH("/v1/orgs/{id}", {
+          params: { path: { id: orgId } },
+          body: snakenize(
+            body as Record<string, unknown>,
+          ) as components["schemas"]["UpdateOrgRequest"],
+        })),
 
       delete: (orgId: string) =>
-        raw.DELETE("/v1/orgs/{id}", { params: { path: { id: orgId } } }),
+        wrap(raw.DELETE("/v1/orgs/{id}", { params: { path: { id: orgId } } })),
 
       members: {
         list: (orgId: string) =>
-          raw.GET("/v1/orgs/{id}/members", { params: { path: { id: orgId } } }),
+          wrap(
+            raw.GET("/v1/orgs/{id}/members", {
+              params: { path: { id: orgId } },
+            }),
+          ),
 
         update: (
           orgId: string,
           memberId: string,
           body: components["schemas"]["UpdateMemberRequest"],
         ) =>
-          raw.PATCH("/v1/orgs/{id}/members/{member_id}", {
+          wrap(raw.PATCH("/v1/orgs/{id}/members/{member_id}", {
             params: { path: { id: orgId, member_id: memberId } },
             body,
-          }),
+          })),
 
         remove: (orgId: string, memberId: string) =>
-          raw.DELETE("/v1/orgs/{id}/members/{member_id}", {
+          wrap(raw.DELETE("/v1/orgs/{id}/members/{member_id}", {
             params: { path: { id: orgId, member_id: memberId } },
-          }),
+          })),
       },
 
       invitations: {
         create: (orgId: string, body: InvitationBody<OrgRole>) =>
-          raw.POST("/v1/orgs/{id}/invitations", {
+          wrap(raw.POST("/v1/orgs/{id}/invitations", {
             params: { path: { id: orgId } },
-            body,
-          }),
+            body: body as components["schemas"]["CreateInvitationRequest"],
+          })),
 
         list: (orgId: string) =>
-          raw.GET("/v1/orgs/{id}/invitations", {
+          wrap(raw.GET("/v1/orgs/{id}/invitations", {
             params: { path: { id: orgId } },
-          }),
+          })),
 
         revoke: (orgId: string, invId: string) =>
-          raw.DELETE("/v1/orgs/{id}/invitations/{inv_id}", {
+          wrap(raw.DELETE("/v1/orgs/{id}/invitations/{inv_id}", {
             params: { path: { id: orgId, inv_id: invId } },
-          }),
+          })),
       },
     },
 
     invitations: {
       view: (invId: string, token: string) =>
-        raw.GET("/v1/invitations/{id}", {
+        wrap(raw.GET("/v1/invitations/{id}", {
           params: { path: { id: invId }, query: { token } },
-        }),
+        })),
 
       accept: (invId: string, token: string) =>
-        raw.POST("/v1/invitations/{id}/acceptances", {
+        wrap(raw.POST("/v1/invitations/{id}/acceptances", {
           params: { path: { id: invId }, query: { token } },
-        }),
+        })),
 
       decline: (invId: string, token: string) =>
-        raw.POST("/v1/invitations/{id}/declinations", {
+        wrap(raw.POST("/v1/invitations/{id}/declinations", {
           params: { path: { id: invId }, query: { token } },
-        }),
+        })),
     },
   };
 }

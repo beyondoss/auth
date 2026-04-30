@@ -1,16 +1,8 @@
 import createFetchClient from "openapi-fetch";
-import * as v from "valibot";
-import { AuthServiceError } from "./errors.js";
 import type { components, paths } from "./types.js";
-
-const ErrorBody = v.object({
-  error: v.optional(
-    v.object({
-      code: v.optional(v.string()),
-      message: v.optional(v.string()),
-    }),
-  ),
-});
+import { camelize } from "./utils/camelize.js";
+import type { Camelize } from "./utils/camelize.js";
+import { throwServiceError } from "./utils/error.js";
 
 /** Options for {@link createSessionVerifier}. */
 export interface SessionVerifierOptions {
@@ -22,7 +14,9 @@ export interface SessionVerifierOptions {
  * The context returned when an opaque session token is verified.
  * Shape is sourced directly from the auth service's `CurrentSessionResponse` schema.
  */
-export type SessionContext = components["schemas"]["CurrentSessionResponse"];
+export type SessionContext = Camelize<
+  components["schemas"]["CurrentSessionResponse"]
+>;
 
 /** A verifier that validates Beyond Auth opaque session tokens. */
 export interface SessionVerifier {
@@ -78,18 +72,8 @@ export function createSessionVerifier(
       );
 
       if (response.status === 401) return null;
-
-      if (error !== undefined) {
-        const parsed = v.safeParse(ErrorBody, error);
-        const body = parsed.success ? parsed.output : {};
-        throw new AuthServiceError(
-          body.error?.code ?? "unknown_error",
-          body.error?.message ?? response.statusText,
-          response.status,
-        );
-      }
-
-      return data;
+      if (error !== undefined) throwServiceError(error, response);
+      return camelize(data!);
     },
   };
 }

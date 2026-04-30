@@ -7,6 +7,8 @@ import {
 } from "../server/cookie.js";
 import type { SessionContext, SessionVerifier } from "../session.js";
 import type { components, paths } from "../types.js";
+import { camelize } from "../utils/camelize.js";
+import type { Camelize } from "../utils/camelize.js";
 
 /**
  * A Next.js-compatible read-only cookie store, compatible with the object
@@ -17,7 +19,7 @@ export interface CookieStore {
 }
 
 /** User profile from `GET /v1/users/me`. */
-export type MeResponse = components["schemas"]["MeResponse"];
+export type MeResponse = Camelize<components["schemas"]["MeResponse"]>;
 
 /**
  * Creates per-request session and profile helpers for Next.js server
@@ -104,7 +106,7 @@ export function createServerHelpers(
     const { data } = await client.GET("/v1/users/me", {
       headers: { Authorization: `Bearer ${token!}` },
     });
-    return data ?? null;
+    return data !== undefined ? camelize(data) : null;
   });
 
   return { getSession, getMe };
