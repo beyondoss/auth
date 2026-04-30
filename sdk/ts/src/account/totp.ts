@@ -4,8 +4,12 @@ import { camelize } from "../utils/camelize.js";
 import type { Camelize } from "../utils/camelize.js";
 import { throwServiceError } from "../utils/error.js";
 
-export type TotpEnrollmentResponse = Camelize<components["schemas"]["EnrollmentResponse"]>;
-export type RecoveryCodesResponse = Camelize<components["schemas"]["RecoveryCodesResponse"]>;
+export type TotpEnrollmentResponse = Camelize<
+  components["schemas"]["EnrollmentResponse"]
+>;
+export type RecoveryCodesResponse = Camelize<
+  components["schemas"]["RecoveryCodesResponse"]
+>;
 
 export async function enrollTotp(
   client: Client<paths>,
@@ -19,9 +23,12 @@ export async function confirmTotp(
   client: Client<paths>,
   code: string,
 ): Promise<RecoveryCodesResponse> {
-  const { data, error, response } = await client.POST("/v1/totp/confirmations", {
-    body: { code },
-  });
+  const { data, error, response } = await client.POST(
+    "/v1/totp/confirmations",
+    {
+      body: { code },
+    },
+  );
   if (error !== undefined) throwServiceError(error, response);
   return camelize(data!);
 }

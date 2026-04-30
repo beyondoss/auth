@@ -5,7 +5,9 @@ import type { Camelize } from "../utils/camelize.js";
 import { throwServiceError } from "../utils/error.js";
 import { wrap } from "../utils/wrap.js";
 
-export type SessionListItem = Camelize<components["schemas"]["SessionListItem"]>;
+export type SessionListItem = Camelize<
+  components["schemas"]["SessionListItem"]
+>;
 
 export const listSessions = (client: Client<paths>) =>
   wrap(client.GET("/v1/sessions", {}));
@@ -13,7 +15,10 @@ export const listSessions = (client: Client<paths>) =>
 export async function getCurrentSession(
   client: Client<paths>,
 ): Promise<Camelize<components["schemas"]["CurrentSessionResponse"]>> {
-  const { data, error, response } = await client.GET("/v1/sessions/current", {});
+  const { data, error, response } = await client.GET(
+    "/v1/sessions/current",
+    {},
+  );
   if (error !== undefined) throwServiceError(error, response);
   return camelize(data!);
 }

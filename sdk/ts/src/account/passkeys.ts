@@ -6,8 +6,12 @@ import { throwServiceError } from "../utils/error.js";
 import { wrap } from "../utils/wrap.js";
 
 export type PasskeyRecord = Camelize<components["schemas"]["CredentialRecord"]>;
-export type RegisteredPasskey = Camelize<components["schemas"]["RegisteredCredential"]>;
-export type BeginPasskeyRegistrationResponse = Camelize<components["schemas"]["BeginResponse"]>;
+export type RegisteredPasskey = Camelize<
+  components["schemas"]["RegisteredCredential"]
+>;
+export type BeginPasskeyRegistrationResponse = Camelize<
+  components["schemas"]["BeginResponse"]
+>;
 export type FinishPasskeyRegistrationRequest = Camelize<
   components["schemas"]["FinishRegistrationRequest"]
 >;

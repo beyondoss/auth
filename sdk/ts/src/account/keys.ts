@@ -6,7 +6,9 @@ import { throwServiceError } from "../utils/error.js";
 import { wrap } from "../utils/wrap.js";
 
 export type ApiKey = Camelize<components["schemas"]["Key"]>;
-export type ApiKeyWithSecret = Camelize<components["schemas"]["CreateResponse"]>;
+export type ApiKeyWithSecret = Camelize<
+  components["schemas"]["CreateResponse"]
+>;
 
 export const listKeys = (client: Client<paths>) =>
   wrap(client.GET("/v1/keys", {}));

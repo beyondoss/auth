@@ -1,11 +1,32 @@
 import createFetchClient, { type Client } from "openapi-fetch";
+import {
+  addEmail,
+  createEmailVerification,
+  deleteEmail,
+  listEmails,
+  makeEmailPrimary,
+} from "./account/emails.js";
+import { createKey, deleteKey, getKey, listKeys } from "./account/keys.js";
+import { deleteMe, getMe, updateMe } from "./account/me.js";
+import {
+  beginPasskeyRegistration,
+  deletePasskey,
+  finishPasskeyRegistration,
+  listPasskeys,
+  updatePasskey,
+} from "./account/passkeys.js";
+import {
+  deleteSessionById,
+  getCurrentSession,
+  listSessions,
+} from "./account/sessions.js";
+import {
+  confirmTotp,
+  disableTotp,
+  enrollTotp,
+  regenerateTotpRecoveryCodes,
+} from "./account/totp.js";
 import type { components, paths } from "./types.js";
-import { listPasskeys, beginPasskeyRegistration, finishPasskeyRegistration, updatePasskey, deletePasskey } from "./account/passkeys.js";
-import { getMe, updateMe, deleteMe } from "./account/me.js";
-import { listEmails, addEmail, deleteEmail, makeEmailPrimary, createEmailVerification } from "./account/emails.js";
-import { enrollTotp, confirmTotp, disableTotp, regenerateTotpRecoveryCodes } from "./account/totp.js";
-import { listSessions, getCurrentSession, deleteSessionById } from "./account/sessions.js";
-import { listKeys, createKey, getKey, deleteKey } from "./account/keys.js";
 import { snakenize } from "./utils/camelize.js";
 import type { Camelize } from "./utils/camelize.js";
 import { wrap } from "./utils/wrap.js";
@@ -218,9 +239,11 @@ export function createAuthClient<
     passkeys: {
       list: () => listPasskeys(raw),
       beginRegistration: () => beginPasskeyRegistration(raw),
-      finishRegistration: (body: Parameters<typeof finishPasskeyRegistration>[1]) =>
-        finishPasskeyRegistration(raw, body),
-      update: (id: string, nickname: string) => updatePasskey(raw, id, nickname),
+      finishRegistration: (
+        body: Parameters<typeof finishPasskeyRegistration>[1],
+      ) => finishPasskeyRegistration(raw, body),
+      update: (id: string, nickname: string) =>
+        updatePasskey(raw, id, nickname),
       delete: (id: string) => deletePasskey(raw, id),
     },
 
@@ -242,7 +265,8 @@ export function createAuthClient<
       enroll: () => enrollTotp(raw),
       confirm: (code: string) => confirmTotp(raw, code),
       disable: () => disableTotp(raw),
-      regenerateRecoveryCodes: (code: string) => regenerateTotpRecoveryCodes(raw, code),
+      regenerateRecoveryCodes: (code: string) =>
+        regenerateTotpRecoveryCodes(raw, code),
     },
 
     sessions: {
@@ -253,7 +277,8 @@ export function createAuthClient<
 
     keys: {
       list: () => listKeys(raw),
-      create: (name: string, expiresAt?: string) => createKey(raw, name, expiresAt),
+      create: (name: string, expiresAt?: string) =>
+        createKey(raw, name, expiresAt),
       get: (id: string) => getKey(raw, id),
       delete: (id: string) => deleteKey(raw, id),
     },

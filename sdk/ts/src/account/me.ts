@@ -5,7 +5,9 @@ import type { Camelize } from "../utils/camelize.js";
 import { throwServiceError } from "../utils/error.js";
 
 export type MeResponse = Camelize<components["schemas"]["MeResponse"]>;
-export type UpdateMeRequest = Camelize<components["schemas"]["UpdateMeRequest"]>;
+export type UpdateMeRequest = Camelize<
+  components["schemas"]["UpdateMeRequest"]
+>;
 
 export async function getMe(client: Client<paths>): Promise<MeResponse> {
   const { data, error, response } = await client.GET("/v1/users/me", {});

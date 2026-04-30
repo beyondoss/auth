@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createAuthClient } from "../client.js";
-import { getBaseUrl, uniqueEmail, signup } from "./harness.js";
+import { getBaseUrl, signup, uniqueEmail } from "./harness.js";
 
 function authClient(token: string) {
   return createAuthClient({ baseUrl: getBaseUrl(), token });
@@ -120,7 +120,8 @@ describe("sessions", () => {
       expect(data?.sessions.length).toBeGreaterThan(0);
       return;
     }
-    await expect(client.sessions.deleteById(target.id)).resolves.toBeUndefined();
+    await expect(client.sessions.deleteById(target.id)).resolves
+      .toBeUndefined();
   });
 });
 

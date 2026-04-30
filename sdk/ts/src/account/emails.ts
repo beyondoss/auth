@@ -6,7 +6,9 @@ import { throwServiceError } from "../utils/error.js";
 import { wrap } from "../utils/wrap.js";
 
 export type EmailRecord = Camelize<components["schemas"]["EmailRecord"]>;
-export type OttTokenResponse = Camelize<components["schemas"]["OttTokenResponse"]>;
+export type OttTokenResponse = Camelize<
+  components["schemas"]["OttTokenResponse"]
+>;
 
 export const listEmails = (client: Client<paths>) =>
   wrap(client.GET("/v1/emails", {}));
