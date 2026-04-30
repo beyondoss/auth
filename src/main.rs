@@ -1,7 +1,7 @@
-use mimalloc::MiMalloc;
+use tikv_jemallocator::Jemalloc;
 
 #[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

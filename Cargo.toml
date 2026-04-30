@@ -27,7 +27,6 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 ed25519-dalek = { version = "2.2", features = ["pkcs8", "pem", "rand_core"] }
 hex = "0.4"
-mimalloc = { version = "0.1", features = ["v3"] }
 opentelemetry = { version = "0.31", default-features = false, features = ["trace"] }
 opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
@@ -44,6 +43,7 @@ sha2 = "0.10"
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json", "migrate"] }
 subtle = "2"
 thiserror = "2"
+tikv-jemallocator = "0.6"
 tokio = { version = "1", features = ["full"] }
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 tower = "0.5"
