@@ -1,14 +1,21 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+use zeroize::Zeroizing;
 
 /// Env vars fetched from the Firecracker Metadata Service.
-pub struct MmdsEnv(HashMap<String, String>);
+///
+/// Values are wrapped in `Zeroizing` so secret bytes are cleared from heap
+/// memory when this struct is dropped at the end of startup.
+pub struct MmdsEnv(HashMap<String, Zeroizing<String>>);
 
 impl MmdsEnv {
     /// Returns the value for `key`, treating empty strings as absent.
     pub fn get(&self, key: &str) -> Option<&str> {
-        self.0.get(key).map(String::as_str).filter(|s| !s.is_empty())
+        self.0
+            .get(key)
+            .map(|z| z.as_str())
+            .filter(|s| !s.is_empty())
     }
 }
 
@@ -52,7 +59,10 @@ pub async fn fetch(endpoint: &str) -> Result<MmdsEnv> {
 
     let map = env_obj
         .iter()
-        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_owned())))
+        .filter_map(|(k, v)| {
+            v.as_str()
+                .map(|s| (k.clone(), Zeroizing::new(s.to_owned())))
+        })
         .collect();
 
     Ok(MmdsEnv(map))
