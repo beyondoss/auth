@@ -186,7 +186,6 @@ impl utoipa::Modify for BearerAuth {
         authz::TraceResponse,
         crate::authz::schema::AuthzSchema,
         crate::authz::schema::ResourceDef,
-        crate::authz::schema::RoleEdge,
         crate::authz::schema::HierarchyDef,
         orgs::OrgResponse,
         orgs::OrgsResponse,

@@ -192,7 +192,7 @@ const authz = createAuthzClient({
         write: ["owner", "editor"],
         read: ["owner", "editor", "viewer"],
       },
-      roleHierarchy: [["owner", "editor"], ["editor", "viewer"]],
+      roleInheritance: { owner: ["editor"], editor: ["viewer"] },
     }],
   }),
 });
@@ -278,10 +278,7 @@ await authz.putSchema({
       write: ["owner", "editor"],
       read: ["owner", "editor", "viewer"],
     },
-    role_hierarchy: [
-      { superior: "owner", inferior: "editor" },
-      { superior: "editor", inferior: "viewer" },
-    ],
+    role_inheritance: { owner: ["editor"], editor: ["viewer"] },
   }],
 });
 ```

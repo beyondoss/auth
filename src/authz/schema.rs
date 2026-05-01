@@ -39,17 +39,11 @@ pub struct AuthzSchema {
 pub struct ResourceDef {
     pub name: String,
     pub roles: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub role_hierarchy: Vec<RoleEdge>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub role_inheritance: HashMap<String, Vec<String>>,
     pub permissions: HashMap<String, Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchy: Option<HierarchyDef>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct RoleEdge {
-    pub superior: String,
-    pub inferior: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -89,7 +83,7 @@ pub enum AuthzCheckCall {
 pub enum SchemaError {
     #[error("invalid identifier {0:?}: must match [a-z][a-z0-9_]*")]
     InvalidIdentifier(String),
-    #[error("resource {0:?}: role {1:?} in role_hierarchy is not defined")]
+    #[error("resource {0:?}: role {1:?} in role_inheritance is not defined")]
     UnknownHierarchyRole(String, String),
     #[error("resource {0:?}: role {1:?} in permissions for {2:?} is not defined")]
     UnknownPermissionRole(String, String, String),
@@ -140,18 +134,20 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
             .collect::<Result<Vec<_>, _>>()?;
         let role_set: HashSet<&str> = valid_roles.iter().map(|r| r.as_str()).collect();
 
-        for edge in &resource.role_hierarchy {
-            if !role_set.contains(edge.superior.as_str()) {
+        for (superior, inferiors) in &resource.role_inheritance {
+            if !role_set.contains(superior.as_str()) {
                 return Err(SchemaError::UnknownHierarchyRole(
                     resource.name.clone(),
-                    edge.superior.clone(),
+                    superior.clone(),
                 ));
             }
-            if !role_set.contains(edge.inferior.as_str()) {
-                return Err(SchemaError::UnknownHierarchyRole(
-                    resource.name.clone(),
-                    edge.inferior.clone(),
-                ));
+            for inferior in inferiors {
+                if !role_set.contains(inferior.as_str()) {
+                    return Err(SchemaError::UnknownHierarchyRole(
+                        resource.name.clone(),
+                        inferior.clone(),
+                    ));
+                }
             }
         }
 
@@ -165,7 +161,7 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
             }
         }
 
-        let inherited = compute_inherited_roles(&resource.roles, &resource.role_hierarchy);
+        let inherited = compute_inherited_roles(&resource.roles, &resource.role_inheritance);
 
         for (permission, direct_roles) in &resource.permissions {
             validate_ident(permission)?;
@@ -245,14 +241,14 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
 /// `inherited["owner"] = {"editor", "viewer"}` and `inherited["editor"] = {"viewer"}`.
 fn compute_inherited_roles<'a>(
     roles: &'a [String],
-    edges: &'a [RoleEdge],
+    inheritance: &'a HashMap<String, Vec<String>>,
 ) -> HashMap<&'a str, HashSet<&'a str>> {
     let mut result: HashMap<&str, HashSet<&str>> = HashMap::new();
-    for edge in edges {
-        result
-            .entry(edge.superior.as_str())
-            .or_default()
-            .insert(edge.inferior.as_str());
+    for (superior, inferiors) in inheritance {
+        let entry = result.entry(superior.as_str()).or_default();
+        for inferior in inferiors {
+            entry.insert(inferior.as_str());
+        }
     }
     // Transitive closure. Roles per resource are small (single digits), so naive is fine.
     let role_strs: Vec<&str> = roles.iter().map(|r| r.as_str()).collect();
@@ -444,10 +440,7 @@ mod tests {
             "resources": [{
                 "name": "document",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
-                    {"superior": "owner",  "inferior": "editor"},
-                    {"superior": "editor", "inferior": "viewer"}
-                ],
+                "role_inheritance": {"owner": ["editor"], "editor": ["viewer"]},
                 "permissions": {
                     "read":   ["viewer"],
                     "write":  ["editor"],
@@ -460,10 +453,7 @@ mod tests {
             }, {
                 "name": "folder",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
-                    {"superior": "owner",  "inferior": "editor"},
-                    {"superior": "editor", "inferior": "viewer"}
-                ],
+                "role_inheritance": {"owner": ["editor"], "editor": ["viewer"]},
                 "permissions": {
                     "read":  ["viewer"],
                     "write": ["editor"]

@@ -92,7 +92,7 @@ export type AuthzSchema = components["schemas"]["AuthzSchema"];
  *       name: 'document',
  *       roles: ['owner', 'editor', 'viewer'],
  *       permissions: { write: ['owner', 'editor'], read: ['owner', 'editor', 'viewer'] },
- *       roleHierarchy: [['owner', 'editor'], ['editor', 'viewer']],
+ *       roleInheritance: { owner: ['editor'], editor: ['viewer'] },
  *     }],
  *   }),
  * })
@@ -104,8 +104,8 @@ export type SchemaDefinition = {
     name: string;
     roles: ReadonlyArray<string>;
     permissions: { readonly [K: string]: ReadonlyArray<string> };
-    /** `[superior, inferior]` role pairs, e.g. `[['owner', 'editor'], ['editor', 'viewer']]`. */
-    roleHierarchy?: ReadonlyArray<readonly [string, string]> | null;
+    /** Maps each role to the roles whose permissions it inherits, e.g. `{ owner: ['editor'], editor: ['viewer'] }`. */
+    roleInheritance?: { readonly [role: string]: ReadonlyArray<string> } | null;
     hierarchy?: { parentRelation: string; parentResource: string } | null;
   }>;
   subjectTypes?: ReadonlyArray<string>;
@@ -122,11 +122,8 @@ export type SchemaInput = {
     name: string;
     roles: ReadonlyArray<string>;
     permissions: { readonly [K: string]: ReadonlyArray<string> };
-    role_hierarchy?:
-      | ReadonlyArray<{
-        superior: string;
-        inferior: string;
-      }>
+    role_inheritance?:
+      | { readonly [role: string]: ReadonlyArray<string> }
       | null;
     hierarchy?: { parent_relation: string; parent_resource: string } | null;
   }>;
@@ -142,12 +139,9 @@ type ResourceToWire<R> = R extends {
     readonly name: N;
     readonly roles: Roles;
     readonly permissions: Perms;
-    readonly role_hierarchy?:
-      | ReadonlyArray<{
-        readonly superior: string;
-        readonly inferior: string;
-      }>
-      | null;
+    readonly role_inheritance?: {
+      readonly [role: string]: ReadonlyArray<string>;
+    } | null;
     readonly hierarchy?: {
       readonly parent_relation: string;
       readonly parent_resource: string;
@@ -621,7 +615,7 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
  *         write: ['owner', 'editor'],
  *         read: ['owner', 'editor', 'viewer'],
  *       },
- *       roleHierarchy: [['owner', 'editor'], ['editor', 'viewer']],
+ *       roleInheritance: { owner: ['editor'], editor: ['viewer'] },
  *     }],
  *   }),
  * })
@@ -642,11 +636,8 @@ export function defineSchema<const S extends SchemaDefinition>(
       name: r.name,
       roles: r.roles,
       permissions: r.permissions,
-      ...(r.roleHierarchy != null && {
-        role_hierarchy: r.roleHierarchy.map(([superior, inferior]) => ({
-          superior,
-          inferior,
-        })),
+      ...(r.roleInheritance != null && {
+        role_inheritance: r.roleInheritance,
       }),
       ...(r.hierarchy != null && {
         hierarchy: {
