@@ -144,15 +144,10 @@ This repo uses [agent-wiki](.wiki/SCHEMA.md): `.wiki/` holds synthesized entity,
 
 Wiki tools — pick based on what you need:
 
-- `wiki_outline` — global TOC grouped by kind (no args), or heading tree for one page. Cheap orientation.
-- `wiki_query "<term>"` — BM25++ search; returns ranked hits with paths, scores, and inline snippets. Enough to judge relevance without a follow-up read.
+- `wiki_query "<term>"` — first move for any specific question. BM25++ over wiki pages, repo docs, and code symbols; returns ranked hits with paths, scores, and inline snippets.
+- `wiki_answer "<question>"` — returns top-ranked pages with query-relevant passage extracts in one round-trip. Best when you expect the answer exists and want it immediately.
 - `wiki_read "path/to/page.md"` (optionally `section: "..."` or `paths: [...]`) — full page, one section, or multiple pages in one call.
-- `wiki_answer "<question>"` — returns top-ranked pages with full content in one round-trip; costs more tokens per call but skips follow-up reads when you expect a self-contained answer.
-
-When new sources arrive (RFC, plan, thread, ARCHITECTURE.md edit):
-
-- `wiki_inbox(content, source_uri)` — snapshot raw + queue for synthesis.
-- Dispatch `Task(subagent_type="wiki-ingest", ...)` — synthesis runs on Haiku, ~5–10× cheaper than running it inline.
+- `wiki_search_code "<query>"` — search exported symbols, signatures, and doc comments when you need to locate a declaration or understand an API.
 
 When shipping a feature: invoke the `wiki:reconcile_change` prompt to close the source → code loop. When auditing the wiki itself: `Task(subagent_type="wiki-lint", ...)`.
 <!-- wiki-managed:end -->
