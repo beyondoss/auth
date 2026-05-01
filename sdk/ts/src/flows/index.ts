@@ -77,7 +77,7 @@ export interface AuthFlowClient {
  *
  * // Sign in — grantType narrows required fields; TOTP-enrolled users get a StepUpResponse
  * const result = await flows.signIn({ grantType: 'password', email, password })
- * if ('stepUpRequired' in result) {
+ * if (isStepUpResponse(result)) {
  *   // Complete TOTP step-up with a 6-digit code from the authenticator app
  *   const auth = await flows.completeTotpStepUp(result.stepUpToken, totpCode)
  *   // Or use a recovery code if the user lost their authenticator

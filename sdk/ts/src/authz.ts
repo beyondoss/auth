@@ -416,6 +416,9 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * prefer {@link checkSession} — it validates the session and checks the
    * permission in a single database round-trip.
    *
+   * **Throws on denial.** To check multiple permissions at once without throwing,
+   * use {@link checks} — it returns an `allowed` boolean per item instead.
+   *
    * @throws {AuthzError} `unauthorized` if the subject cannot reach the resource.
    * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    * @throws {AuthzError} `authz_unknown_resource` if `resource` is not in the schema.
@@ -459,6 +462,9 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * Validates the session token and checks the permission in a single bundled
    * CTE query. This is the hot path for request middleware: you pay one DB
    * round-trip instead of two (session validate + authz check separately).
+   *
+   * **Throws on denial.** To check multiple permissions at once without throwing,
+   * use {@link checksSession} — it returns an `allowed` boolean per item instead.
    *
    * @throws {AuthzError} `unauthorized` if the token is invalid, expired, or
    *   the session user cannot reach the resource.

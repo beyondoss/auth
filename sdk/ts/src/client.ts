@@ -72,13 +72,11 @@ export function createAdminClient(
 }
 
 /** Options for {@link createAuthClient}. */
-export interface AuthClientOptions<OrgRole extends string = string> {
+export interface AuthClientOptions {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
   baseUrl: string;
   /** Session bearer token for authenticated requests. */
   token: string;
-  /** Phantom field for role type inference — never assigned at runtime. */
-  _orgRole?: OrgRole;
 }
 
 type InvitationBody<OrgRole extends string> =
@@ -88,13 +86,13 @@ type InvitationBody<OrgRole extends string> =
 /**
  * Creates a typed auth client for use in browser and app contexts.
  *
- * The generic `OrgRole` parameter constrains org invitation `role` fields to
- * your application's role union at compile time. Defaults to `string` (no
+ * The optional `OrgRole` type parameter constrains org invitation `role` fields
+ * to your application's role union at compile time. Defaults to `string` (no
  * constraint) when omitted.
  *
  * @example
  * ```ts
- * const client = createAuthClient<{ OrgRole: 'admin' | 'billing' | 'member' }>({
+ * const client = createAuthClient<'admin' | 'billing' | 'member'>({
  *   baseUrl: 'http://auth:8080',
  *   token: sessionToken,
  * })
@@ -105,13 +103,9 @@ type InvitationBody<OrgRole extends string> =
  * await client.orgs.invitations.create(orgId, { email: 'hi@example.com', role: 'superuser' })
  * ```
  */
-export function createAuthClient<
-  Config extends { OrgRole?: string } = { OrgRole: string },
->(
-  opts: AuthClientOptions<NonNullable<Config["OrgRole"]>>,
+export function createAuthClient<OrgRole extends string = string>(
+  opts: AuthClientOptions,
 ) {
-  type OrgRole = NonNullable<Config["OrgRole"]>;
-
   const raw = createFetchClient<paths>({
     baseUrl: opts.baseUrl.replace(/\/+$/, ""),
     headers: { Authorization: `Bearer ${opts.token}` },
