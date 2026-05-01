@@ -134,3 +134,25 @@ Apply the **Theory of Constraints**: a system's throughput is limited by its sin
 5. **Repeat.** The bottleneck has shifted. Go back to step 1.
 
 The corollary: if you can't name the current constraint, you aren't ready to optimize.
+
+<!-- wiki-managed:start (managed by `wiki claude install`; edits inside this block will be overwritten) -->
+## Wiki
+
+This repo uses [agent-wiki](.wiki/SCHEMA.md): `.wiki/` holds synthesized entity, concept, decision, and source pages cross-linked into a queryable knowledge graph.
+
+**Read the wiki before grepping the codebase or reading ARCHITECTURE.md.** Pages are pre-synthesized — searching them is faster and ~5–10× cheaper than re-deriving from raw files.
+
+Wiki tools — pick based on what you need:
+
+- `wiki_outline` — global TOC grouped by kind (no args), or heading tree for one page. Cheap orientation.
+- `wiki_query "<term>"` — BM25++ search; returns ranked hits with paths, scores, and inline snippets. Enough to judge relevance without a follow-up read.
+- `wiki_read "path/to/page.md"` (optionally `section: "..."` or `paths: [...]`) — full page, one section, or multiple pages in one call.
+- `wiki_answer "<question>"` — returns top-ranked pages with full content in one round-trip; costs more tokens per call but skips follow-up reads when you expect a self-contained answer.
+
+When new sources arrive (RFC, plan, thread, ARCHITECTURE.md edit):
+
+- `wiki_inbox(content, source_uri)` — snapshot raw + queue for synthesis.
+- Dispatch `Task(subagent_type="wiki-ingest", ...)` — synthesis runs on Haiku, ~5–10× cheaper than running it inline.
+
+When shipping a feature: invoke the `wiki:reconcile_change` prompt to close the source → code loop. When auditing the wiki itself: `Task(subagent_type="wiki-lint", ...)`.
+<!-- wiki-managed:end -->
