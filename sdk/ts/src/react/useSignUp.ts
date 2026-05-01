@@ -1,6 +1,7 @@
 import React from "react";
 import type { AuthResponse, SignUpRequest } from "../flows/sign-up.js";
 import { camelize } from "../utils/camelize.js";
+import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
 import { useAuthContext } from "./context.js";
 
@@ -38,12 +39,4 @@ export function useSignUp(): UseSignUpResult {
   );
 
   return { signUp, status: action.status, error };
-}
-
-function getRedirectParam(): string | null {
-  if (typeof window === "undefined") return null;
-  const param = new URLSearchParams(window.location.search).get("redirect");
-  if (!param) return null;
-  if (param.startsWith("/") && !param.startsWith("//")) return param;
-  return null;
 }

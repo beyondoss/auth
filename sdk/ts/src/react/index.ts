@@ -88,6 +88,7 @@ export function createBrowserAuth(opts: BrowserAuthOptions = {}): BrowserAuth {
   });
 
   function AuthProvider(props: Omit<AuthProviderProps, "client">) {
+    React.useEffect(() => () => client.destroy(), []);
     return React.createElement(AuthProviderBase, { ...props, client });
   }
 

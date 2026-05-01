@@ -3,6 +3,7 @@ import { isStepUpResponse } from "../flows/sign-in.js";
 import type { SignInRequest } from "../flows/sign-in.js";
 import type { AuthResponse } from "../flows/sign-up.js";
 import { camelize } from "../utils/camelize.js";
+import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
 import { useAuthContext } from "./context.js";
 
@@ -50,13 +51,4 @@ export function useSignIn(): UseSignInResult {
   );
 
   return { signIn, status: action.status, error };
-}
-
-function getRedirectParam(): string | null {
-  if (typeof window === "undefined") return null;
-  const param = new URLSearchParams(window.location.search).get("redirect");
-  if (!param) return null;
-  // Only allow relative paths — prevents open redirect
-  if (param.startsWith("/") && !param.startsWith("//")) return param;
-  return null;
 }
