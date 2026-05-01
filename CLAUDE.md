@@ -136,6 +136,7 @@ Apply the **Theory of Constraints**: a system's throughput is limited by its sin
 The corollary: if you can't name the current constraint, you aren't ready to optimize.
 
 <!-- wiki-managed:start (managed by `wiki claude install`; edits inside this block will be overwritten) -->
+
 ## Wiki
 
 This repo uses [agent-wiki](.wiki/SCHEMA.md): `.wiki/` holds synthesized entity, concept, decision, and source pages cross-linked into a queryable knowledge graph.
@@ -150,4 +151,5 @@ Wiki tools — pick based on what you need:
 - `wiki_search_code "<query>"` — search exported symbols, signatures, and doc comments when you need to locate a declaration or understand an API.
 
 When shipping a feature: invoke the `wiki:reconcile_change` prompt to close the source → code loop. When auditing the wiki itself: `Task(subagent_type="wiki-lint", ...)`.
+
 <!-- wiki-managed:end -->

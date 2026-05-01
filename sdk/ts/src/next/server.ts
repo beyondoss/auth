@@ -9,6 +9,8 @@ import type { SessionContext, SessionVerifier } from "../session.js";
 import type { components, paths } from "../types.js";
 import { camelize } from "../utils/camelize.js";
 import type { Camelize } from "../utils/camelize.js";
+import { createProxy } from "./proxy.js";
+import type { ProxyOptions } from "./proxy.js";
 
 /**
  * A Next.js-compatible read-only cookie store, compatible with the object
@@ -21,61 +23,73 @@ export interface CookieStore {
 /** User profile from `GET /v1/users/me`. */
 export type MeResponse = Camelize<components["schemas"]["MeResponse"]>;
 
+type ServerHelpers = {
+  /** Returns the current session record, or `null` if unauthenticated. */
+  getSession(cookieStore: CookieStore): Promise<SessionContext | null>;
+  /** Returns the authenticated user's full profile, or `null` if unauthenticated. */
+  getMe(cookieStore: CookieStore): Promise<MeResponse | null>;
+};
+
+type ServerHelpersWithProxy = ServerHelpers & {
+  /**
+   * Next.js catch-all route handlers. Mount at `app/api/auth/[...path]/route.ts`.
+   * Transparently proxies requests to the private auth service, managing the
+   * session cookie on sign-in/sign-out and blocking `/v1/admin/**`.
+   */
+  proxy: ReturnType<typeof createProxy>;
+};
+
+export interface ServerHelpersOptions extends ProxyOptions {
+  /**
+   * The base URL of the auth service — the same URL passed to
+   * `createSessionVerifier` and `createAdminClient`. Required to enable the
+   * proxy route handlers.
+   */
+  authServiceUrl: string;
+}
+
 /**
  * Creates per-request session and profile helpers for Next.js server
  * components and route handlers. Reads the session cookie from the provided
  * `cookies()` store (from `next/headers`).
  *
  * - `getSession` — verifies the token; returns the session record or `null`.
- *   Makes one request to the auth service.
- * - `getMe` — verifies the token and fetches the full user profile; returns
- *   `MeResponse` or `null`. Makes two requests (session verify + profile).
+ * - `getMe` — verifies the token and fetches the full user profile.
+ * - `proxy` — catch-all route handlers that bridge the browser to the private
+ *   auth service (only returned when `opts` is provided).
  *
- * Both are memoized per-request via React `cache()` when React is available.
- *
- * @param verifier - Session verifier from {@link createSessionVerifier}.
- * @param client - Admin client from {@link createAdminClient}.
- * @returns Per-request helpers. Call with the `cookies()` store each time.
+ * `getSession` and `getMe` are memoized per-request via React `cache()`.
  *
  * @example
  * ```ts
- * // lib/auth.ts
+ * // lib/auth.server.ts
  * import { createSessionVerifier, createAdminClient } from '@beyond.dev/auth'
  * import { createServerHelpers } from '@beyond.dev/auth/next'
  *
- * const verifier = createSessionVerifier({ baseUrl: process.env.AUTH_URL! })
- * const client = createAdminClient({ baseUrl: process.env.AUTH_URL! })
- * export const { getSession, getMe } = createServerHelpers(verifier, client)
+ * const AUTH_URL = process.env.AUTH_URL!
+ * const verifier = createSessionVerifier({ baseUrl: AUTH_URL })
+ * const client = createAdminClient({ baseUrl: AUTH_URL })
  *
- * // app/page.tsx (RSC)
- * import { cookies } from 'next/headers'
- * import { getMe } from '@/lib/auth'
+ * export const { getSession, getMe, proxy } = createServerHelpers(verifier, client, { authServiceUrl: AUTH_URL })
  *
- * export default async function Page() {
- *   const me = await getMe(await cookies())
- *   if (!me) redirect('/login')
- * }
+ * // app/api/auth/[...path]/route.ts
+ * export const { GET, POST, DELETE, PUT, PATCH } = proxy
  * ```
  */
 export function createServerHelpers(
   verifier: SessionVerifier,
   client: Client<paths>,
-): {
-  /**
-   * Returns the current session record, or `null` if unauthenticated.
-   *
-   * @param cookieStore - The store returned by `cookies()` from `next/headers`.
-   */
-  getSession(cookieStore: CookieStore): Promise<SessionContext | null>;
-
-  /**
-   * Returns the authenticated user's full profile, or `null` if unauthenticated.
-   * Verifies the session then fetches `GET /v1/users/me`.
-   *
-   * @param cookieStore - The store returned by `cookies()` from `next/headers`.
-   */
-  getMe(cookieStore: CookieStore): Promise<MeResponse | null>;
-} {
+  opts: ServerHelpersOptions,
+): ServerHelpersWithProxy;
+export function createServerHelpers(
+  verifier: SessionVerifier,
+  client: Client<paths>,
+): ServerHelpers;
+export function createServerHelpers(
+  verifier: SessionVerifier,
+  client: Client<paths>,
+  opts?: ServerHelpersOptions,
+): ServerHelpers | ServerHelpersWithProxy {
   function withCache<A extends unknown[], R>(
     fn: (...args: A) => Promise<R>,
   ): (...args: A) => Promise<R> {
@@ -108,6 +122,12 @@ export function createServerHelpers(
     });
     return data !== undefined ? camelize(data) : null;
   });
+
+  if (opts) {
+    const { authServiceUrl, ...proxyOpts } = opts;
+    const proxy = createProxy(authServiceUrl, proxyOpts);
+    return { getSession, getMe, proxy };
+  }
 
   return { getSession, getMe };
 }

@@ -2,11 +2,13 @@ export {
   type AuthMiddlewareOptions,
   createAuthMiddleware,
 } from "./middleware.js";
+export type { ProxyOptions } from "./proxy.js";
 export {
   clearSessionCookie,
   type CookieStore,
   createServerHelpers,
   type MeResponse,
+  type ServerHelpersOptions,
   setSessionCookie,
 } from "./server.js";
 // Re-export cookie primitives so consumers don't need to import from the core package

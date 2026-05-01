@@ -6,6 +6,8 @@ export default defineConfig({
     globalSetup: ["./src/__tests__/global-setup.ts"],
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    include: ["src/__tests__/**/*.test.ts"],
+    include: ["src/__tests__/**/*.test.{ts,tsx}"],
+    environmentMatchGlobs: [["src/__tests__/react/**", "jsdom"]],
+    setupFiles: ["./src/__tests__/react/setup.ts"],
   },
 });
