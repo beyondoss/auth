@@ -1,6 +1,58 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createAuthClient } from "../client.js";
+import { AuthServiceError } from "../errors.js";
+import { createAuthFlowClient, isStepUpResponse } from "../flows/index.js";
 import { getBaseUrl, signup, uniqueEmail } from "./harness.js";
+
+function base32Decode(s: string): Buffer {
+  const alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const clean = s.toUpperCase().replace(/=+$/, "");
+  let bits = 0,
+    val = 0;
+  const out: number[] = [];
+  for (const ch of clean) {
+    val = (val << 5) | alpha.indexOf(ch);
+    bits += 5;
+    if (bits >= 8) {
+      out.push((val >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+function computeTotp(secretB32: string, window = 0): string {
+  const key = base32Decode(secretB32);
+  const counter = Math.floor(Date.now() / 1000 / 30) + window;
+  const buf = Buffer.alloc(8);
+  buf.writeBigInt64BE(BigInt(counter));
+  const hmac = createHmac("sha1", key).update(buf).digest();
+  const offset = hmac[19]! & 0xf;
+  const code = ((hmac[offset]! & 0x7f) << 24)
+    | ((hmac[offset + 1]! & 0xff) << 16)
+    | ((hmac[offset + 2]! & 0xff) << 8)
+    | (hmac[offset + 3]! & 0xff);
+  return String(code % 1_000_000).padStart(6, "0");
+}
+
+async function totpConfirm(
+  client: ReturnType<typeof createAuthClient>,
+  secretB32: string,
+): Promise<ReturnType<(typeof client)["totp"]["confirm"]>> {
+  try {
+    return await client.totp.confirm(computeTotp(secretB32));
+  } catch (e) {
+    if (e instanceof AuthServiceError && e.code === "invalid_totp_code") {
+      return await client.totp.confirm(computeTotp(secretB32, 1));
+    }
+    throw e;
+  }
+}
+
+function flows() {
+  return createAuthFlowClient({ baseUrl: getBaseUrl() });
+}
 
 function authClient(token: string) {
   return createAuthClient({ baseUrl: getBaseUrl(), token });
@@ -92,6 +144,139 @@ describe("totp", () => {
     expect(result.secretB32).toBeDefined();
     expect(Array.isArray(result.recoveryCodes)).toBe(true);
     expect(result.recoveryCodes.length).toBeGreaterThan(0);
+  });
+
+  it("confirm completes enrollment and subsequent sign-in requires step-up", async () => {
+    const { email, client } = await newUser();
+    const { secretB32 } = await client.totp.enroll();
+    await totpConfirm(client, secretB32);
+
+    const result = await flows().signIn({
+      grantType: "password",
+      email,
+      password: "correct-horse-battery-staple",
+    });
+    expect(isStepUpResponse(result)).toBe(true);
+    expect("stepUpToken" in result).toBe(true);
+  });
+
+  it("step-up with correct TOTP code returns a full session", async () => {
+    const { email, client } = await newUser();
+    const { secretB32 } = await client.totp.enroll();
+    await totpConfirm(client, secretB32);
+
+    const signInResult = await flows().signIn({
+      grantType: "password",
+      email,
+      password: "correct-horse-battery-staple",
+    });
+    expect(isStepUpResponse(signInResult)).toBe(true);
+    if (!isStepUpResponse(signInResult)) return;
+
+    const code = computeTotp(secretB32);
+    let auth;
+    try {
+      auth = await flows().completeTotpStepUp(signInResult.stepUpToken, code);
+    } catch (e) {
+      if (e instanceof AuthServiceError && e.code === "invalid_totp_code") {
+        auth = await flows().completeTotpStepUp(
+          signInResult.stepUpToken,
+          computeTotp(secretB32, 1),
+        );
+      } else {
+        throw e;
+      }
+    }
+    expect(auth.session.token).toBeDefined();
+    expect(auth.user.id).toBeDefined();
+    expect(auth.email.email).toBe(email);
+  });
+
+  it("step-up with wrong TOTP code throws an mfa_error", async () => {
+    const { email, client } = await newUser();
+    const { secretB32 } = await client.totp.enroll();
+    await totpConfirm(client, secretB32);
+
+    const signInResult = await flows().signIn({
+      grantType: "password",
+      email,
+      password: "correct-horse-battery-staple",
+    });
+    expect(isStepUpResponse(signInResult)).toBe(true);
+    if (!isStepUpResponse(signInResult)) return;
+
+    await expect(
+      flows().completeTotpStepUp(signInResult.stepUpToken, "000000"),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof AuthServiceError && e.code === "mfa_error"
+        && e.status === 401,
+    );
+  });
+
+  it("step-up with a recovery code returns a full session", async () => {
+    const { email, client } = await newUser();
+    const enrollment = await client.totp.enroll();
+    await totpConfirm(client, enrollment.secretB32);
+    const recoveryCode = enrollment.recoveryCodes[0]!;
+
+    const signInResult = await flows().signIn({
+      grantType: "password",
+      email,
+      password: "correct-horse-battery-staple",
+    });
+    expect(isStepUpResponse(signInResult)).toBe(true);
+    if (!isStepUpResponse(signInResult)) return;
+
+    const auth = await flows().completeTotpRecovery(
+      signInResult.stepUpToken,
+      recoveryCode,
+    );
+    expect(auth.session.token).toBeDefined();
+    expect(auth.user.id).toBeDefined();
+  });
+
+  it("regenerateRecoveryCodes returns a new set of recovery codes", async () => {
+    const { client } = await newUser();
+    const enrollment = await client.totp.enroll();
+    await totpConfirm(client, enrollment.secretB32);
+
+    const oldCount = enrollment.recoveryCodes.length;
+    let result;
+    try {
+      result = await client.totp.regenerateRecoveryCodes(
+        computeTotp(enrollment.secretB32),
+      );
+    } catch (e) {
+      if (e instanceof AuthServiceError && e.code === "invalid_totp_code") {
+        result = await client.totp.regenerateRecoveryCodes(
+          computeTotp(enrollment.secretB32, 1),
+        );
+      } else {
+        throw e;
+      }
+    }
+    expect(Array.isArray(result.recoveryCodes)).toBe(true);
+    expect(result.recoveryCodes.length).toBe(oldCount);
+    expect(result.recoveryCodes[0]).not.toBe(enrollment.recoveryCodes[0]);
+  });
+
+  it("disable removes TOTP and subsequent sign-in returns a session directly", async () => {
+    const { email, client } = await newUser();
+    const { secretB32 } = await client.totp.enroll();
+    await totpConfirm(client, secretB32);
+    await client.totp.disable();
+
+    const result = await flows().signIn({
+      grantType: "password",
+      email,
+      password: "correct-horse-battery-staple",
+    });
+    expect(isStepUpResponse(result)).toBe(false);
+    expect("session" in result).toBe(true);
+    if ("session" in result) {
+      expect(result.session.token).toBeDefined();
+    }
   });
 });
 

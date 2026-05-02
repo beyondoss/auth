@@ -494,7 +494,7 @@ export function createClient<Paths extends {}>(
           if (err instanceof ErrorResponse) {
             Promise.all([
               onEachError?.(err as any),
-              onError?.(err.data, err.response),
+              onError?.(err.data, err.response!),
             ]).catch(() => {});
             throw err;
           }
