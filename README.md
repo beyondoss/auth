@@ -1,4 +1,4 @@
-# beyond-auth
+# beyond/auth
 
 Authenticate users, issue tokens, and manage sessions — deployed inside your network, owned by you.
 
