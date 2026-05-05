@@ -145,10 +145,12 @@ type ResourceToWire<R> = R extends {
     readonly name: N;
     readonly roles: Roles;
     readonly permissions: Perms;
-    readonly role_inheritance?: ReadonlyArray<{
-      readonly superior: string;
-      readonly inferior: string;
-    }> | null;
+    readonly role_inheritance?:
+      | ReadonlyArray<{
+        readonly superior: string;
+        readonly inferior: string;
+      }>
+      | null;
     readonly hierarchy?: {
       readonly parent_relation: string;
       readonly parent_resource: string;
@@ -647,11 +649,11 @@ export function defineSchema<const S extends SchemaDefinition>(
         role_inheritance: Array.isArray(r.roleInheritance)
           ? r.roleInheritance
           : Object.entries(r.roleInheritance).flatMap(([superior, inferiors]) =>
-              (inferiors as ReadonlyArray<string>).map((inferior) => ({
-                superior,
-                inferior,
-              })),
-            ),
+            (inferiors as ReadonlyArray<string>).map((inferior) => ({
+              superior,
+              inferior,
+            }))
+          ),
       }),
       ...(r.hierarchy != null && {
         hierarchy: {

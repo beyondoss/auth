@@ -38,6 +38,7 @@ pub struct ConfirmRequest {
 #[utoipa::path(
     post,
     path = "/v1/totp",
+    operation_id = "begin_totp_enrollment",
     tag = "totp",
     security(("BearerAuth" = [])),
     responses(
@@ -71,6 +72,7 @@ pub async fn begin_enrollment(
 #[utoipa::path(
     post,
     path = "/v1/totp/confirmations",
+    operation_id = "confirm_totp_enrollment",
     tag = "totp",
     security(("BearerAuth" = [])),
     request_body = ConfirmRequest,
@@ -99,6 +101,7 @@ pub async fn confirm_enrollment(
 #[utoipa::path(
     delete,
     path = "/v1/totp",
+    operation_id = "disable_totp",
     tag = "totp",
     security(("BearerAuth" = [])),
     responses(
@@ -128,6 +131,7 @@ pub struct RecoveryCodesResponse {
 #[utoipa::path(
     post,
     path = "/v1/totp/recovery-codes",
+    operation_id = "regenerate_totp_recovery_codes",
     tag = "totp",
     security(("BearerAuth" = [])),
     request_body = ConfirmRequest,

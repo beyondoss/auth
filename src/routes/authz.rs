@@ -56,6 +56,13 @@ pub struct CheckResponse {
     pub allowed: bool,
 }
 
+/// Result of one item in a batch permission check, ordered to match the input.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CheckResult {
+    /// True if the subject has the requested permission on the resource.
+    pub allowed: bool,
+}
+
 /// A relation tuple: `(object, relation, subject)`.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RelationRequest {
@@ -122,8 +129,8 @@ pub struct DecisionCheck {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BatchDecisionResponse {
-    /// Results in the same order as the input checks.
-    pub results: Vec<bool>,
+    /// Results in the same order as the input `checks`.
+    pub results: Vec<CheckResult>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -145,8 +152,8 @@ pub struct ChecksItem {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ChecksResponse {
-    /// Results in the same order as the input checks.
-    pub results: Vec<bool>,
+    /// Results in the same order as the input `checks`.
+    pub results: Vec<CheckResult>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -448,7 +455,11 @@ pub async fn batch_check_permissions(
     // Build groups: (subject_id, or_chain) → Vec<(original_index, object_id)>.
     // Checks sharing the same subject + permission + resource_type hit the same or_chain
     // and are batched into one UNNEST call.
-    let mut results = vec![false; req.checks.len()];
+    let mut results: Vec<CheckResult> = req
+        .checks
+        .iter()
+        .map(|_| CheckResult { allowed: false })
+        .collect();
     let mut groups: CheckGroup = HashMap::new();
 
     for (i, check) in req.checks.iter().enumerate() {
@@ -465,7 +476,7 @@ pub async fn batch_check_permissions(
             permission: Arc::from(check.permission.as_str()),
         };
         if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
-            results[i] = allowed;
+            results[i] = CheckResult { allowed };
             continue;
         }
         let or_chain = resolve_batch_or_chain(schema, &check.resource_type, &check.permission)?;
@@ -483,7 +494,7 @@ pub async fn batch_check_permissions(
             engine::batch_check_standalone(&state.pool, &subject_id, &object_ids, &or_chain)
                 .await?;
         for ((idx, oid), allowed) in items.iter().zip(bools) {
-            results[*idx] = allowed;
+            results[*idx] = CheckResult { allowed };
             // Cache the result — we need the permission to build the key.
             let check = &req.checks[*idx];
             state.authz_cache.insert_check(
@@ -556,7 +567,11 @@ pub async fn post_checks(
     };
 
     let n = req.checks.len();
-    let mut results = vec![false; n];
+    let mut results: Vec<CheckResult> = req
+        .checks
+        .iter()
+        .map(|_| CheckResult { allowed: false })
+        .collect();
 
     // Atomic rows for SingleHop parallel batch.
     let mut parallel_rows: Vec<(String, String, String, String)> = Vec::new();
@@ -589,7 +604,7 @@ pub async fn post_checks(
             permission: Arc::from(check.permission.as_str()),
         };
         if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
-            results[i] = allowed;
+            results[i] = CheckResult { allowed };
             continue;
         }
 
@@ -710,7 +725,9 @@ pub async fn post_checks(
 
     for i in 0..n {
         if handled[i] {
-            results[i] = aggregated[i];
+            results[i] = CheckResult {
+                allowed: aggregated[i],
+            };
             let check = &req.checks[i];
             let subject_id = subjects[i]
                 .clone()
@@ -733,7 +750,7 @@ pub async fn post_checks(
             engine::batch_check_standalone(&state.pool, &subject_id, &object_ids, &or_chain)
                 .await?;
         for ((idx, oid), allowed) in items.iter().zip(bools) {
-            results[*idx] = allowed;
+            results[*idx] = CheckResult { allowed };
             let check = &req.checks[*idx];
             state.authz_cache.insert_check(
                 CheckKey {

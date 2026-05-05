@@ -33,6 +33,7 @@ pub struct SearchQuery {
 #[utoipa::path(
     get,
     path = "/v1/admin/users",
+    operation_id = "admin_search_users",
     tag = "admin",
     params(SearchQuery),
     responses(
@@ -87,6 +88,7 @@ pub async fn search(
 #[utoipa::path(
     delete,
     path = "/v1/admin/users/{id}/sessions",
+    operation_id = "admin_delete_user_sessions",
     tag = "admin",
     params(("id" = Uuid, Path, description = "User ID")),
     responses(
@@ -139,6 +141,7 @@ pub async fn delete_sessions(
 #[utoipa::path(
     get,
     path = "/v1/admin/users/{id}",
+    operation_id = "admin_get_user",
     tag = "admin",
     params(("id" = Uuid, Path, description = "User ID")),
     responses(

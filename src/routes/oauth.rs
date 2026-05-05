@@ -116,6 +116,7 @@ async fn try_session_user_id(state: &AppState, headers: &HeaderMap) -> Option<Uu
 #[utoipa::path(
     get,
     path = "/v1/oauth/{provider}",
+    operation_id = "oauth_authorize",
     tag = "oauth",
     params(
         ("provider" = String, Path, description = "OAuth provider slug, e.g. `github`, `google`"),
@@ -168,6 +169,7 @@ pub async fn authorize(
 #[utoipa::path(
     get,
     path = "/v1/oauth/{provider}/callback",
+    operation_id = "oauth_callback",
     tag = "oauth",
     params(
         ("provider" = String, Path, description = "OAuth provider slug"),
@@ -249,6 +251,7 @@ pub async fn callback(
 #[utoipa::path(
     post,
     path = "/v1/oauth/apple/callback",
+    operation_id = "apple_oauth_callback",
     tag = "oauth",
     responses(
         (status = 200, body = CallbackResponse, description = "Login — returns session token"),

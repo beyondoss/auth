@@ -69,11 +69,18 @@ pub enum LoginRequest {
     },
 }
 
+/// MFA method required to complete authentication.
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StepUpKind {
+    Totp,
+}
+
 /// Returned when the user has TOTP enrolled — caller must complete the step-up flow.
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct StepUpResponse {
-    /// The MFA method required, e.g. `"totp"`.
-    pub step_up_required: String,
+    /// The MFA method required to complete authentication.
+    pub step_up_required: StepUpKind,
     /// Short-lived signed token to present when completing the step-up.
     pub step_up_token: String,
 }
@@ -110,6 +117,7 @@ pub struct CurrentSessionResponse {
 #[utoipa::path(
     post,
     path = "/v1/sessions",
+    operation_id = "create_session",
     tag = "sessions",
     request_body = LoginRequest,
     responses(
@@ -189,7 +197,7 @@ async fn login_password(
         return Ok((
             StatusCode::OK,
             Json(StepUpResponse {
-                step_up_required: "totp".into(),
+                step_up_required: StepUpKind::Totp,
                 step_up_token,
             }),
         )
@@ -475,7 +483,7 @@ async fn login_passkey(
         return Ok((
             StatusCode::OK,
             Json(StepUpResponse {
-                step_up_required: "totp".into(),
+                step_up_required: StepUpKind::Totp,
                 step_up_token,
             }),
         )
@@ -534,6 +542,7 @@ pub async fn list(
 #[utoipa::path(
     get,
     path = "/v1/sessions/current",
+    operation_id = "get_current_session",
     tag = "sessions",
     security(("BearerAuth" = [])),
     responses(
@@ -568,6 +577,7 @@ pub async fn get_current(
 #[utoipa::path(
     delete,
     path = "/v1/sessions/current",
+    operation_id = "revoke_current_session",
     tag = "sessions",
     security(("BearerAuth" = [])),
     responses(
@@ -672,6 +682,7 @@ pub async fn delete_all(
 #[utoipa::path(
     delete,
     path = "/v1/sessions/{id}",
+    operation_id = "revoke_session",
     tag = "sessions",
     security(("BearerAuth" = [])),
     params(("id" = uuid::Uuid, Path, description = "Session ID")),

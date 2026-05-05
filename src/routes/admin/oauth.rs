@@ -10,17 +10,22 @@ use crate::{
     },
 };
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct AdminOAuthRequest {
+    #[schema(value_type = Object, nullable)]
     pub github: Option<GithubConfig>,
+    #[schema(value_type = Object, nullable)]
     pub google: Option<GoogleConfig>,
+    #[schema(value_type = Object, nullable)]
     pub apple: Option<AppleConfig>,
+    #[schema(value_type = Object, nullable)]
     pub microsoft: Option<MicrosoftConfig>,
+    #[schema(value_type = Vec<Object>, nullable)]
     pub oidc: Option<Vec<OidcConfig>>,
     pub email_link: Option<bool>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct AdminOAuthResponse {
     pub github: Option<GithubRedacted>,
     pub google: Option<GoogleRedacted>,
@@ -30,30 +35,30 @@ pub struct AdminOAuthResponse {
     pub email_link: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct GithubRedacted {
     pub client_id: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct GoogleRedacted {
     pub client_id: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct AppleRedacted {
     pub client_id: String,
     pub team_id: String,
     pub key_id: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct MicrosoftRedacted {
     pub client_id: String,
     pub org: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct OidcRedacted {
     pub id: String,
     pub discovery_url: String,
@@ -92,6 +97,19 @@ fn redact(cfg: &OAuthProvidersConfig, email_link: bool) -> AdminOAuthResponse {
     }
 }
 
+/// Replace the OAuth provider configuration. Secrets are encrypted at rest and never
+/// returned in GET responses — only redacted metadata (client_id, etc.) is shown.
+#[utoipa::path(
+    put,
+    path = "/v1/admin/oauth-providers",
+    operation_id = "admin_set_oauth_providers",
+    tag = "admin",
+    request_body = AdminOAuthRequest,
+    responses(
+        (status = 200, body = AdminOAuthResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
 pub async fn put(
     State(state): State<AppState>,
     Json(req): Json<AdminOAuthRequest>,
@@ -136,6 +154,18 @@ pub async fn put(
     Ok(Json(redact(&cfg, email_link)))
 }
 
+/// Get the current OAuth provider configuration. Secrets are redacted — only public
+/// metadata (client_id, discovery URL, etc.) is returned.
+#[utoipa::path(
+    get,
+    path = "/v1/admin/oauth-providers",
+    operation_id = "admin_get_oauth_providers",
+    tag = "admin",
+    responses(
+        (status = 200, body = AdminOAuthResponse),
+        (status = 401, body = crate::error::ErrorResponse),
+    )
+)]
 pub async fn get(State(state): State<AppState>) -> Result<Json<AdminOAuthResponse>, AuthError> {
     let (enc_bytes, email_link) = {
         let cfg = state.app_config.read().await;

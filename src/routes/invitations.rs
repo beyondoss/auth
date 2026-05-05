@@ -36,6 +36,7 @@ pub struct TokenQuery {
 #[utoipa::path(
     get,
     path = "/v1/invitations/{id}",
+    operation_id = "get_invitation",
     tag = "invitations",
     params(
         ("id" = Uuid, Path, description = "Invitation ID"),
@@ -70,6 +71,7 @@ pub async fn view_invitation(
 #[utoipa::path(
     post,
     path = "/v1/invitations/{id}/acceptances",
+    operation_id = "accept_invitation",
     tag = "invitations",
     security(("BearerAuth" = [])),
     params(
@@ -107,6 +109,7 @@ pub async fn accept_invitation(
 #[utoipa::path(
     post,
     path = "/v1/invitations/{id}/declinations",
+    operation_id = "decline_invitation",
     tag = "invitations",
     params(
         ("id" = Uuid, Path, description = "Invitation ID"),

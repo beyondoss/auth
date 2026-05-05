@@ -129,6 +129,7 @@ pub async fn get(
 #[utoipa::path(
     delete,
     path = "/v1/keys/{id}",
+    operation_id = "delete_key",
     tag = "keys",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Key ID")),

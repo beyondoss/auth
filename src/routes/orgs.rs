@@ -154,6 +154,7 @@ pub struct CreateInvitationRequest {
 #[utoipa::path(
     post,
     path = "/v1/orgs",
+    operation_id = "create_org",
     tag = "orgs",
     security(("BearerAuth" = [])),
     request_body = CreateOrgRequest,
@@ -196,6 +197,7 @@ pub async fn create_org(
 #[utoipa::path(
     get,
     path = "/v1/orgs",
+    operation_id = "list_orgs",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(PageQuery),
@@ -233,6 +235,7 @@ pub async fn list_orgs(
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}",
+    operation_id = "get_org",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Org ID")),
@@ -258,6 +261,7 @@ pub async fn get_org(
 #[utoipa::path(
     patch,
     path = "/v1/orgs/{id}",
+    operation_id = "update_org",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Org ID")),
@@ -295,6 +299,7 @@ pub async fn update_org(
 #[utoipa::path(
     delete,
     path = "/v1/orgs/{id}",
+    operation_id = "delete_org",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Org ID")),
@@ -321,6 +326,7 @@ pub async fn delete_org(
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/members",
+    operation_id = "list_org_members",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Org ID"), PageQuery),
@@ -365,6 +371,7 @@ pub async fn list_members(
 #[utoipa::path(
     patch,
     path = "/v1/orgs/{id}/members/{member_id}",
+    operation_id = "update_org_member",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(
@@ -397,6 +404,7 @@ pub async fn update_member(
 #[utoipa::path(
     delete,
     path = "/v1/orgs/{id}/members/{member_id}",
+    operation_id = "remove_org_member",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(
@@ -433,6 +441,7 @@ pub async fn remove_member(
 #[utoipa::path(
     post,
     path = "/v1/orgs/{id}/invitations",
+    operation_id = "create_invitation",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Org ID")),
@@ -486,6 +495,7 @@ pub async fn create_invitation(
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/invitations",
+    operation_id = "list_org_invitations",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Org ID"), PageQuery),
@@ -539,6 +549,7 @@ pub async fn list_invitations(
 #[utoipa::path(
     post,
     path = "/v1/orgs/{id}/invitations/{inv_id}/resends",
+    operation_id = "resend_invitation",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(
@@ -584,6 +595,7 @@ pub async fn resend_invitation(
 #[utoipa::path(
     delete,
     path = "/v1/orgs/{id}/invitations/{inv_id}",
+    operation_id = "revoke_invitation",
     tag = "orgs",
     security(("BearerAuth" = [])),
     params(

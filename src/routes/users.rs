@@ -134,6 +134,7 @@ pub fn make_auth_response(
 #[utoipa::path(
     delete,
     path = "/v1/users/me",
+    operation_id = "delete_me",
     tag = "users",
     security(("BearerAuth" = [])),
     responses(
@@ -186,6 +187,7 @@ pub async fn delete_me(
 #[utoipa::path(
     post,
     path = "/v1/users",
+    operation_id = "create_user",
     tag = "users",
     request_body = SignupRequest,
     responses(
@@ -253,6 +255,7 @@ pub async fn signup(
 #[utoipa::path(
     get,
     path = "/v1/users/me",
+    operation_id = "get_me",
     tag = "users",
     security(("BearerAuth" = [])),
     responses(
@@ -303,6 +306,7 @@ pub struct UpdateMeRequest {
 #[utoipa::path(
     patch,
     path = "/v1/users/me",
+    operation_id = "update_me",
     tag = "users",
     security(("BearerAuth" = [])),
     request_body = UpdateMeRequest,

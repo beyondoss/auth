@@ -92,6 +92,7 @@ pub async fn list(
 #[utoipa::path(
     post,
     path = "/v1/identities",
+    operation_id = "add_password_identity",
     tag = "identities",
     security(("BearerAuth" = [])),
     request_body = AddPasswordRequest,
@@ -144,6 +145,7 @@ pub async fn add_password(
 #[utoipa::path(
     patch,
     path = "/v1/identities/{id}",
+    operation_id = "update_identity",
     tag = "identities",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Identity ID")),
@@ -207,6 +209,7 @@ pub async fn update(
 #[utoipa::path(
     delete,
     path = "/v1/identities/{id}",
+    operation_id = "unlink_identity",
     tag = "identities",
     security(("BearerAuth" = [])),
     params(("id" = Uuid, Path, description = "Identity ID")),

@@ -29,8 +29,10 @@ pub async fn get(State(state): State<AppState>) -> Result<Json<ConfigResponse>, 
 /// Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateConfigRequest {
-    /// Seconds of inactivity before a session is considered expired. Send `null` to disable.
+    /// Seconds of inactivity before a session is considered expired.
+    /// Omit to leave unchanged. Send `null` to disable (no idle timeout).
     #[serde(default, deserialize_with = "deserialize_double_option")]
+    #[schema(nullable, example = 3600)]
     pub session_idle_timeout_seconds: Option<Option<i32>>,
     /// When true, `POST /v1/tokens` issues JWT access tokens.
     pub jwt_enabled: Option<bool>,

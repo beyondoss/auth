@@ -97,6 +97,7 @@ pub struct TokenResponse {
 #[utoipa::path(
     post,
     path = "/v1/emails",
+    operation_id = "initiate_email_change",
     tag = "emails",
     security(("BearerAuth" = [])),
     request_body = AddRequest,
@@ -148,6 +149,7 @@ pub async fn add(
 #[utoipa::path(
     delete,
     path = "/v1/emails/{id}",
+    operation_id = "remove_email",
     tag = "emails",
     security(("BearerAuth" = [])),
     params(("id" = uuid::Uuid, Path, description = "Email ID")),
@@ -191,6 +193,7 @@ pub async fn remove(
 #[utoipa::path(
     put,
     path = "/v1/emails/{id}",
+    operation_id = "set_primary_email",
     tag = "emails",
     security(("BearerAuth" = [])),
     params(("id" = uuid::Uuid, Path, description = "Email ID")),
@@ -234,6 +237,7 @@ pub async fn make_primary(
 #[utoipa::path(
     post,
     path = "/v1/emails/{id}/verifications",
+    operation_id = "create_email_verification",
     tag = "emails",
     security(("BearerAuth" = [])),
     params(("id" = uuid::Uuid, Path, description = "Email ID")),
@@ -300,6 +304,7 @@ pub struct ConfirmVerificationResponse {
 #[utoipa::path(
     post,
     path = "/v1/emails/verifications",
+    operation_id = "confirm_email_verification",
     tag = "emails",
     request_body = ConfirmVerificationRequest,
     responses(
