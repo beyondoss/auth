@@ -104,8 +104,14 @@ export type SchemaDefinition = {
     name: string;
     roles: ReadonlyArray<string>;
     permissions: { readonly [K: string]: ReadonlyArray<string> };
-    /** Maps each role to the roles whose permissions it inherits, e.g. `{ owner: ['editor'], editor: ['viewer'] }`. */
-    roleInheritance?: { readonly [role: string]: ReadonlyArray<string> } | null;
+    /**
+     * Role inheritance edges. Each entry means `superior` inherits all permissions of `inferior`.
+     * Can be provided as an array of `{superior, inferior}` pairs or as a map `{ role: [inherited, ...] }`.
+     */
+    roleInheritance?:
+      | ReadonlyArray<{ readonly superior: string; readonly inferior: string }>
+      | { readonly [role: string]: ReadonlyArray<string> }
+      | null;
     hierarchy?: { parentRelation: string; parentResource: string } | null;
   }>;
   subjectTypes?: ReadonlyArray<string>;
@@ -123,7 +129,7 @@ export type SchemaInput = {
     roles: ReadonlyArray<string>;
     permissions: { readonly [K: string]: ReadonlyArray<string> };
     role_inheritance?:
-      | { readonly [role: string]: ReadonlyArray<string> }
+      | ReadonlyArray<{ readonly superior: string; readonly inferior: string }>
       | null;
     hierarchy?: { parent_relation: string; parent_resource: string } | null;
   }>;
@@ -139,9 +145,10 @@ type ResourceToWire<R> = R extends {
     readonly name: N;
     readonly roles: Roles;
     readonly permissions: Perms;
-    readonly role_inheritance?: {
-      readonly [role: string]: ReadonlyArray<string>;
-    } | null;
+    readonly role_inheritance?: ReadonlyArray<{
+      readonly superior: string;
+      readonly inferior: string;
+    }> | null;
     readonly hierarchy?: {
       readonly parent_relation: string;
       readonly parent_resource: string;
@@ -637,7 +644,14 @@ export function defineSchema<const S extends SchemaDefinition>(
       roles: r.roles,
       permissions: r.permissions,
       ...(r.roleInheritance != null && {
-        role_inheritance: r.roleInheritance,
+        role_inheritance: Array.isArray(r.roleInheritance)
+          ? r.roleInheritance
+          : Object.entries(r.roleInheritance).flatMap(([superior, inferiors]) =>
+              (inferiors as ReadonlyArray<string>).map((inferior) => ({
+                superior,
+                inferior,
+              })),
+            ),
       }),
       ...(r.hierarchy != null && {
         hierarchy: {
