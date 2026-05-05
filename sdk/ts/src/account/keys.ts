@@ -1,8 +1,6 @@
 import type { Client } from "openapi-fetch";
 import type { components, paths } from "../types.js";
-import { camelize } from "../utils/camelize.js";
 import type { Camelize } from "../utils/camelize.js";
-import { throwServiceError } from "../utils/error.js";
 import { wrap } from "../utils/wrap.js";
 
 export type ApiKey = Camelize<components["schemas"]["Key"]>;
@@ -13,35 +11,17 @@ export type ApiKeyWithSecret = Camelize<
 export const listKeys = (client: Client<paths>) =>
   wrap(client.GET("/v1/keys", {}));
 
-export async function createKey(
+export const createKey = (
   client: Client<paths>,
   name: string,
   expiresAt?: string,
-): Promise<ApiKeyWithSecret> {
-  const { data, error, response } = await client.POST("/v1/keys", {
+) =>
+  wrap(client.POST("/v1/keys", {
     body: expiresAt !== undefined ? { name, expires_at: expiresAt } : { name },
-  });
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!);
-}
+  }));
 
-export async function getKey(
-  client: Client<paths>,
-  id: string,
-): Promise<ApiKey> {
-  const { data, error, response } = await client.GET("/v1/keys/{id}", {
-    params: { path: { id } },
-  });
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!);
-}
+export const getKey = (client: Client<paths>, id: string) =>
+  wrap(client.GET("/v1/keys/{id}", { params: { path: { id } } }));
 
-export async function deleteKey(
-  client: Client<paths>,
-  id: string,
-): Promise<void> {
-  const { error, response } = await client.DELETE("/v1/keys/{id}", {
-    params: { path: { id } },
-  });
-  if (error !== undefined) throwServiceError(error, response);
-}
+export const deleteKey = (client: Client<paths>, id: string) =>
+  wrap(client.DELETE("/v1/keys/{id}", { params: { path: { id } } }));

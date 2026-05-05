@@ -27,6 +27,7 @@ pub struct SignupRequest {
     pub email: String,
     pub password: String,
     /// Display name for the user's personal org. Defaults to the local part of the email.
+    #[schema(nullable)]
     pub display_name: Option<String>,
 }
 
@@ -57,8 +58,10 @@ pub struct UserBody {
     pub primary_org_id: Uuid,
     /// Display name (mirrors the personal org name).
     pub name: String,
+    #[schema(nullable)]
     pub image_url: Option<String>,
     /// Arbitrary JSON metadata stored on the personal org.
+    #[schema(value_type = Object)]
     pub metadata: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -69,6 +72,7 @@ pub struct EmailBody {
     pub id: Uuid,
     pub email: String,
     /// Null if the address has not been verified.
+    #[schema(nullable)]
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
@@ -79,6 +83,7 @@ pub struct OrgBody {
     pub name: String,
     /// URL-safe identifier, unique across all orgs.
     pub slug: String,
+    #[schema(nullable)]
     pub image_url: Option<String>,
 }
 
@@ -294,11 +299,15 @@ pub async fn get_me(Extension(ctx): Extension<AuthContext>) -> Json<MeResponse> 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateMeRequest {
     /// Display name for the user and their personal org.
+    #[schema(nullable)]
     pub name: Option<String>,
     /// URL-safe org identifier. Must be unique. Returns 409 if already taken.
+    #[schema(nullable)]
     pub slug: Option<String>,
+    #[schema(nullable)]
     pub image_url: Option<String>,
     /// Arbitrary JSON merged into the org's metadata field (full replacement, not merge).
+    #[schema(nullable, value_type = Object)]
     pub metadata: Option<serde_json::Value>,
 }
 

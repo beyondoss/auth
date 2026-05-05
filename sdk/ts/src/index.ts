@@ -1,23 +1,14 @@
-export { type EmailRecord, type OttTokenResponse } from "./account/emails.js";
+export { type Email, type OttTokenResponse } from "./account/emails.js";
 export { type ApiKey, type ApiKeyWithSecret } from "./account/keys.js";
-export { type MeResponse, type UpdateMeRequest } from "./account/me.js";
+export { type Profile, type UpdateMeRequest } from "./account/me.js";
 export {
-  type BeginPasskeyRegistrationResponse,
   type FinishPasskeyRegistrationRequest,
-  type PasskeyRecord,
+  type Passkey,
+  type PasskeyRegistrationChallenge,
   type RegisteredPasskey,
 } from "./account/passkeys.js";
-export { type SessionListItem } from "./account/sessions.js";
-export {
-  type RecoveryCodesResponse,
-  type TotpEnrollmentResponse,
-} from "./account/totp.js";
-export {
-  type ApiKeyContext,
-  type ApiKeyVerifier,
-  type ApiKeyVerifierOptions,
-  createApiKeyVerifier,
-} from "./api-key.js";
+export { type Session } from "./account/sessions.js";
+export { type RecoveryCodes, type TotpEnrollment } from "./account/totp.js";
 export {
   type AuthzClient,
   type AuthzClientOptions,
@@ -58,32 +49,13 @@ export {
   type AuthFlowClient,
   type AuthFlowClientOptions,
   type AuthResponse,
-  type BeginPasskeyAuthResponse,
   createAuthFlowClient,
   isStepUpResponse,
   type MagicLinkResponse,
+  type PasskeyAuthChallenge,
   type PasswordResetResponse,
   type SignInRequest,
   type StepUpResponse,
   type TokenResponse,
 } from "./flows/index.js";
-export {
-  createJwtVerifier,
-  type JwtClaims,
-  type JwtVerifier,
-  type JwtVerifierOptions,
-} from "./jwt.js";
-export {
-  clearCookieAttrs,
-  type CookieAttrs,
-  type CookieOptions,
-  getSessionToken,
-  sessionCookieAttrs,
-} from "./server/cookie.js";
-export {
-  createSessionVerifier,
-  type SessionContext,
-  type SessionVerifier,
-  type SessionVerifierOptions,
-} from "./session.js";
 export { type Camelize } from "./utils/camelize.js";

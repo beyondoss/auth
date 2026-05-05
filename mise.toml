@@ -7,20 +7,59 @@ cargo-binstall = "latest"
 "cargo:sqlx-cli" = "latest"
 "cargo:cross" = "latest"
 
-[tasks."build"]
+[tasks."build:rs"]
 run = "cargo build"
 
-[tasks."build:release"]
+[tasks."build:rs:release"]
 run = "cargo build --release"
+
+[tasks."build:ts"]
+run = "npm run build"
+dir = "sdk/ts"
+depends = ["generate:types"]
+
+[tasks."check:rs"]
+run = "cargo clippy --workspace -- -D warnings"
+
+[tasks."check:ts"]
+run = "npm run typecheck"
+dir = "sdk/ts"
+depends = ["generate:types"]
+
+[tasks."check:fmt"]
+run = "dprint check"
 
 [tasks."format"]
 run = "dprint fmt"
+
+[tasks."install:ts"]
+run = "npm ci"
+dir = "sdk/ts"
 
 [tasks."migrate"]
 run = "cargo sqlx migrate run"
 
 [tasks."sqlx:prepare"]
 run = "cargo run --package xtask"
+
+[tasks."test:unit:rs"]
+run = "cargo test --lib"
+
+[tasks."test:integration:rs"]
+run = "cargo test --test api"
+
+[tasks."test:integration:ts"]
+run = "npm test"
+dir = "sdk/ts"
+depends = ["generate:types", "build:rs"]
+
+[tasks."generate:openapi"]
+run = "cargo run -- generate-openapi"
+
+[tasks."generate:types"]
+run = ["cd ts && node scripts/generate-types.mjs"]
+dir = "sdk"
+depends = ["install:ts", "generate:openapi"]
 
 [tasks."bench"]
 run = "cargo run --release --package bench -- run-all"
@@ -33,9 +72,6 @@ run = "cargo run --release -p bench -- run-all --profile full"
 
 [tasks."bench:cold"]
 run = "cargo run --release -p bench -- run-all --profile quick --shared-buffers 32MB --output bench/out/report_cold.md"
-
-[tasks."test"]
-run = "cargo test --test api"
 
 # Build the authz_extension shared library for the local OS (host PostgreSQL must be installed).
 # Used by developers on Linux or when the host PG matches the target container.
@@ -75,28 +111,3 @@ mise run extension:build:linux:arm64 && \
 mise run bench -- run-all --output bench/out/treatment.json && \
 cargo run --release -p bench -- compare bench/out/baseline.json bench/out/treatment.json
 """
-
-[tasks."openapi:generate"]
-run = "cargo run -- generate-openapi"
-
-[tasks."sdk:ts:install"]
-run = "npm ci"
-dir = "sdk/ts"
-
-[tasks."sdk:ts:typecheck"]
-run = "npm run typecheck"
-dir = "sdk/ts"
-depends = ["sdk:ts:install"]
-
-[tasks."sdk:ts:test"]
-run = "npm test"
-dir = "sdk/ts"
-depends = ["sdk:ts:install", "build"]
-
-[tasks."sdk:ts:generate-types"]
-run = ["cd ts && node scripts/generate-types.mjs"]
-dir = "sdk"
-depends = ["openapi:generate"]
-
-[tasks."test:all"]
-depends = ["test:unit", "test", "sdk:ts:test"]

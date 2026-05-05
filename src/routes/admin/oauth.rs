@@ -22,15 +22,22 @@ pub struct AdminOAuthRequest {
     pub microsoft: Option<MicrosoftConfig>,
     #[schema(value_type = Vec<Object>, nullable)]
     pub oidc: Option<Vec<OidcConfig>>,
+    /// When true, OAuth identities are linked to existing accounts with the same email.
+    #[schema(nullable)]
     pub email_link: Option<bool>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct AdminOAuthResponse {
+    #[schema(nullable)]
     pub github: Option<GithubRedacted>,
+    #[schema(nullable)]
     pub google: Option<GoogleRedacted>,
+    #[schema(nullable)]
     pub apple: Option<AppleRedacted>,
+    #[schema(nullable)]
     pub microsoft: Option<MicrosoftRedacted>,
+    #[schema(nullable)]
     pub oidc: Option<Vec<OidcRedacted>>,
     pub email_link: bool,
 }

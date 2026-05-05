@@ -339,10 +339,13 @@ pub async fn load_user_context(
 pub struct SessionListItem {
     pub id: Uuid,
     pub token_id: Uuid,
+    #[schema(nullable)]
     pub ip_address: Option<String>,
+    #[schema(nullable)]
     pub user_agent: Option<String>,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
+    #[schema(nullable)]
     pub last_used_at: Option<DateTime<Utc>>,
     /// Whether this is the caller's current session.
     pub current: bool,

@@ -39,10 +39,10 @@ To run the TypeScript SDK tests locally:
 
 ```sh
 mise run extension:build:linux:arm64   # build the .so for the testcontainer (linux/arm64)
-mise run sdk:ts:test             # builds the debug binary, then runs the tests
+mise run test:integration:ts             # builds the debug binary, then runs the tests
 ```
 
-`sdk:ts:test` depends on `build`, so the binary is always up to date. The extension build is separate because it spins up Docker and takes minutes — run it once, re-run only when extension code changes.
+`test:ts` depends on `build`, so the binary is always up to date. The extension build is separate because it spins up Docker and takes minutes — run it once, re-run only when extension code changes.
 
 ## System Design
 

@@ -338,7 +338,20 @@ pub struct CheckResponse {
 
 #[derive(serde::Deserialize, Debug)]
 pub struct BatchDecisionResponse {
+    #[serde(deserialize_with = "de_check_results")]
     pub results: Vec<bool>,
+}
+
+fn de_check_results<'de, D>(d: D) -> Result<Vec<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(serde::Deserialize)]
+    struct CheckResult {
+        allowed: bool,
+    }
+    let v: Vec<CheckResult> = serde::Deserialize::deserialize(d)?;
+    Ok(v.into_iter().map(|r| r.allowed).collect())
 }
 
 #[derive(serde::Deserialize, Debug)]

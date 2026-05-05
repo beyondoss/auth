@@ -10,12 +10,19 @@ const ErrorBody = v.object({
   ),
 });
 
-export function throwServiceError(error: unknown, response: Response): never {
+export function parseServiceError(
+  error: unknown,
+  response: Response,
+): AuthServiceError {
   const parsed = v.safeParse(ErrorBody, error);
   const body = parsed.success ? parsed.output : {};
-  throw new AuthServiceError(
+  return new AuthServiceError(
     body.error?.code ?? "unknown_error",
     body.error?.message ?? response.statusText,
     response.status,
   );
+}
+
+export function throwServiceError(error: unknown, response: Response): never {
+  throw parseServiceError(error, response);
 }

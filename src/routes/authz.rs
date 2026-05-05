@@ -89,9 +89,11 @@ pub struct RelationSubject {
     pub id: String,
     /// For subject sets: the type of the subject resource. Omit for direct user subjects.
     #[serde(rename = "type", default)]
+    #[schema(nullable)]
     pub subject_type: Option<String>,
     /// For subject sets: the relation on the subject resource that grants membership.
     #[serde(default)]
+    #[schema(nullable)]
     pub relation: Option<String>,
 }
 
@@ -121,6 +123,7 @@ pub struct BatchDecisionRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct DecisionCheck {
     /// Explicit subject to check as. Defaults to the current session user.
+    #[schema(nullable)]
     pub user: Option<String>,
     pub permission: String,
     pub resource_type: String,
@@ -141,6 +144,7 @@ pub struct ChecksRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ChecksItem {
     /// Explicit subject to check as. Defaults to the current session user.
+    #[schema(nullable)]
     pub user: Option<String>,
     /// Permission name as defined in the authz schema.
     pub permission: String,
@@ -204,6 +208,7 @@ pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
     pub has_more: bool,
     /// Opaque cursor — pass as `after` for the next page.
+    #[schema(nullable)]
     pub next_page: Option<String>,
 }
 

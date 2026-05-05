@@ -207,8 +207,10 @@ pub fn unpack_auth_state(
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CredentialRecord {
     pub id: Uuid,
+    #[schema(nullable)]
     pub nickname: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[schema(nullable)]
     pub last_used_at: Option<DateTime<Utc>>,
 }
 

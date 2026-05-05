@@ -17,6 +17,7 @@ pub struct ErrorBody {
     pub message: String,
     /// Optional actionable guidance present on configuration-gate errors.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
     pub hint: Option<String>,
 }
 

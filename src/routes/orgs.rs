@@ -25,8 +25,10 @@ pub struct OrgResponse {
     pub name: String,
     /// URL-safe identifier, unique across all orgs.
     pub slug: String,
+    #[schema(nullable)]
     pub image_url: Option<String>,
     /// Arbitrary JSON metadata.
+    #[schema(value_type = Object)]
     pub metadata: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -37,6 +39,7 @@ pub struct OrgsResponse {
     pub orgs: Vec<OrgResponse>,
     pub has_more: bool,
     /// Opaque cursor — pass as `after` to retrieve the next page.
+    #[schema(nullable)]
     pub next_page: Option<String>,
 }
 
@@ -55,6 +58,7 @@ pub struct MembersResponse {
     pub members: Vec<MemberResponse>,
     pub has_more: bool,
     /// Opaque cursor — pass as `after` to retrieve the next page.
+    #[schema(nullable)]
     pub next_page: Option<String>,
 }
 
@@ -64,6 +68,7 @@ pub struct InvitationResponse {
     pub id: Uuid,
     pub org_id: Uuid,
     /// Email address the invitation is addressed to, if any. Null for open link invitations.
+    #[schema(nullable)]
     pub email: Option<String>,
     /// Role the invitee will receive on acceptance.
     pub role: String,
@@ -71,6 +76,7 @@ pub struct InvitationResponse {
     pub expires_at: chrono::DateTime<chrono::Utc>,
     /// Plaintext token — only present on creation, never returned again. Deliver this to the invitee.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
     pub token: Option<String>,
 }
 
@@ -80,6 +86,7 @@ pub struct InvitationsResponse {
     pub invitations: Vec<InvitationResponse>,
     pub has_more: bool,
     /// Opaque cursor — pass as `after` to retrieve the next page.
+    #[schema(nullable)]
     pub next_page: Option<String>,
 }
 
@@ -115,18 +122,24 @@ pub struct PageQuery {
 pub struct CreateOrgRequest {
     pub name: String,
     /// URL-safe identifier. Defaults to a slugified version of `name` if omitted.
+    #[schema(nullable)]
     pub slug: Option<String>,
+    #[schema(nullable, value_type = Object)]
     pub metadata: Option<serde_json::Value>,
 }
 
 /// Partial org update. Omitted fields are left unchanged.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateOrgRequest {
+    #[schema(nullable)]
     pub name: Option<String>,
     /// URL-safe identifier. Returns 409 if already taken.
+    #[schema(nullable)]
     pub slug: Option<String>,
+    #[schema(nullable)]
     pub image_url: Option<String>,
     /// Full replacement of the org's metadata field.
+    #[schema(nullable, value_type = Object)]
     pub metadata: Option<serde_json::Value>,
 }
 
@@ -142,6 +155,7 @@ pub struct UpdateMemberRequest {
 pub struct CreateInvitationRequest {
     /// Email address to address the invitation to. Omit for an open link invitation
     /// that any user can accept.
+    #[schema(nullable)]
     pub email: Option<String>,
     /// Role the invitee will receive on acceptance.
     pub role: String,

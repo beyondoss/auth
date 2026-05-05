@@ -35,6 +35,7 @@ pub struct UpdateConfigRequest {
     #[schema(nullable, example = 3600)]
     pub session_idle_timeout_seconds: Option<Option<i32>>,
     /// When true, `POST /v1/tokens` issues JWT access tokens.
+    #[schema(nullable)]
     pub jwt_enabled: Option<bool>,
 }
 
@@ -42,6 +43,7 @@ pub struct UpdateConfigRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ConfigResponse {
     /// Seconds of inactivity before a session expires. Null means no idle timeout.
+    #[schema(nullable)]
     pub session_idle_timeout_seconds: Option<i32>,
     /// Whether `POST /v1/tokens` is enabled for JWT issuance.
     pub jwt_enabled: bool,

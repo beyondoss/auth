@@ -11,6 +11,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /**
+     * Health check. Performs a lightweight database ping. Returns 200 when healthy,
+     *     503 when the database is unreachable.
+     */
     get: operations["healthz"];
     put?: never;
     post?: never;
@@ -48,6 +52,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Get the current runtime configuration. */
     get: operations["get_admin_config"];
     put?: never;
     post?: never;
@@ -66,7 +71,36 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Create an impersonation session for any user. Returns a session token that behaves like
+     *     a normal session but carries an `impersonated` flag in issued JWTs. Use this for admin
+     *     support workflows — not for production automation.
+     */
     post: operations["create_impersonation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/oauth-providers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get the current OAuth provider configuration. Secrets are redacted — only public
+     *     metadata (client_id, discovery URL, etc.) is returned.
+     */
+    get: operations["admin_get_oauth_providers"];
+    /**
+     * Replace the OAuth provider configuration. Secrets are encrypted at rest and never
+     *     returned in GET responses — only redacted metadata (client_id, etc.) is shown.
+     */
+    put: operations["admin_set_oauth_providers"];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -80,7 +114,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["search"];
+    /**
+     * Look up a user by primary email address. Returns 400 if the `email` query parameter
+     *     is omitted.
+     */
+    get: operations["admin_search_users"];
     put?: never;
     post?: never;
     delete?: never;
@@ -96,7 +134,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["get_by_id"];
+    /** Look up a user by ID. */
+    get: operations["admin_get_user"];
     put?: never;
     post?: never;
     delete?: never;
@@ -119,7 +158,7 @@ export interface paths {
      * Revoke all active sessions for a user. Idempotent — safe to call when the user
      *     has no sessions.
      */
-    delete: operations["delete_sessions"];
+    delete: operations["admin_delete_user_sessions"];
     options?: never;
     head?: never;
     patch?: never;
@@ -280,9 +319,15 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List all email addresses associated with the authenticated user. */
     get: operations["list_emails"];
     put?: never;
-    post: operations["add"];
+    /**
+     * Initiate a primary email address change. Returns a one-time token that the caller must
+     *     exchange via `POST /v1/sessions` with `grant_type=email_change`. The address is not
+     *     changed until the token is consumed. Returns 409 if the address is already registered.
+     */
+    post: operations["initiate_email_change"];
     delete?: never;
     options?: never;
     head?: never;
@@ -298,7 +343,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["confirm_verification"];
+    /**
+     * Confirm email ownership using the token issued by `POST /v1/emails/{id}/verifications`.
+     *     Unauthenticated — the token itself identifies the user and email. Single-use; expires in 24 hours.
+     */
+    post: operations["confirm_email_verification"];
     delete?: never;
     options?: never;
     head?: never;
@@ -313,9 +362,17 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    put: operations["make_primary"];
+    /**
+     * Promote a verified email address to primary. The address must belong to the authenticated
+     *     user and must already be verified. Returns 404 if not found or not yet verified.
+     */
+    put: operations["set_primary_email"];
     post?: never;
-    delete: operations["remove"];
+    /**
+     * Remove a non-primary email address. Returns 409 if the caller tries to delete their
+     *     primary address — use `PUT /v1/emails/{id}` to promote another address first.
+     */
+    delete: operations["remove_email"];
     options?: never;
     head?: never;
     patch?: never;
@@ -330,7 +387,12 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["create_verification"];
+    /**
+     * Issue a verification token for an unverified email address. The caller is expected to
+     *     deliver this token to the user (e.g. via email) and have them confirm it via
+     *     `POST /v1/emails/verifications`. Returns 404 if the address doesn't exist or is already verified.
+     */
+    post: operations["create_email_verification"];
     delete?: never;
     options?: never;
     head?: never;
@@ -344,9 +406,17 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /**
+     * List all authentication methods (identities) attached to the authenticated user.
+     *     Each identity represents one way the user can log in: a password, or a linked OAuth provider.
+     */
     get: operations["list_identities"];
     put?: never;
-    post: operations["add_password"];
+    /**
+     * Add a password identity to an account that has none. Useful when a user signed up via
+     *     OAuth and wants to enable password login. Returns 409 if a password identity already exists.
+     */
+    post: operations["add_password_identity"];
     delete?: never;
     options?: never;
     head?: never;
@@ -363,10 +433,18 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    delete: operations["unlink"];
+    /**
+     * Unlink an authentication method. Returns 409 if this is the last identity — at least
+     *     one must remain so the user can still log in.
+     */
+    delete: operations["unlink_identity"];
     options?: never;
     head?: never;
-    patch: operations["update"];
+    /**
+     * Change the password for a password identity. Requires the current password. On success,
+     *     all sessions except the current one are revoked.
+     */
+    patch: operations["update_identity"];
     trace?: never;
   };
   "/v1/invitations/{id}": {
@@ -376,7 +454,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["view_invitation"];
+    /**
+     * Look up an invitation by ID and token. Unauthenticated — intended for pre-acceptance
+     *     display (show the org name and role before asking the user to log in). Returns 404 if
+     *     the invitation doesn't exist, is expired, or the token is wrong.
+     */
+    get: operations["get_invitation"];
     put?: never;
     post?: never;
     delete?: never;
@@ -394,6 +477,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Accept an invitation. The authenticated user is added to the org with the invitation's
+     *     role. The invitation token is consumed and cannot be reused. Returns 409 if already a member.
+     */
     post: operations["accept_invitation"];
     delete?: never;
     options?: never;
@@ -410,6 +497,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Decline an invitation. The token is consumed and the invitation is removed.
+     *     Unauthenticated — the token in the query string is sufficient.
+     */
     post: operations["decline_invitation"];
     delete?: never;
     options?: never;
@@ -424,6 +515,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /**
+     * The active JWT signing public keys in JWK Set format. Cached for 1 hour (`Cache-Control: public, max-age=3600`).
+     *     Use this endpoint to verify JWTs issued by `POST /v1/tokens`.
+     */
     get: operations["jwks"];
     put?: never;
     post?: never;
@@ -440,8 +535,16 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /**
+     * List all API keys for the authenticated user. Bearer token values are never returned
+     *     — only metadata (ID, name, created/used/expires timestamps).
+     */
     get: operations["list_keys"];
     put?: never;
+    /**
+     * Create an API key for the authenticated user. The full bearer token is returned in
+     *     `key` and is shown only once — store it immediately. Subsequent reads return only metadata.
+     */
     post: operations["create_key"];
     delete?: never;
     options?: never;
@@ -456,10 +559,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Get metadata for a single API key. */
     get: operations["get_key"];
     put?: never;
     post?: never;
-    delete: operations["delete"];
+    /** Revoke an API key. The key is immediately invalid for authentication. */
+    delete: operations["delete_key"];
     options?: never;
     head?: never;
     patch?: never;
@@ -474,6 +579,12 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Issue a passwordless magic-link token for the given email address. The caller is
+     *     responsible for delivering the token to the user (e.g. via email). The token is
+     *     exchanged for a session via `POST /v1/sessions` with `grant_type=magic_link`.
+     *     Expires in 15 minutes. Returns 404 if no account exists for the address.
+     */
     post: operations["create_magic_link"];
     delete?: never;
     options?: never;
@@ -490,7 +601,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["apple_callback"];
+    /**
+     * Apple Sign-In callback. Apple uses a POST form submission instead of a GET redirect,
+     *     so this is a separate endpoint. Behavior is identical to `GET /v1/oauth/{provider}/callback`.
+     */
+    post: operations["apple_oauth_callback"];
     delete?: never;
     options?: never;
     head?: never;
@@ -504,7 +619,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["authorize"];
+    /**
+     * Start an OAuth authorization flow. Returns the provider's authorization URL.
+     *     If the caller includes a valid session Bearer token, the resulting identity will be
+     *     linked to that account instead of creating a new session.
+     */
+    get: operations["oauth_authorize"];
     put?: never;
     post?: never;
     delete?: never;
@@ -520,7 +640,13 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["callback"];
+    /**
+     * OAuth authorization callback. Exchanges the provider code for a profile, then either
+     *     creates a new session (login) or links the identity to the authenticated user (link flow).
+     *     When TOTP is enrolled, returns a step-up challenge instead of a session token.
+     *     Returns 409 if the OAuth identity is already claimed by a different user.
+     */
+    get: operations["oauth_callback"];
     put?: never;
     post?: never;
     delete?: never;
@@ -536,8 +662,13 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List all orgs the authenticated user is a member of, cursor-paginated. */
     get: operations["list_orgs"];
     put?: never;
+    /**
+     * Create a new organization. The authenticated user becomes the owner.
+     *     Returns 409 if the slug is already taken.
+     */
     post: operations["create_org"];
     delete?: never;
     options?: never;
@@ -552,12 +683,18 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Get an org by ID. Returns 403 if the authenticated user is not a member. */
     get: operations["get_org"];
     put?: never;
     post?: never;
+    /**
+     * Soft-delete an org. Requires owner role. Returns 409 if this is the user's personal org
+     *     (personal orgs are deleted via `DELETE /v1/users/me`).
+     */
     delete: operations["delete_org"];
     options?: never;
     head?: never;
+    /** Update an org. Requires owner role. Only fields present in the body are changed. */
     patch: operations["update_org"];
     trace?: never;
   };
@@ -568,8 +705,17 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["list_invitations"];
+    /**
+     * List pending invitations for an org, cursor-paginated. Requires owner.
+     *     Tokens are not included in list responses — only in creation and resend responses.
+     */
+    get: operations["list_org_invitations"];
     put?: never;
+    /**
+     * Create an invitation. Requires owner. The response includes a one-time `token` — deliver
+     *     it to the invitee so they can call `POST /v1/invitations/{id}/acceptances`. Returns 409
+     *     if a pending invitation already exists for the same email.
+     */
     post: operations["create_invitation"];
     delete?: never;
     options?: never;
@@ -587,6 +733,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
+    /** Revoke an invitation. The token is immediately invalidated. Requires owner. */
     delete: operations["revoke_invitation"];
     options?: never;
     head?: never;
@@ -602,6 +749,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Re-issue an invitation token. Invalidates the previous token and returns a fresh one.
+     *     Use this when the original token expires or is lost. Requires owner.
+     */
     post: operations["resend_invitation"];
     delete?: never;
     options?: never;
@@ -616,7 +767,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["list_members"];
+    /** List members of an org, cursor-paginated. Requires membership. */
+    get: operations["list_org_members"];
     put?: never;
     post?: never;
     delete?: never;
@@ -635,10 +787,18 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    delete: operations["remove_member"];
+    /**
+     * Remove a member from an org. A user can remove themselves with only membership; removing
+     *     another member requires owner. Returns 409 if removing would leave the org with no owners.
+     */
+    delete: operations["remove_org_member"];
     options?: never;
     head?: never;
-    patch: operations["update_member"];
+    /**
+     * Update a member's role. Requires owner. Returns 409 if the change would leave the org
+     *     with no owners.
+     */
+    patch: operations["update_org_member"];
     trace?: never;
   };
   "/v1/passkey-authentications": {
@@ -650,6 +810,12 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Begin WebAuthn passkey authentication (discoverable credential flow). Returns `options`
+     *     for `navigator.credentials.get()` and a `state_token`. Complete authentication by
+     *     posting `state_token` + credential to `POST /v1/sessions` with `grant_type=passkey`.
+     *     Unauthenticated — no bearer token required.
+     */
     post: operations["begin_passkey_authentication"];
     delete?: never;
     options?: never;
@@ -666,6 +832,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Begin WebAuthn passkey registration. Returns a `options` object to pass directly to
+     *     `navigator.credentials.create()` and a `state_token` to include in the subsequent
+     *     `POST /v1/passkeys` finish call. Two-step: begin here, finish with `POST /v1/passkeys`.
+     */
     post: operations["begin_passkey_registration"];
     delete?: never;
     options?: never;
@@ -680,8 +851,14 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List all registered passkey credentials for the authenticated user. */
     get: operations["list_passkeys"];
     put?: never;
+    /**
+     * Complete passkey registration. Submit the `state_token` from `POST /v1/passkey-registrations`
+     *     and the `PublicKeyCredential` response from `navigator.credentials.create()`.
+     *     The registered credential can then be used to authenticate via `POST /v1/passkey-authentications`.
+     */
     post: operations["create_passkey"];
     delete?: never;
     options?: never;
@@ -699,9 +876,11 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
+    /** Delete a registered passkey credential. The credential can no longer be used to authenticate. */
     delete: operations["delete_passkey"];
     options?: never;
     head?: never;
+    /** Update the nickname of a registered passkey credential. */
     patch: operations["update_passkey"];
     trace?: never;
   };
@@ -714,6 +893,13 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Issue a password-reset token for the given email address. The caller is responsible
+     *     for delivering the token to the user. The token is exchanged — along with a new password
+     *     — via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all
+     *     existing sessions. Expires in 1 hour. Returns 404 if no account exists or the account
+     *     has no password identity.
+     */
     post: operations["create_password_reset"];
     delete?: never;
     options?: never;
@@ -728,9 +914,20 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List all active sessions for the authenticated user. The current session is included. */
     get: operations["list_sessions"];
     put?: never;
-    post: operations["login"];
+    /**
+     * Authenticate and create a session. The `grant_type` field in the request body selects
+     *     the credential flow. On success, returns 201 with a session token. When the account has
+     *     TOTP enrolled and the grant type supports MFA, returns 200 with a `step_up_token` —
+     *     the caller must then re-POST with `grant_type=totp_step_up` to complete authentication.
+     */
+    post: operations["create_session"];
+    /**
+     * Revoke all sessions for the authenticated user. Use `except_current=true` to keep
+     *     the current session active (e.g. "sign out everywhere else").
+     */
     delete: operations["delete_all_sessions"];
     options?: never;
     head?: never;
@@ -744,10 +941,15 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get: operations["get_current"];
+    /** Return details about the session that authenticated the current request. */
+    get: operations["get_current_session"];
     put?: never;
     post?: never;
-    delete: operations["delete_current"];
+    /**
+     * Revoke the session that authenticated the current request. The bearer token becomes
+     *     immediately invalid. Idempotent — safe to call if the session is already gone.
+     */
+    delete: operations["revoke_current_session"];
     options?: never;
     head?: never;
     patch?: never;
@@ -763,7 +965,11 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    delete: operations["delete_by_id"];
+    /**
+     * Revoke a specific session by ID. The caller can only revoke their own sessions;
+     *     attempting to revoke another user's session returns 404 (not 403) to prevent enumeration.
+     */
+    delete: operations["revoke_session"];
     options?: never;
     head?: never;
     patch?: never;
@@ -805,8 +1011,17 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["begin_enrollment"];
-    delete: operations["disable"];
+    /**
+     * Begin TOTP enrollment. Returns the secret and a QR code data URL. Enrollment is not
+     *     active until confirmed via `POST /v1/totp/confirmations`. Calling this again before
+     *     confirming replaces the pending enrollment.
+     */
+    post: operations["begin_totp_enrollment"];
+    /**
+     * Disable TOTP for the authenticated user. Future logins will no longer require a step-up
+     *     challenge. All recovery codes are also invalidated.
+     */
+    delete: operations["disable_totp"];
     options?: never;
     head?: never;
     patch?: never;
@@ -821,7 +1036,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["confirm_enrollment"];
+    /**
+     * Confirm TOTP enrollment by verifying a live code from the authenticator app. After this
+     *     call, TOTP is active and future logins will require a step-up challenge.
+     */
+    post: operations["confirm_totp_enrollment"];
     delete?: never;
     options?: never;
     head?: never;
@@ -837,7 +1056,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["regenerate_recovery_codes"];
+    /**
+     * Regenerate TOTP recovery codes. Requires a valid TOTP code to prove the authenticator
+     *     app is still accessible. All existing recovery codes are invalidated and replaced.
+     */
+    post: operations["regenerate_totp_recovery_codes"];
     delete?: never;
     options?: never;
     head?: never;
@@ -853,7 +1076,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["signup"];
+    /**
+     * Register a new user with email and password. Creates the user, a personal org, and
+     *     a session in a single transaction. Returns 409 if the email is already registered.
+     */
+    post: operations["create_user"];
     delete?: never;
     options?: never;
     head?: never;
@@ -867,12 +1094,18 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Return the authenticated user's profile, primary email, and personal org. */
     get: operations["get_me"];
     put?: never;
     post?: never;
+    /**
+     * Soft-delete the authenticated user and their personal org. All active sessions are
+     *     invalidated immediately. This action is permanent — deleted accounts cannot be recovered.
+     */
     delete: operations["delete_me"];
     options?: never;
     head?: never;
+    /** Update the authenticated user's profile. Only fields present in the request body are changed. */
     patch: operations["update_me"];
     trace?: never;
   };
@@ -880,16 +1113,43 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * @description Request to add a password identity to an account that currently has none
+     *     (e.g. a user who signed up via OAuth and wants to add password login).
+     */
     AddPasswordRequest: {
       password: string;
     };
+    /** @description Request to initiate a primary email address change. */
     AddRequest: {
+      /** @description The new email address to switch to. Must not already be registered to any user. */
       email: string;
     };
+    AdminOAuthRequest: {
+      apple: Record<string, never> | null;
+      /** @description When true, OAuth identities are linked to existing accounts with the same email. */
+      email_link?: boolean | null;
+      github: Record<string, never> | null;
+      google: Record<string, never> | null;
+      microsoft: Record<string, never> | null;
+      oidc: Record<string, never>[] | null;
+    };
+    AdminOAuthResponse: {
+      apple?: null | components["schemas"]["AppleRedacted"];
+      email_link: boolean;
+      github?: null | components["schemas"]["GithubRedacted"];
+      google?: null | components["schemas"]["GoogleRedacted"];
+      microsoft?: null | components["schemas"]["MicrosoftRedacted"];
+      oidc?: components["schemas"]["OidcRedacted"][] | null;
+    };
+    /** @description Full user record returned to admin callers. */
     AdminUserResponse: {
       /** Format: date-time */
       created_at: string;
-      /** Format: date-time */
+      /**
+       * Format: date-time
+       * @description Set when the user has been soft-deleted; null for active accounts.
+       */
       deleted_at?: string | null;
       email?: string | null;
       /** Format: date-time */
@@ -904,8 +1164,18 @@ export interface components {
     AppleCallbackForm: {
       code: string;
       state: string;
+      /** @description JSON-encoded user object Apple sends on first sign-in (name fields). */
       user?: string | null;
     };
+    AppleRedacted: {
+      client_id: string;
+      key_id: string;
+      team_id: string;
+    };
+    /**
+     * @description Returned on successful login or signup. Contains the new session alongside the user,
+     *     primary email, and personal org context.
+     */
     AuthResponse: {
       email: components["schemas"]["EmailBody"];
       org: components["schemas"]["OrgBody"];
@@ -922,10 +1192,21 @@ export interface components {
       /** Format: int32 */
       version: number;
     };
+    BatchDecisionRequest: {
+      checks: components["schemas"]["DecisionCheck"][];
+    };
+    BatchDecisionResponse: {
+      /** @description Results in the same order as the input `checks`. */
+      results: components["schemas"]["CheckResult"][];
+    };
+    /** @description Batch of relation tuples to write and/or delete in a single transaction. */
     BatchRequest: {
+      /** @description Relation tuples to delete. Missing deletes are silently ignored. */
       deletes?: components["schemas"]["RelationRequest"][];
+      /** @description Relation tuples to create. Duplicate writes are silently ignored. */
       writes?: components["schemas"]["RelationRequest"][];
     };
+    /** @description Result counts from a batch relation operation. */
     BatchResponse: {
       /** Format: int64 */
       deleted: number;
@@ -938,17 +1219,29 @@ export interface components {
       /** @description Opaque state token; include in the corresponding finish request. */
       state_token: string;
     };
+    /** @description Session token returned after a successful OAuth login callback. */
     CallbackResponse: {
       /** Format: date-time */
       expires_at: string;
+      /** @description Opaque session bearer token. Use as `Authorization: Bearer <token>`. */
       token: string;
     };
+    /** @description Result of a single permission check. */
     CheckResponse: {
+      /** @description True if the subject has the requested permission on the resource. */
+      allowed: boolean;
+    };
+    /** @description Result of one item in a batch permission check, ordered to match the input. */
+    CheckResult: {
+      /** @description True if the subject has the requested permission on the resource. */
       allowed: boolean;
     };
     ChecksItem: {
+      /** @description Permission name as defined in the authz schema. */
       permission: string;
+      /** @description ID of the resource instance to check against. */
       resource_id: string;
+      /** @description Resource type as defined in the authz schema. */
       resource_type: string;
       /** @description Explicit subject to check as. Defaults to the current session user. */
       user?: string | null;
@@ -957,31 +1250,49 @@ export interface components {
       checks: components["schemas"]["ChecksItem"][];
     };
     ChecksResponse: {
-      /** @description Results in the same order as the input checks. */
-      results: boolean[];
+      /** @description Results in the same order as the input `checks`. */
+      results: components["schemas"]["CheckResult"][];
     };
+    /** @description Current runtime configuration values. */
     ConfigResponse: {
+      /** @description Whether `POST /v1/tokens` is enabled for JWT issuance. */
       jwt_enabled: boolean;
-      /** Format: int32 */
+      /**
+       * Format: int32
+       * @description Seconds of inactivity before a session expires. Null means no idle timeout.
+       */
       session_idle_timeout_seconds?: number | null;
     };
+    /** @description Request body for TOTP confirmation and recovery-code regeneration. */
     ConfirmRequest: {
+      /** @description Current 6-digit TOTP code from the authenticator app. */
       code: string;
     };
+    /** @description Token-based confirmation of email ownership. */
     ConfirmVerificationRequest: {
+      /** @description The plaintext verification token from `POST /v1/emails/{id}/verifications`. */
       token: string;
     };
+    /** @description Returned when email verification succeeds. */
     ConfirmVerificationResponse: {
       /** Format: date-time */
       verified_at: string;
     };
+    /** @description Request to create an invitation to the org. */
     CreateInvitationRequest: {
+      /**
+       * @description Email address to address the invitation to. Omit for an open link invitation
+       *     that any user can accept.
+       */
       email?: string | null;
+      /** @description Role the invitee will receive on acceptance. */
       role: string;
     };
+    /** @description Request to create a new organization. */
     CreateOrgRequest: {
-      metadata?: unknown;
+      metadata: Record<string, never> | null;
       name: string;
+      /** @description URL-safe identifier. Defaults to a slugified version of `name` if omitted. */
       slug?: string | null;
     };
     CreateRequest: {
@@ -1006,47 +1317,88 @@ export interface components {
       last_used_at?: string | null;
       nickname?: string | null;
     };
+    /** @description Details of the session that authenticated the current request. */
     CurrentSessionResponse: {
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       expires_at: string;
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description Session ID.
+       */
       id: string;
+      /** @description IP address recorded at session creation, if available. */
       ip_address?: string | null;
-      /** Format: date-time */
+      /**
+       * Format: date-time
+       * @description Time the bearer token was last presented, updated on each authenticated request.
+       */
       last_used_at?: string | null;
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description ID of the underlying bearer token used to authenticate this request.
+       */
       token_id: string;
+      /** @description User-Agent recorded at session creation, if available. */
       user_agent?: string | null;
     };
+    DecisionCheck: {
+      permission: string;
+      resource_id: string;
+      resource_type: string;
+      /** @description Explicit subject to check as. Defaults to the current session user. */
+      user?: string | null;
+    };
+    /** @description Primary email address for the user. */
     EmailBody: {
       email: string;
       /** Format: uuid */
       id: string;
-      /** Format: date-time */
+      /**
+       * Format: date-time
+       * @description Null if the address has not been verified.
+       */
       verified_at?: string | null;
     };
+    /** @description An email address belonging to the authenticated user. */
     EmailRecord: {
       email: string;
       /** Format: uuid */
       id: string;
+      /** @description True for the address that appears in `AuthResponse.email` and receives system emails. */
       is_primary: boolean;
-      /** Format: date-time */
+      /**
+       * Format: date-time
+       * @description Null if the address has not been verified yet.
+       */
       verified_at?: string | null;
     };
+    /**
+     * @description TOTP enrollment data returned when starting enrollment. Pass `provisioning_uri` or
+     *     `qr_data_url` to an authenticator app, then confirm enrollment with a live TOTP code.
+     */
     EnrollmentResponse: {
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description Opaque factor identifier.
+       */
       factor_id: string;
+      /** @description `otpauth://` URI for QR code generation or direct authenticator import. */
       provisioning_uri: string;
+      /** @description Data URL (`data:image/png;base64,…`) of the provisioning QR code. */
       qr_data_url: string;
+      /** @description Single-use recovery codes. Store these securely — they are shown only once. */
       recovery_codes: string[];
+      /** @description Raw TOTP secret in base32 — for manual entry into an authenticator app. */
       secret_b32: string;
     };
     /** @description Wire-format error body returned on all non-2xx responses. */
     ErrorBody: {
       /** @description Machine-readable error code, e.g. `"invalid_credentials"`. */
       code: string;
+      /** @description Optional actionable guidance present on configuration-gate errors. */
+      hint?: string | null;
       /** @description Human-readable description. */
       message: string;
     };
@@ -1060,8 +1412,17 @@ export interface components {
       nickname?: string | null;
       state_token: string;
     };
+    GithubRedacted: {
+      client_id: string;
+    };
+    GoogleRedacted: {
+      client_id: string;
+    };
+    /** @description Health check response. */
     HealthzResponse: {
+      /** @description `"ok"` when healthy, `"degraded"` when the database is unreachable. */
       status: string;
+      /** @description Service version from `CARGO_PKG_VERSION`. */
       version: string;
     };
     HierarchyDef: {
@@ -1089,9 +1450,11 @@ export interface components {
        */
       user_id: string;
     };
+    /** @description An org invitation. On creation, `token` is populated — it is never returned again. */
     InvitationResponse: {
       /** Format: date-time */
       created_at: string;
+      /** @description Email address the invitation is addressed to, if any. Null for open link invitations. */
       email?: string | null;
       /** Format: date-time */
       expires_at: string;
@@ -1099,10 +1462,12 @@ export interface components {
       id: string;
       /** Format: uuid */
       org_id: string;
+      /** @description Role the invitee will receive on acceptance. */
       role: string;
-      /** @description Plaintext token — only present on creation, never returned again. */
+      /** @description Plaintext token — only present on creation, never returned again. Deliver this to the invitee. */
       token?: string | null;
     };
+    /** @description Public view of an invitation, shown to the invitee before they accept or decline. */
     InvitationViewResponse: {
       /** Format: date-time */
       expires_at: string;
@@ -1111,11 +1476,14 @@ export interface components {
       /** Format: uuid */
       org_id: string;
       org_name: string;
+      /** @description The role the invitee will receive on acceptance. */
       role: string;
     };
+    /** @description Cursor-paginated list of pending org invitations. */
     InvitationsResponse: {
       has_more: boolean;
       invitations: components["schemas"]["InvitationResponse"][];
+      /** @description Opaque cursor — pass as `after` to retrieve the next page. */
       next_page?: string | null;
     };
     IssueRequest: {
@@ -1125,18 +1493,24 @@ export interface components {
        *     `impersonated`) are always overwritten by the service and cannot be
        *     supplied here.
        */
-      claims?: {
-        [key: string]: unknown;
-      } | null;
+      claims?: Record<string, never> | null;
     };
+    /** @description A single JSON Web Key (Ed25519 public key in JWK format). */
     Jwk: {
+      /** @description Algorithm — always `"EdDSA"`. */
       alg: string;
+      /** @description Curve — always `"Ed25519"`. */
       crv: string;
+      /** @description Key ID matching the `kid` claim in issued JWTs. */
       kid: string;
+      /** @description Key type — always `"OKP"` for Ed25519. */
       kty: string;
+      /** @description Intended use — always `"sig"`. */
       use: string;
+      /** @description Base64url-encoded public key bytes. */
       x: string;
     };
+    /** @description JSON Web Key Set — the public keys used to verify JWTs issued by this service. */
     JwkSet: {
       keys: components["schemas"]["Jwk"][];
     };
@@ -1154,119 +1528,166 @@ export interface components {
     KeysResponse: {
       keys: components["schemas"]["Key"][];
     };
+    /**
+     * @description Returned when an OAuth callback links a provider identity to an existing account
+     *     rather than creating a new session.
+     */
     LinkCallbackResponse: {
       linked: boolean;
     };
-    LoginRequest:
-      | {
-        email: string;
-        /** @enum {string} */
-        grant_type: "password";
-        password: string;
-      }
-      | {
-        /** @enum {string} */
-        grant_type: "magic_link";
-        token: string;
-      }
-      | {
-        /** @enum {string} */
-        grant_type: "password_reset";
-        new_password: string;
-        token: string;
-      }
-      | {
-        /** @enum {string} */
-        grant_type: "email_change";
-        token: string;
-      }
-      | {
-        code: string;
-        /** @enum {string} */
-        grant_type: "totp_step_up";
-        step_up_token: string;
-      }
-      | {
-        code: string;
-        /** @enum {string} */
-        grant_type: "totp_recovery";
-        step_up_token: string;
-      }
-      | {
-        credential: Record<string, never>;
-        /** @enum {string} */
-        grant_type: "passkey";
-        state_token: string;
-      };
+    /** @description Credential payload for session creation. The `grant_type` field discriminates the variant. */
+    LoginRequest: {
+      email: string;
+      /** @enum {string} */
+      grant_type: "password";
+      password: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "magic_link";
+      /** @description The plaintext token from the magic-link response. */
+      token: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "password_reset";
+      new_password: string;
+      /** @description The plaintext token from the password-reset response. */
+      token: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "email_change";
+      /** @description The plaintext token from the email-change (`POST /v1/emails`) response. */
+      token: string;
+    } | {
+      /** @description Six-digit TOTP code from the authenticator app. */
+      code: string;
+      /** @enum {string} */
+      grant_type: "totp_step_up";
+      /** @description The `step_up_token` from the preceding 200 step-up response. */
+      step_up_token: string;
+    } | {
+      /** @description One of the recovery codes issued at TOTP enrollment or last regeneration. */
+      code: string;
+      /** @enum {string} */
+      grant_type: "totp_recovery";
+      /** @description The `step_up_token` from the preceding 200 step-up response. */
+      step_up_token: string;
+    } | {
+      /** @description WebAuthn `PublicKeyCredential` response from the browser's `navigator.credentials.get()`. */
+      credential: Record<string, never>;
+      /** @enum {string} */
+      grant_type: "passkey";
+      /** @description The `state_token` from the `POST /v1/passkey-authentications` response. */
+      state_token: string;
+    };
+    /** @description Request to issue a magic-link login token for a user. */
     MagicLinkRequest: {
+      /** @description The user's primary email address. */
       email: string;
     };
+    /**
+     * @description Magic-link token response. Pass `token` to `POST /v1/sessions` with
+     *     `grant_type=magic_link` to authenticate.
+     */
     MagicLinkResponse: {
       /** Format: date-time */
       expires_at: string;
       /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=magic_link`. */
       token: string;
     };
+    /** @description Current authenticated user context. */
     MeResponse: {
       email: components["schemas"]["EmailBody"];
+      /** @description The user's personal org. Multi-org memberships are listed via `GET /v1/orgs`. */
       org: components["schemas"]["OrgBody"];
       user: components["schemas"]["UserBody"];
     };
+    /** @description An org membership record. */
     MemberResponse: {
       /** Format: date-time */
       joined_at: string;
+      /** @description Role within this org, e.g. `"owner"` or `"member"`. */
       role: string;
       /** Format: uuid */
       user_id: string;
     };
+    /** @description Cursor-paginated list of org members. */
     MembersResponse: {
       has_more: boolean;
       members: components["schemas"]["MemberResponse"][];
+      /** @description Opaque cursor — pass as `after` to retrieve the next page. */
       next_page?: string | null;
     };
+    MicrosoftRedacted: {
+      client_id: string;
+      org: string;
+    };
+    /** @description Cursor-paginated list of resource IDs the subject can access. */
     ObjectsResponse: {
       has_more: boolean;
+      /** @description Opaque cursor — pass as `after` for the next page. */
       next_page?: string | null;
       object_ids: string[];
     };
+    OidcRedacted: {
+      client_id: string;
+      discovery_url: string;
+      id: string;
+      scopes: string[];
+    };
+    /** @description The user's personal org. */
     OrgBody: {
       /** Format: uuid */
       id: string;
       image_url?: string | null;
       name: string;
+      /** @description URL-safe identifier, unique across all orgs. */
       slug: string;
     };
+    /** @description An organization the authenticated user is a member of. */
     OrgResponse: {
       /** Format: date-time */
       created_at: string;
       /** Format: uuid */
       id: string;
       image_url?: string | null;
-      metadata: unknown;
+      /** @description Arbitrary JSON metadata. */
+      metadata: Record<string, never>;
       name: string;
+      /** @description URL-safe identifier, unique across all orgs. */
       slug: string;
     };
+    /** @description Cursor-paginated list of orgs. */
     OrgsResponse: {
       has_more: boolean;
+      /** @description Opaque cursor — pass as `after` to retrieve the next page. */
       next_page?: string | null;
       orgs: components["schemas"]["OrgResponse"][];
     };
+    /** @description One-time token response for flows that require a follow-up session grant. */
     OttTokenResponse: {
       /** Format: date-time */
       expires_at: string;
       /** @description One-time token to use in the corresponding session grant. */
       token: string;
     };
+    /** @description Request to issue a password-reset token for a user. */
     PasswordResetRequest: {
+      /** @description The user's primary email address. */
       email: string;
     };
+    /**
+     * @description Password-reset token response. Pass `token` to `POST /v1/sessions` with
+     *     `grant_type=password_reset` along with the new password to complete the reset.
+     */
     PasswordResetResponse: {
       /** Format: date-time */
       expires_at: string;
       /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=password_reset`. */
       token: string;
     };
+    /** @description Freshly generated TOTP recovery codes. */
     RecoveryCodesResponse: {
+      /** @description New single-use recovery codes. All previous codes are immediately invalidated. */
       recovery_codes: string[];
     };
     RegisteredCredential: {
@@ -1276,18 +1697,27 @@ export interface components {
       id: string;
       nickname?: string | null;
     };
+    /** @description The resource side of a relation tuple. */
     RelationObject: {
+      /** @description Unique identifier for this resource instance. */
       id: string;
+      /** @description Resource type as defined in the authz schema. */
       type: string;
     };
+    /** @description A relation tuple: `(object, relation, subject)`. */
     RelationRequest: {
       object: components["schemas"]["RelationObject"];
+      /** @description The relation name as defined in the authz schema (e.g. `"owner"`, `"member"`). */
       relation: string;
       subject: components["schemas"]["RelationSubject"];
     };
+    /** @description The subject (actor) side of a relation tuple. */
     RelationSubject: {
+      /** @description Subject ID — typically a user ID or another resource ID for subject sets. */
       id: string;
+      /** @description For subject sets: the relation on the subject resource that grants membership. */
       relation?: string | null;
+      /** @description For subject sets: the type of the subject resource. Omit for direct user subjects. */
       type?: string | null;
     };
     ResourceDef: {
@@ -1296,13 +1726,18 @@ export interface components {
       permissions: {
         [key: string]: string[];
       };
-      role_inheritance?: components["schemas"]["RoleEdge"][];
+      role_inheritance?: components["schemas"]["RoleInheritanceEntry"][];
       roles: string[];
     };
-    RoleEdge: {
+    /**
+     * @description One entry in a resource's role inheritance list.
+     *     `superior` subsumes `inferior`: a subject holding `superior` implicitly holds `inferior`.
+     */
+    RoleInheritanceEntry: {
       inferior: string;
       superior: string;
     };
+    /** @description Session credential returned on login or signup. */
     SessionBody: {
       /** Format: date-time */
       expires_at: string;
@@ -1327,25 +1762,37 @@ export interface components {
       token_id: string;
       user_agent?: string | null;
     };
+    /** @description Paginated list of active sessions for the authenticated user. */
     SessionsResponse: {
       sessions: components["schemas"]["SessionListItem"][];
     };
+    /** @description Registration request. Creates a user, a personal org, and a session in one call. */
     SignupRequest: {
+      /** @description Display name for the user's personal org. Defaults to the local part of the email. */
       display_name?: string | null;
       email: string;
       password: string;
     };
+    /**
+     * @description MFA method required to complete authentication.
+     * @enum {string}
+     */
+    StepUpKind: "totp";
     /** @description Returned when the user has TOTP enrolled — caller must complete the step-up flow. */
     StepUpResponse: {
-      /** @description The MFA method required, e.g. `"totp"`. */
-      step_up_required: string;
+      /** @description The MFA method required to complete authentication. */
+      step_up_required: components["schemas"]["StepUpKind"];
       /** @description Short-lived signed token to present when completing the step-up. */
       step_up_token: string;
     };
+    /** @description A subject (actor) with the relation through which they hold access. */
     Subject: {
+      /** @description Subject ID. */
       id: string;
+      /** @description The direct relation through which this subject was found. */
       relation: string;
     };
+    /** @description Subjects who hold the queried relation or permission on a resource. */
     SubjectsResponse: {
       subjects: components["schemas"]["Subject"][];
     };
@@ -1363,50 +1810,86 @@ export interface components {
       refresh_token?: string | null;
       token_type: string;
     };
+    /** @description Trace result explaining why a permission check returned its outcome. */
     TraceResponse: {
+      /** @description Whether the specified user has the permission on the resource. */
       allowed: boolean;
+      /** @description All subjects found during expansion — check if `user` appears here to understand the grant. */
       subjects: components["schemas"]["Subject"][];
     };
     /**
      * @description Partial config update. Only fields explicitly set are updated.
      *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
+     *     Partial config update. Only fields present in the body are changed.
+     *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
      */
     UpdateConfigRequest: {
+      /** @description When true, `POST /v1/tokens` issues JWT access tokens. */
       jwt_enabled?: boolean | null;
-      /** Format: int32 */
+      /**
+       * Format: int32
+       * @description Seconds of inactivity before a session is considered expired.
+       *     Omit to leave unchanged. Send `null` to disable (no idle timeout).
+       * @example 3600
+       */
       session_idle_timeout_seconds?: number | null;
     };
+    /** @description Request to rename a registered passkey credential. */
     UpdateCredentialRequest: {
+      /** @description Human-readable label shown in credential lists. */
       nickname: string;
     };
+    /**
+     * @description Request to change the password for an existing password identity.
+     *     Requires the current password as proof of possession.
+     */
     UpdateIdentityRequest: {
+      /** @description The existing password — must be correct or the request is rejected with 401. */
       current_password: string;
       new_password: string;
     };
+    /**
+     * @description Partial update for the user's personal org. All fields are optional; omitted fields
+     *     are left unchanged.
+     */
     UpdateMeRequest: {
       image_url?: string | null;
-      metadata?: unknown;
+      /** @description Arbitrary JSON merged into the org's metadata field (full replacement, not merge). */
+      metadata: Record<string, never> | null;
+      /** @description Display name for the user and their personal org. */
       name?: string | null;
+      /** @description URL-safe org identifier. Must be unique. Returns 409 if already taken. */
       slug?: string | null;
     };
+    /** @description Request to change a member's role. */
     UpdateMemberRequest: {
+      /** @description New role for the member, e.g. `"owner"` or `"member"`. */
       role: string;
     };
+    /** @description Partial org update. Omitted fields are left unchanged. */
     UpdateOrgRequest: {
       image_url?: string | null;
-      metadata?: unknown;
+      /** @description Full replacement of the org's metadata field. */
+      metadata: Record<string, never> | null;
       name?: string | null;
+      /** @description URL-safe identifier. Returns 409 if already taken. */
       slug?: string | null;
     };
+    /** @description Core user fields. */
     UserBody: {
       /** Format: date-time */
       created_at: string;
       /** Format: uuid */
       id: string;
       image_url?: string | null;
-      metadata: unknown;
+      /** @description Arbitrary JSON metadata stored on the personal org. */
+      metadata: Record<string, never>;
+      /** @description Display name (mirrors the personal org name). */
       name: string;
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description ID of the user's personal org. Always present; created at signup.
+       */
       primary_org_id: string;
     };
   };
@@ -1450,6 +1933,7 @@ export interface operations {
       query: {
         object_type: string;
         object_id: string;
+        /** @description The relation to expand (e.g. `"owner"`). */
         relation: string;
       };
       header?: never;
@@ -1568,7 +2052,65 @@ export interface operations {
       };
     };
   };
-  search: {
+  admin_get_oauth_providers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminOAuthResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_set_oauth_providers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AdminOAuthRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminOAuthResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_search_users: {
     parameters: {
       query?: {
         /** @description Look up by primary email address (case-insensitive). */
@@ -1606,7 +2148,7 @@ export interface operations {
       };
     };
   };
-  get_by_id: {
+  admin_get_user: {
     parameters: {
       query?: never;
       header?: never;
@@ -1636,7 +2178,7 @@ export interface operations {
       };
     };
   };
-  delete_sessions: {
+  admin_delete_user_sessions: {
     parameters: {
       query?: never;
       header?: never;
@@ -1728,8 +2270,11 @@ export interface operations {
       query: {
         /** @description Explicit subject to check as. Defaults to the current session user. */
         user?: string | null;
+        /** @description Permission name as defined in the authz schema (e.g. `"read"`, `"edit"`). */
         permission: string;
+        /** @description Resource type as defined in the authz schema. */
         resource_type: string;
+        /** @description ID of the resource instance to check against. */
         resource_id: string;
       };
       header?: never;
@@ -1778,10 +2323,12 @@ export interface operations {
   list_objects: {
     parameters: {
       query: {
+        /** @description Explicit subject to list objects for. Defaults to the current session user. */
         user?: string | null;
         permission: string;
         resource_type: string;
         limit?: number | null;
+        /** @description Opaque pagination cursor from a previous response's `next_page`. */
         after?: string | null;
       };
       header?: never;
@@ -1977,6 +2524,7 @@ export interface operations {
       query: {
         resource_type: string;
         resource_id: string;
+        /** @description The permission to expand (e.g. `"edit"`). Resolves through the role hierarchy. */
         permission: string;
       };
       header?: never;
@@ -2016,6 +2564,7 @@ export interface operations {
   why_check: {
     parameters: {
       query: {
+        /** @description Subject ID to trace access for. */
         user: string;
         permission: string;
         resource_type: string;
@@ -2082,7 +2631,7 @@ export interface operations {
       };
     };
   };
-  add: {
+  initiate_email_change: {
     parameters: {
       query?: never;
       header?: never;
@@ -2122,7 +2671,7 @@ export interface operations {
       };
     };
   };
-  confirm_verification: {
+  confirm_email_verification: {
     parameters: {
       query?: never;
       header?: never;
@@ -2163,7 +2712,7 @@ export interface operations {
       };
     };
   };
-  make_primary: {
+  set_primary_email: {
     parameters: {
       query?: never;
       header?: never;
@@ -2201,7 +2750,7 @@ export interface operations {
       };
     };
   };
-  remove: {
+  remove_email: {
     parameters: {
       query?: never;
       header?: never;
@@ -2247,7 +2796,7 @@ export interface operations {
       };
     };
   };
-  create_verification: {
+  create_email_verification: {
     parameters: {
       query?: never;
       header?: never;
@@ -2313,7 +2862,7 @@ export interface operations {
       };
     };
   };
-  add_password: {
+  add_password_identity: {
     parameters: {
       query?: never;
       header?: never;
@@ -2362,7 +2911,7 @@ export interface operations {
       };
     };
   };
-  unlink: {
+  unlink_identity: {
     parameters: {
       query?: never;
       header?: never;
@@ -2407,7 +2956,7 @@ export interface operations {
       };
     };
   };
-  update: {
+  update_identity: {
     parameters: {
       query?: never;
       header?: never;
@@ -2456,7 +3005,7 @@ export interface operations {
       };
     };
   };
-  view_invitation: {
+  get_invitation: {
     parameters: {
       query: {
         /** @description Plaintext invitation token */
@@ -2680,7 +3229,7 @@ export interface operations {
       };
     };
   };
-  delete: {
+  delete_key: {
     parameters: {
       query?: never;
       header?: never;
@@ -2749,7 +3298,7 @@ export interface operations {
       };
     };
   };
-  apple_callback: {
+  apple_oauth_callback: {
     parameters: {
       query?: never;
       header?: never;
@@ -2783,7 +3332,7 @@ export interface operations {
       };
     };
   };
-  authorize: {
+  oauth_authorize: {
     parameters: {
       query: {
         /** @description URL to redirect to after authentication */
@@ -2817,7 +3366,7 @@ export interface operations {
       };
     };
   };
-  callback: {
+  oauth_callback: {
     parameters: {
       query: {
         /** @description Authorization code from provider */
@@ -3051,7 +3600,7 @@ export interface operations {
       };
     };
   };
-  list_invitations: {
+  list_org_invitations: {
     parameters: {
       query?: {
         after?: string | null;
@@ -3205,7 +3754,7 @@ export interface operations {
       };
     };
   };
-  list_members: {
+  list_org_members: {
     parameters: {
       query?: {
         after?: string | null;
@@ -3246,7 +3795,7 @@ export interface operations {
       };
     };
   };
-  remove_member: {
+  remove_org_member: {
     parameters: {
       query?: never;
       header?: never;
@@ -3293,7 +3842,7 @@ export interface operations {
       };
     };
   };
-  update_member: {
+  update_org_member: {
     parameters: {
       query?: never;
       header?: never;
@@ -3569,7 +4118,7 @@ export interface operations {
       };
     };
   };
-  login: {
+  create_session: {
     parameters: {
       query?: never;
       header?: never;
@@ -3652,7 +4201,7 @@ export interface operations {
       };
     };
   };
-  get_current: {
+  get_current_session: {
     parameters: {
       query?: never;
       header?: never;
@@ -3687,7 +4236,7 @@ export interface operations {
       };
     };
   };
-  delete_current: {
+  revoke_current_session: {
     parameters: {
       query?: never;
       header?: never;
@@ -3713,7 +4262,7 @@ export interface operations {
       };
     };
   };
-  delete_by_id: {
+  revoke_session: {
     parameters: {
       query?: never;
       header?: never;
@@ -3790,7 +4339,7 @@ export interface operations {
       };
     };
   };
-  begin_enrollment: {
+  begin_totp_enrollment: {
     parameters: {
       query?: never;
       header?: never;
@@ -3817,7 +4366,7 @@ export interface operations {
       };
     };
   };
-  disable: {
+  disable_totp: {
     parameters: {
       query?: never;
       header?: never;
@@ -3843,7 +4392,7 @@ export interface operations {
       };
     };
   };
-  confirm_enrollment: {
+  confirm_totp_enrollment: {
     parameters: {
       query?: never;
       header?: never;
@@ -3873,7 +4422,7 @@ export interface operations {
       };
     };
   };
-  regenerate_recovery_codes: {
+  regenerate_totp_recovery_codes: {
     parameters: {
       query?: never;
       header?: never;
@@ -3913,7 +4462,7 @@ export interface operations {
       };
     };
   };
-  signup: {
+  create_user: {
     parameters: {
       query?: never;
       header?: never;

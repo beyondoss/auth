@@ -749,7 +749,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
       assertOk(error, response);
       return checks.map((c, i) => ({
         ...c,
-        allowed: data.results[i] ?? false,
+        allowed: data.results[i]?.allowed ?? false,
       }));
     },
 
@@ -768,7 +768,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
       assertOk(error, response);
       return checks.map((c, i) => ({
         ...c,
-        allowed: data.results[i] ?? false,
+        allowed: data.results[i]?.allowed ?? false,
       }));
     },
 

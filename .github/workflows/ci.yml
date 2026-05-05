@@ -23,7 +23,7 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: jdx/mise-action@v4
       - uses: Swatinem/rust-cache@v2
       - name: install postgres 18 dev headers
@@ -46,23 +46,38 @@ jobs:
             "${POSTGRES_CONTAINER}:${PGLIB}/authz_extension.so"
       - name: migrate
         run: mise run migrate
-      - name: install rust components
-        run: rustup component add rustfmt clippy
-      - name: fmt
-        run: dprint check
-      - name: clippy
-        run: cargo clippy -- -D warnings
-      - name: test
-        run: cargo test
-      - name: sdk:ts typecheck
-        run: mise run sdk:ts:typecheck
-      - name: build
-        run: mise run build:release
-      - name: sdk:ts test
+      - name: check:fmt
+        run: mise run check:fmt
+      - name: check:rs
+        run: mise run check:rs
+      - name: test:unit:rs
+        run: mise run test:unit:rs
+      - name: test:integration:rs
+        run: mise run test:integration:rs
+      - name: check:ts
+        run: mise run check:ts
+      - name: build:rs:release
+        run: mise run build:rs:release
+      - name: build:ts
+        run: mise run build:ts
+      - name: test:integration:ts
         env:
           BEYOND_AUTH_BINARY: ${{ github.workspace }}/target/release/beyond-auth
-        run: mise run sdk:ts:test
+        run: mise run test:integration:ts
       - name: audit
         run: |
           cargo install cargo-audit --quiet
           cargo audit
+  generate-check:
+    name: generated files up-to-date
+    runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: generate
+        run: mise run generate:openapi && mise run generate:types
+      - name: check no diff
+        run: git diff --exit-code -- openapi/v1.json sdk/ts/src/types.ts

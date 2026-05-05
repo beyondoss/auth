@@ -99,12 +99,15 @@ pub struct CurrentSessionResponse {
     /// ID of the underlying bearer token used to authenticate this request.
     pub token_id: Uuid,
     /// IP address recorded at session creation, if available.
+    #[schema(nullable)]
     pub ip_address: Option<String>,
     /// User-Agent recorded at session creation, if available.
+    #[schema(nullable)]
     pub user_agent: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub expires_at: chrono::DateTime<chrono::Utc>,
     /// Time the bearer token was last presented, updated on each authenticated request.
+    #[schema(nullable)]
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 

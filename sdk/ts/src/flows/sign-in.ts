@@ -1,79 +1,56 @@
 import type { Client } from "openapi-fetch";
 import type { components, paths } from "../types.js";
-import { camelize, snakenize } from "../utils/camelize.js";
+import { snakenize } from "../utils/camelize.js";
 import type { Camelize } from "../utils/camelize.js";
-import { throwServiceError } from "../utils/error.js";
+import { wrap } from "../utils/wrap.js";
 import type { AuthResponse } from "./sign-up.js";
 
 export type SignInRequest = Camelize<components["schemas"]["LoginRequest"]>;
 export type StepUpResponse = Camelize<components["schemas"]["StepUpResponse"]>;
-export type BeginPasskeyAuthResponse = Camelize<
+export type PasskeyAuthChallenge = Camelize<
   components["schemas"]["BeginResponse"]
 >;
 
-export async function signIn(
-  client: Client<paths>,
-  body: SignInRequest,
-): Promise<AuthResponse | StepUpResponse> {
-  const { data, error, response } = await client.POST("/v1/sessions", {
+export const signIn = (client: Client<paths>, body: SignInRequest) =>
+  wrap(client.POST("/v1/sessions", {
     body: snakenize(
       body as Record<string, unknown>,
     ) as components["schemas"]["LoginRequest"],
-  });
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!);
-}
+  }));
 
-export async function beginPasskeyAuth(
-  client: Client<paths>,
-): Promise<BeginPasskeyAuthResponse> {
-  const { data, error, response } = await client.POST(
-    "/v1/passkey-authentications",
-    {},
-  );
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!);
-}
+export const beginPasskeyAuth = (client: Client<paths>) =>
+  wrap(client.POST("/v1/passkey-authentications", {}));
 
-export async function completeTotpStepUp(
+export const completeTotpStepUp = (
   client: Client<paths>,
   stepUpToken: string,
   code: string,
-): Promise<AuthResponse> {
-  const { data, error, response } = await client.POST("/v1/sessions", {
+) =>
+  wrap(client.POST("/v1/sessions", {
     body: { grant_type: "totp_step_up", step_up_token: stepUpToken, code },
-  });
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!) as AuthResponse;
-}
+  }));
 
-export async function completeTotpRecovery(
+export const completeTotpRecovery = (
   client: Client<paths>,
   stepUpToken: string,
   code: string,
-): Promise<AuthResponse> {
-  const { data, error, response } = await client.POST("/v1/sessions", {
+) =>
+  wrap(client.POST("/v1/sessions", {
     body: { grant_type: "totp_recovery", step_up_token: stepUpToken, code },
-  });
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!) as AuthResponse;
-}
+  }));
 
-export async function finishPasskeyAuth(
+export const finishPasskeyAuth = (
   client: Client<paths>,
   stateToken: string,
   credential: Record<string, unknown>,
-): Promise<AuthResponse> {
-  const { data, error, response } = await client.POST("/v1/sessions", {
+) =>
+  wrap(client.POST("/v1/sessions", {
     body: {
       grant_type: "passkey",
       state_token: stateToken,
       credential,
     } as components["schemas"]["LoginRequest"],
-  });
-  if (error !== undefined) throwServiceError(error, response);
-  return camelize(data!) as AuthResponse;
-}
+  }));
 
 /**
  * Type guard — returns `true` when `signIn` returned a step-up challenge
@@ -81,8 +58,8 @@ export async function finishPasskeyAuth(
  *
  * @example
  * ```ts
- * const result = await flows.signIn({ grantType: 'password', email, password })
- * if (isStepUpResponse(result)) {
+ * const { data: result } = await flows.signIn({ grantType: 'password', email, password })
+ * if (isStepUpResponse(result!)) {
  *   // TOTP required — redirect to /verify-totp with result.stepUpToken
  * } else {
  *   // result.session.token — set cookie and proceed

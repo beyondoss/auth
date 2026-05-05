@@ -11,24 +11,26 @@ function flows() {
 describe("signUp", () => {
   it("creates a user and returns a session", async () => {
     const email = uniqueEmail();
-    const auth = await flows().signUp({
+    const { data: auth } = await flows().signUp({
       email,
       password: "correct-horse-battery-staple",
     });
-    expect(auth.user.id).toBeDefined();
-    expect(auth.user.primaryOrgId).toBeDefined();
-    expect(auth.email.email).toBe(email);
-    expect(auth.session.token).toBeDefined();
-    expect(auth.session.expiresAt).toBeDefined();
-    expect(auth.org.id).toBeDefined();
+    expect(auth?.user.id).toBeDefined();
+    expect(auth?.user.primaryOrgId).toBeDefined();
+    expect(auth?.email.email).toBe(email);
+    expect(auth?.session.token).toBeDefined();
+    expect(auth?.session.expiresAt).toBeDefined();
+    expect(auth?.org.id).toBeDefined();
   });
 
-  it("throws AuthServiceError on duplicate email", async () => {
+  it("returns AuthServiceError(409) on duplicate email", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
-    await expect(
-      flows().signUp({ email, password: "another-password" }),
-    ).rejects.toSatisfy(
+    const { error } = await flows().signUp({
+      email,
+      password: "another-password",
+    });
+    expect(error).toSatisfy(
       (e: unknown) => e instanceof AuthServiceError && e.status === 409,
     );
   });
@@ -38,24 +40,27 @@ describe("signIn", () => {
   it("signs in with password and returns a session", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
-    const result = await flows().signIn({
+    const { data: result } = await flows().signIn({
       grantType: "password",
       email,
       password: "correct-horse-battery-staple",
     });
-    expect("session" in result).toBe(true);
-    if ("session" in result) {
+    expect("session" in result!).toBe(true);
+    if (result && "session" in result) {
       expect(result.session.token).toBeDefined();
       expect(result.user.id).toBeDefined();
     }
   });
 
-  it("throws AuthServiceError on wrong password", async () => {
+  it("returns AuthServiceError(401) on wrong password", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
-    await expect(
-      flows().signIn({ grantType: "password", email, password: "wrong" }),
-    ).rejects.toSatisfy(
+    const { error } = await flows().signIn({
+      grantType: "password",
+      email,
+      password: "wrong",
+    });
+    expect(error).toSatisfy(
       (e: unknown) => e instanceof AuthServiceError && e.status === 401,
     );
   });
@@ -65,21 +70,23 @@ describe("requestMagicLink + signIn magic_link", () => {
   it("issues and redeems a magic link", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
-    const { token, expiresAt } = await flows().requestMagicLink(email);
-    expect(token).toBeDefined();
-    expect(expiresAt).toBeDefined();
+    const { data: ml } = await flows().requestMagicLink(email);
+    expect(ml?.token).toBeDefined();
+    expect(ml?.expiresAt).toBeDefined();
 
-    const auth = await flows().signIn({ grantType: "magic_link", token });
-    expect("session" in auth).toBe(true);
-    if ("session" in auth) {
+    const { data: auth } = await flows().signIn({
+      grantType: "magic_link",
+      token: ml!.token,
+    });
+    expect("session" in auth!).toBe(true);
+    if (auth && "session" in auth) {
       expect(auth.user.id).toBeDefined();
     }
   });
 
-  it("throws AuthServiceError for unknown email", async () => {
-    await expect(
-      flows().requestMagicLink(uniqueEmail()),
-    ).rejects.toSatisfy(
+  it("returns AuthServiceError(404) for unknown email", async () => {
+    const { error } = await flows().requestMagicLink(uniqueEmail());
+    expect(error).toSatisfy(
       (e: unknown) => e instanceof AuthServiceError && e.status === 404,
     );
   });
@@ -89,22 +96,21 @@ describe("requestPasswordReset + signIn password_reset", () => {
   it("issues and redeems a password reset token", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
-    const { token, expiresAt } = await flows().requestPasswordReset(email);
-    expect(token).toBeDefined();
-    expect(expiresAt).toBeDefined();
+    const { data: pr } = await flows().requestPasswordReset(email);
+    expect(pr?.token).toBeDefined();
+    expect(pr?.expiresAt).toBeDefined();
 
-    const auth = await flows().signIn({
+    const { data: auth } = await flows().signIn({
       grantType: "password_reset",
-      token,
+      token: pr!.token,
       newPassword: "new-horse-battery-staple",
     });
-    expect("session" in auth).toBe(true);
+    expect("session" in auth!).toBe(true);
   });
 
-  it("throws AuthServiceError for unknown email", async () => {
-    await expect(
-      flows().requestPasswordReset(uniqueEmail()),
-    ).rejects.toSatisfy(
+  it("returns AuthServiceError(404) for unknown email", async () => {
+    const { error } = await flows().requestPasswordReset(uniqueEmail());
+    expect(error).toSatisfy(
       (e: unknown) => e instanceof AuthServiceError && e.status === 404,
     );
   });
@@ -112,20 +118,20 @@ describe("requestPasswordReset + signIn password_reset", () => {
 
 describe("beginPasskeyAuth", () => {
   it("returns WebAuthn options and a state token", async () => {
-    const result = await flows().beginPasskeyAuth();
-    expect(result.options).toBeDefined();
-    expect(result.stateToken).toBeDefined();
+    const { data: result } = await flows().beginPasskeyAuth();
+    expect(result?.options).toBeDefined();
+    expect(result?.stateToken).toBeDefined();
   });
 });
 
 describe("signOut", () => {
   it("signs out the current session", async () => {
     const email = uniqueEmail();
-    const auth = await flows().signUp({
+    const { data: auth } = await flows().signUp({
       email,
       password: "correct-horse-battery-staple",
     });
-    const token = auth.session.token;
+    const token = auth!.session.token;
 
     await flows().signOut(token);
 
@@ -137,51 +143,51 @@ describe("signOut", () => {
 describe("signOutAll", () => {
   it("signs out all sessions", async () => {
     const email = uniqueEmail();
-    const auth = await flows().signUp({
+    const { data: auth } = await flows().signUp({
       email,
       password: "correct-horse-battery-staple",
     });
-    await flows().signOutAll(auth.session.token);
+    await flows().signOutAll(auth!.session.token);
 
     const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-    expect(await verifier.verify(auth.session.token)).toBeNull();
+    expect(await verifier.verify(auth!.session.token)).toBeNull();
   });
 
   it("signs out all sessions except current", async () => {
     const email = uniqueEmail();
-    const auth = await flows().signUp({
+    const { data: auth } = await flows().signUp({
       email,
       password: "correct-horse-battery-staple",
     });
-    await flows().signOutAll(auth.session.token, { exceptCurrent: true });
+    await flows().signOutAll(auth!.session.token, { exceptCurrent: true });
 
     const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-    expect(await verifier.verify(auth.session.token)).not.toBeNull();
+    expect(await verifier.verify(auth!.session.token)).not.toBeNull();
   });
 });
 
 describe("issueToken", () => {
   it("issues a JWT access token", async () => {
     const email = uniqueEmail();
-    const auth = await flows().signUp({
+    const { data: auth } = await flows().signUp({
       email,
       password: "correct-horse-battery-staple",
     });
-    const token = await flows().issueToken(auth.session.token);
-    expect(token.accessToken).toBeDefined();
-    expect(token.tokenType).toBe("Bearer");
-    expect(token.expiresIn).toBeGreaterThan(0);
+    const { data: token } = await flows().issueToken(auth!.session.token);
+    expect(token?.accessToken).toBeDefined();
+    expect(token?.tokenType).toBe("Bearer");
+    expect(token?.expiresIn).toBeGreaterThan(0);
   });
 
   it("includes custom claims", async () => {
     const email = uniqueEmail();
-    const auth = await flows().signUp({
+    const { data: auth } = await flows().signUp({
       email,
       password: "correct-horse-battery-staple",
     });
-    const token = await flows().issueToken(auth.session.token, {
+    const { data: token } = await flows().issueToken(auth!.session.token, {
       role: "admin",
     });
-    expect(token.accessToken).toBeDefined();
+    expect(token?.accessToken).toBeDefined();
   });
 });

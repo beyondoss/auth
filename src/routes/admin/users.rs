@@ -15,10 +15,13 @@ pub struct AdminUserResponse {
     pub id: Uuid,
     pub primary_org_id: Uuid,
     pub primary_email_id: Uuid,
+    #[schema(nullable)]
     pub email: Option<String>,
+    #[schema(nullable)]
     pub email_verified_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     /// Set when the user has been soft-deleted; null for active accounts.
+    #[schema(nullable)]
     pub deleted_at: Option<DateTime<Utc>>,
 }
 

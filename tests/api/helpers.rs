@@ -80,17 +80,26 @@ pub fn test_env() -> &'static TestEnv {
                 // migration's LANGUAGE C function declarations can resolve the library.
                 // The .so is built by `mise run extension:build:linux` (ARM64) or
                 // `extension:build:linux:x86` (x86_64) and lives under target/.
+                // Match the container platform to the host arch so the .so ELF
+                // format is compatible with the postgres process inside the container.
+                let (linux_platform, cross_so_prefix) = if cfg!(target_arch = "aarch64") {
+                    ("linux/arm64", "aarch64-unknown-linux-gnu")
+                } else {
+                    ("linux/amd64", "x86_64-unknown-linux-gnu")
+                };
+
                 let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
                 let so_path = [
-                    "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
-                    "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
+                    &format!("target/{cross_so_prefix}/release/libauthz_extension.so"),
                     "target/release/libauthz_extension.so",
                 ]
                 .iter()
                 .map(|p| manifest_dir.join(p))
                 .find(|p| p.exists());
 
-                let pg = Postgres::default().with_tag("18");
+                let pg = Postgres::default()
+                    .with_tag("18")
+                    .with_platform(linux_platform);
                 let container = match so_path {
                     Some(path) => pg
                         .with_copy_to(

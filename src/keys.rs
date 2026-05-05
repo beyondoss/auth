@@ -20,6 +20,7 @@ pub struct Key {
     pub id: Uuid,
     pub name: String,
     pub created_at: DateTime<Utc>,
+    #[schema(nullable)]
     pub last_used_at: Option<DateTime<Utc>>,
     pub expires_at: DateTime<Utc>,
 }

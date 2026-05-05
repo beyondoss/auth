@@ -2,7 +2,11 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createAuthClient } from "../client.js";
 import { AuthServiceError } from "../errors.js";
-import { createAuthFlowClient, isStepUpResponse } from "../flows/index.js";
+import {
+  type AuthResponse,
+  createAuthFlowClient,
+  isStepUpResponse,
+} from "../flows/index.js";
 import { getBaseUrl, signup, uniqueEmail } from "./harness.js";
 
 function base32Decode(s: string): Buffer {
@@ -39,15 +43,12 @@ function computeTotp(secretB32: string, window = 0): string {
 async function totpConfirm(
   client: ReturnType<typeof createAuthClient>,
   secretB32: string,
-): Promise<ReturnType<(typeof client)["totp"]["confirm"]>> {
-  try {
-    return await client.totp.confirm(computeTotp(secretB32));
-  } catch (e) {
-    if (e instanceof AuthServiceError && e.code === "invalid_totp_code") {
-      return await client.totp.confirm(computeTotp(secretB32, 1));
-    }
-    throw e;
+) {
+  const result = await client.totp.confirm(computeTotp(secretB32));
+  if (result.error?.code === "invalid_totp_code") {
+    return client.totp.confirm(computeTotp(secretB32, 1));
   }
+  return result;
 }
 
 function flows() {
@@ -67,21 +68,22 @@ async function newUser() {
 describe("me", () => {
   it("get returns the current user", async () => {
     const { email, auth, client } = await newUser();
-    const me = await client.me.get();
-    expect(me.user.id).toBe(auth.user.id);
-    expect(me.email.email).toBe(email);
+    const { data: me } = await client.me.get();
+    expect(me!.user.id).toBe(auth.user.id);
+    expect(me!.email.email).toBe(email);
   });
 
   it("update reflects changes on subsequent get", async () => {
     const { client } = await newUser();
     await client.me.update({ name: "Test User" });
-    const me = await client.me.get();
-    expect(me.user.name).toBe("Test User");
+    const { data: me } = await client.me.get();
+    expect(me?.user.name).toBe("Test User");
   });
 
   it("delete removes the account", async () => {
     const { client } = await newUser();
-    await expect(client.me.delete()).resolves.toBeUndefined();
+    const { error } = await client.me.delete();
+    expect(error).toBeUndefined();
   });
 });
 
@@ -114,9 +116,9 @@ describe("emails", () => {
 
   it("add returns a token and expiresAt", async () => {
     const { client } = await newUser();
-    const result = await client.emails.add(uniqueEmail());
-    expect(result.token).toBeDefined();
-    expect(result.expiresAt).toBeDefined();
+    const { data: result } = await client.emails.add(uniqueEmail());
+    expect(result?.token).toBeDefined();
+    expect(result?.expiresAt).toBeDefined();
   });
 
   it("delete removes an unverified email from the list", async () => {
@@ -137,77 +139,77 @@ describe("emails", () => {
 describe("totp", () => {
   it("enroll returns provisioning URI, QR URL, secret, and recovery codes", async () => {
     const { client } = await newUser();
-    const result = await client.totp.enroll();
-    expect(result.factorId).toBeDefined();
-    expect(result.provisioningUri).toBeDefined();
-    expect(result.qrDataUrl).toBeDefined();
-    expect(result.secretB32).toBeDefined();
-    expect(Array.isArray(result.recoveryCodes)).toBe(true);
-    expect(result.recoveryCodes.length).toBeGreaterThan(0);
+    const { data: result } = await client.totp.enroll();
+    expect(result?.factorId).toBeDefined();
+    expect(result?.provisioningUri).toBeDefined();
+    expect(result?.qrDataUrl).toBeDefined();
+    expect(result?.secretB32).toBeDefined();
+    expect(Array.isArray(result?.recoveryCodes)).toBe(true);
+    expect(result?.recoveryCodes.length).toBeGreaterThan(0);
   });
 
   it("confirm completes enrollment and subsequent sign-in requires step-up", async () => {
     const { email, client } = await newUser();
-    const { secretB32 } = await client.totp.enroll();
-    await totpConfirm(client, secretB32);
+    const { data: enrollment } = await client.totp.enroll();
+    await totpConfirm(client, enrollment!.secretB32);
 
-    const result = await flows().signIn({
+    const { data: signInData } = await flows().signIn({
       grantType: "password",
       email,
       password: "correct-horse-battery-staple",
     });
-    expect(isStepUpResponse(result)).toBe(true);
-    expect("stepUpToken" in result).toBe(true);
+    expect(isStepUpResponse(signInData!)).toBe(true);
+    expect("stepUpToken" in signInData!).toBe(true);
   });
 
   it("step-up with correct TOTP code returns a full session", async () => {
     const { email, client } = await newUser();
-    const { secretB32 } = await client.totp.enroll();
-    await totpConfirm(client, secretB32);
+    const { data: enrollment } = await client.totp.enroll();
+    await totpConfirm(client, enrollment!.secretB32);
 
-    const signInResult = await flows().signIn({
+    const { data: signInData } = await flows().signIn({
       grantType: "password",
       email,
       password: "correct-horse-battery-staple",
     });
-    expect(isStepUpResponse(signInResult)).toBe(true);
-    if (!isStepUpResponse(signInResult)) return;
+    expect(isStepUpResponse(signInData!)).toBe(true);
+    if (!isStepUpResponse(signInData!)) return;
 
-    const code = computeTotp(secretB32);
-    let auth;
-    try {
-      auth = await flows().completeTotpStepUp(signInResult.stepUpToken, code);
-    } catch (e) {
-      if (e instanceof AuthServiceError && e.code === "invalid_totp_code") {
-        auth = await flows().completeTotpStepUp(
-          signInResult.stepUpToken,
-          computeTotp(secretB32, 1),
-        );
-      } else {
-        throw e;
-      }
+    const code = computeTotp(enrollment!.secretB32);
+    let stepUpResult = await flows().completeTotpStepUp(
+      signInData.stepUpToken,
+      code,
+    );
+    if (stepUpResult.error?.code === "invalid_totp_code") {
+      stepUpResult = await flows().completeTotpStepUp(
+        signInData.stepUpToken,
+        computeTotp(enrollment!.secretB32, 1),
+      );
     }
-    expect(auth.session.token).toBeDefined();
-    expect(auth.user.id).toBeDefined();
-    expect(auth.email.email).toBe(email);
+    const auth = stepUpResult.data as AuthResponse | undefined;
+    expect(auth?.session.token).toBeDefined();
+    expect(auth?.user.id).toBeDefined();
+    expect(auth?.email.email).toBe(email);
   });
 
-  it("step-up with wrong TOTP code throws an mfa_error", async () => {
+  it("step-up with wrong TOTP code returns an mfa_error", async () => {
     const { email, client } = await newUser();
-    const { secretB32 } = await client.totp.enroll();
-    await totpConfirm(client, secretB32);
+    const { data: enrollment } = await client.totp.enroll();
+    await totpConfirm(client, enrollment!.secretB32);
 
-    const signInResult = await flows().signIn({
+    const { data: signInData } = await flows().signIn({
       grantType: "password",
       email,
       password: "correct-horse-battery-staple",
     });
-    expect(isStepUpResponse(signInResult)).toBe(true);
-    if (!isStepUpResponse(signInResult)) return;
+    expect(isStepUpResponse(signInData!)).toBe(true);
+    if (!isStepUpResponse(signInData!)) return;
 
-    await expect(
-      flows().completeTotpStepUp(signInResult.stepUpToken, "000000"),
-    ).rejects.toSatisfy(
+    const { error } = await flows().completeTotpStepUp(
+      signInData.stepUpToken,
+      "000000",
+    );
+    expect(error).toSatisfy(
       (e: unknown) =>
         e instanceof AuthServiceError && e.code === "mfa_error"
         && e.status === 401,
@@ -216,65 +218,62 @@ describe("totp", () => {
 
   it("step-up with a recovery code returns a full session", async () => {
     const { email, client } = await newUser();
-    const enrollment = await client.totp.enroll();
-    await totpConfirm(client, enrollment.secretB32);
-    const recoveryCode = enrollment.recoveryCodes[0]!;
+    const { data: enrollment } = await client.totp.enroll();
+    await totpConfirm(client, enrollment!.secretB32);
+    const recoveryCode = enrollment!.recoveryCodes[0]!;
 
-    const signInResult = await flows().signIn({
+    const { data: signInData } = await flows().signIn({
       grantType: "password",
       email,
       password: "correct-horse-battery-staple",
     });
-    expect(isStepUpResponse(signInResult)).toBe(true);
-    if (!isStepUpResponse(signInResult)) return;
+    expect(isStepUpResponse(signInData!)).toBe(true);
+    if (!isStepUpResponse(signInData!)) return;
 
-    const auth = await flows().completeTotpRecovery(
-      signInResult.stepUpToken,
+    const { data: recoveryData } = await flows().completeTotpRecovery(
+      signInData.stepUpToken,
       recoveryCode,
     );
-    expect(auth.session.token).toBeDefined();
-    expect(auth.user.id).toBeDefined();
+    const auth = recoveryData as AuthResponse | undefined;
+    expect(auth?.session.token).toBeDefined();
+    expect(auth?.user.id).toBeDefined();
   });
 
   it("regenerateRecoveryCodes returns a new set of recovery codes", async () => {
     const { client } = await newUser();
-    const enrollment = await client.totp.enroll();
-    await totpConfirm(client, enrollment.secretB32);
+    const { data: enrollment } = await client.totp.enroll();
+    await totpConfirm(client, enrollment!.secretB32);
 
-    const oldCount = enrollment.recoveryCodes.length;
-    let result;
-    try {
+    const oldCount = enrollment!.recoveryCodes.length;
+    let result = await client.totp.regenerateRecoveryCodes(
+      computeTotp(enrollment!.secretB32),
+    );
+    if (result.error?.code === "invalid_totp_code") {
       result = await client.totp.regenerateRecoveryCodes(
-        computeTotp(enrollment.secretB32),
+        computeTotp(enrollment!.secretB32, 1),
       );
-    } catch (e) {
-      if (e instanceof AuthServiceError && e.code === "invalid_totp_code") {
-        result = await client.totp.regenerateRecoveryCodes(
-          computeTotp(enrollment.secretB32, 1),
-        );
-      } else {
-        throw e;
-      }
     }
-    expect(Array.isArray(result.recoveryCodes)).toBe(true);
-    expect(result.recoveryCodes.length).toBe(oldCount);
-    expect(result.recoveryCodes[0]).not.toBe(enrollment.recoveryCodes[0]);
+    expect(Array.isArray(result.data?.recoveryCodes)).toBe(true);
+    expect(result.data?.recoveryCodes.length).toBe(oldCount);
+    expect(result.data?.recoveryCodes[0]).not.toBe(
+      enrollment!.recoveryCodes[0],
+    );
   });
 
   it("disable removes TOTP and subsequent sign-in returns a session directly", async () => {
     const { email, client } = await newUser();
-    const { secretB32 } = await client.totp.enroll();
-    await totpConfirm(client, secretB32);
+    const { data: enrollment } = await client.totp.enroll();
+    await totpConfirm(client, enrollment!.secretB32);
     await client.totp.disable();
 
-    const result = await flows().signIn({
+    const { data: result } = await flows().signIn({
       grantType: "password",
       email,
       password: "correct-horse-battery-staple",
     });
-    expect(isStepUpResponse(result)).toBe(false);
-    expect("session" in result).toBe(true);
-    if ("session" in result) {
+    expect(isStepUpResponse(result!)).toBe(false);
+    expect("session" in result!).toBe(true);
+    if (result && "session" in result) {
       expect(result.session.token).toBeDefined();
     }
   });
@@ -290,10 +289,10 @@ describe("sessions", () => {
 
   it("getCurrent returns the session with expected fields", async () => {
     const { client } = await newUser();
-    const session = await client.sessions.getCurrent();
-    expect(session.tokenId).toBeDefined();
-    expect(session.createdAt).toBeDefined();
-    expect(session.expiresAt).toBeDefined();
+    const { data: session } = await client.sessions.getCurrent();
+    expect(session?.tokenId).toBeDefined();
+    expect(session?.createdAt).toBeDefined();
+    expect(session?.expiresAt).toBeDefined();
   });
 
   it("deleteById removes a non-current session", async () => {
@@ -305,49 +304,49 @@ describe("sessions", () => {
       expect(data?.sessions.length).toBeGreaterThan(0);
       return;
     }
-    await expect(client.sessions.deleteById(target.id)).resolves
-      .toBeUndefined();
+    const { error } = await client.sessions.deleteById(target.id);
+    expect(error).toBeUndefined();
   });
 });
 
 describe("keys", () => {
   it("create returns a key with the secret field", async () => {
     const { client } = await newUser();
-    const key = await client.keys.create("test-key");
-    expect(key.id).toBeDefined();
-    expect(key.name).toBe("test-key");
-    expect(key.key).toBeDefined();
-    expect(key.createdAt).toBeDefined();
+    const { data: key } = await client.keys.create("test-key");
+    expect(key?.id).toBeDefined();
+    expect(key?.name).toBe("test-key");
+    expect(key?.key).toBeDefined();
+    expect(key?.createdAt).toBeDefined();
   });
 
   it("list contains the created key", async () => {
     const { client } = await newUser();
-    const created = await client.keys.create("listed-key");
+    const { data: created } = await client.keys.create("listed-key");
     const { data, error } = await client.keys.list();
     expect(error).toBeUndefined();
-    expect(data?.keys.some((k) => k.id === created.id)).toBe(true);
+    expect(data?.keys.some((k) => k.id === created!.id)).toBe(true);
   });
 
   it("get returns the key by id", async () => {
     const { client } = await newUser();
-    const created = await client.keys.create("get-key");
-    const key = await client.keys.get(created.id);
-    expect(key.id).toBe(created.id);
-    expect(key.name).toBe("get-key");
+    const { data: created } = await client.keys.create("get-key");
+    const { data: key } = await client.keys.get(created!.id);
+    expect(key?.id).toBe(created!.id);
+    expect(key?.name).toBe("get-key");
   });
 
   it("delete removes the key from the list", async () => {
     const { client } = await newUser();
-    const created = await client.keys.create("delete-key");
-    await client.keys.delete(created.id);
+    const { data: created } = await client.keys.create("delete-key");
+    await client.keys.delete(created!.id);
     const { data } = await client.keys.list();
-    expect(data?.keys.some((k) => k.id === created.id)).toBe(false);
+    expect(data?.keys.some((k) => k.id === created!.id)).toBe(false);
   });
 
   it("create with expiresAt sets expiry", async () => {
     const { client } = await newUser();
     const expiry = new Date(Date.now() + 86400_000).toISOString();
-    const key = await client.keys.create("expiring-key", expiry);
-    expect(key.expiresAt).toBeDefined();
+    const { data: key } = await client.keys.create("expiring-key", expiry);
+    expect(key?.expiresAt).toBeDefined();
   });
 });

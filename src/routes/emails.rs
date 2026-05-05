@@ -23,6 +23,7 @@ pub struct EmailRecord {
     pub id: Uuid,
     pub email: String,
     /// Null if the address has not been verified yet.
+    #[schema(nullable)]
     pub verified_at: Option<DateTime<Utc>>,
     /// True for the address that appears in `AuthResponse.email` and receives system emails.
     pub is_primary: bool,

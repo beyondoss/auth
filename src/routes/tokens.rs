@@ -21,6 +21,7 @@ pub struct IssueRequest {
     /// `impersonated`) are always overwritten by the service and cannot be
     /// supplied here.
     #[serde(default)]
+    #[schema(nullable, value_type = Object)]
     pub claims: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
@@ -34,6 +35,7 @@ pub struct TokenResponse {
     /// Rotate-on-use refresh token. Present when authenticated via a session or
     /// a prior refresh token; absent for API-key auth.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
     pub refresh_token: Option<String>,
 }
 

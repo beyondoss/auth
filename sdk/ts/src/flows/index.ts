@@ -16,8 +16,8 @@ import { issueToken } from "./token.js";
 export type { MagicLinkResponse } from "./magic-link.js";
 export type { PasswordResetResponse } from "./password-reset.js";
 export {
-  type BeginPasskeyAuthResponse,
   isStepUpResponse,
+  type PasskeyAuthChallenge,
   type SignInRequest,
   type StepUpResponse,
 } from "./sign-in.js";

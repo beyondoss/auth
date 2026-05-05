@@ -51,6 +51,7 @@ pub struct ResourceDef {
     pub role_inheritance: Vec<RoleInheritanceEntry>,
     pub permissions: HashMap<String, Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
     pub hierarchy: Option<HierarchyDef>,
 }
 

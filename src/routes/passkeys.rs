@@ -23,6 +23,7 @@ pub struct BeginResponse {
 #[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct RegisteredCredential {
     pub id: Uuid,
+    #[schema(nullable)]
     pub nickname: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -35,6 +36,7 @@ pub struct FinishRegistrationRequest {
     /// WebAuthn `PublicKeyCredential` response from the browser.
     #[schema(value_type = Object)]
     pub credential: webauthn_rs::prelude::RegisterPublicKeyCredential,
+    #[schema(nullable)]
     pub nickname: Option<String>,
 }
 

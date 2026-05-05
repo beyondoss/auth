@@ -19,6 +19,7 @@ use crate::{
 pub struct CreateRequest {
     pub name: String,
     /// When the key expires. Defaults to 100 years from now (effectively never).
+    #[schema(nullable)]
     pub expires_at: Option<DateTime<Utc>>,
 }
 

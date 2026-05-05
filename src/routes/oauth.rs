@@ -32,6 +32,8 @@ pub struct CallbackParams {
 pub struct AppleCallbackForm {
     pub code: String,
     pub state: String,
+    /// JSON-encoded user object Apple sends on first sign-in (name fields).
+    #[schema(nullable)]
     pub user: Option<String>,
 }
 
