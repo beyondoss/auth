@@ -32,13 +32,13 @@ mise tasks | grep "search"
 Run them from anywhere:
 
 ```sh
-mise run test:integration:api
+mise run test
 ```
 
 To run the TypeScript SDK tests locally:
 
 ```sh
-mise run extension:build:linux   # build the .so for the testcontainer (linux/arm64)
+mise run extension:build:linux:arm64   # build the .so for the testcontainer (linux/arm64)
 mise run sdk:ts:test             # builds the debug binary, then runs the tests
 ```
 
