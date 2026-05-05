@@ -8,3 +8,5 @@ dist/
 .sqlx
 node_modules/
 bench/out/
+.wiki
+.mcp.json
