@@ -24,7 +24,7 @@ const SCHEMA = {
         read: ["owner", "editor", "viewer"],
         write: ["owner", "editor"],
       },
-      role_hierarchy: [
+      role_inheritance: [
         { superior: "owner", inferior: "editor" },
         { superior: "editor", inferior: "viewer" },
       ],

@@ -199,10 +199,9 @@ pub async fn get(pool: &PgPool, user_id: Uuid, key_id: Uuid) -> Result<Option<Ke
 }
 
 /// Delete a key by deleting its backing token (cascades to auth.keys).
-/// Idempotent: returns Ok(()) whether or not the key existed.
+/// Returns `NotFound` if the key does not exist or belongs to a different user.
 pub async fn delete(pool: &PgPool, user_id: Uuid, key_id: Uuid) -> Result<(), AuthError> {
-    // Non-macro: execute-only, no row data accessed.
-    sqlx::query(
+    let result = sqlx::query(
         "WITH target AS (
             SELECT k.token_id
             FROM auth.keys k
@@ -215,5 +214,9 @@ pub async fn delete(pool: &PgPool, user_id: Uuid, key_id: Uuid) -> Result<(), Au
     .execute(pool)
     .await
     .map_err(AuthError::from)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AuthError::NotFound);
+    }
     Ok(())
 }

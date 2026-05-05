@@ -66,7 +66,7 @@ pub struct AppState {
     pub admin_secret: AdminSecret,
     pub http_client: reqwest::Client,
     pub oauth: Arc<RwLock<crate::oauth::OAuthProviders>>,
-    pub webauthn: Arc<webauthn_rs::Webauthn>,
+    pub webauthn: Option<Arc<webauthn_rs::Webauthn>>,
     pub encryptor: std::sync::Arc<dyn crate::crypto::KeyEncryptor>,
     /// Parsed origins (e.g. "https://app.example.com") allowed as OAuth redirect targets.
     /// Empty means no validation is performed — callers should warn at startup.

@@ -15,6 +15,9 @@ pub struct ErrorBody {
     pub code: String,
     /// Human-readable description.
     pub message: String,
+    /// Optional actionable guidance present on configuration-gate errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
 }
 
 /// Top-level error envelope for all API error responses.
@@ -51,7 +54,9 @@ pub enum AuthError {
     #[error("password is too common")]
     PasswordTooCommon,
 
-    #[error("JWT is not enabled")]
+    #[error(
+        "JWT is not enabled — enable it via PATCH /v1/admin/config with {{\"jwt_enabled\":true}}"
+    )]
     JwtDisabled,
 
     #[error("token is invalid")]
@@ -104,6 +109,14 @@ pub enum AuthError {
 
     #[error("bad request: {message}")]
     BadRequest { message: String },
+
+    #[error("cannot remove your only email address")]
+    LastEmail,
+
+    #[error(
+        "passkeys are not configured — set WEBAUTHN_RP_ID and WEBAUTHN_RP_ORIGIN to enable them"
+    )]
+    PasskeysNotConfigured,
 
     #[error("invitation not found or expired")]
     InvitationNotFound,
@@ -173,6 +186,18 @@ impl AuthError {
             source: Some(Box::new(source)),
         }
     }
+
+    fn hint(&self) -> Option<&'static str> {
+        match self {
+            AuthError::JwtDisabled => {
+                Some("Enable JWT issuance via PATCH /v1/admin/config with {\"jwt_enabled\":true}.")
+            }
+            AuthError::AuthzNotEnabled => Some(
+                "Upload an authorization schema via PUT /v1/authz/schema before using authorization endpoints.",
+            ),
+            _ => None,
+        }
+    }
 }
 
 impl From<sqlx::Error> for AuthError {
@@ -202,6 +227,7 @@ impl IntoResponse for AuthError {
             AuthError::NotMember => (StatusCode::FORBIDDEN, "not_member", self.to_string()),
             AuthError::AlreadyMember => (StatusCode::CONFLICT, "already_member", self.to_string()),
             AuthError::LastOwner => (StatusCode::CONFLICT, "last_owner", self.to_string()),
+            AuthError::LastEmail => (StatusCode::CONFLICT, "last_email", self.to_string()),
             AuthError::LastIdentity => (StatusCode::CONFLICT, "last_identity", self.to_string()),
             AuthError::PersonalOrg => (StatusCode::CONFLICT, "personal_org", self.to_string()),
             AuthError::SlugConflict => (StatusCode::CONFLICT, "slug_conflict", self.to_string()),
@@ -209,6 +235,11 @@ impl IntoResponse for AuthError {
             AuthError::BadRequest { .. } => {
                 (StatusCode::BAD_REQUEST, "bad_request", self.to_string())
             }
+            AuthError::PasskeysNotConfigured => (
+                StatusCode::BAD_REQUEST,
+                "passkeys_not_configured",
+                self.to_string(),
+            ),
             AuthError::InvitationNotFound => (
                 StatusCode::NOT_FOUND,
                 "invitation_not_found",
@@ -295,10 +326,11 @@ impl IntoResponse for AuthError {
             tracing::error!(error = %self, "internal error");
         }
 
-        (
-            status,
-            Json(json!({ "error": { "code": code, "message": message } })),
-        )
-            .into_response()
+        let hint = self.hint();
+        let body = match hint {
+            Some(h) => json!({ "error": { "code": code, "message": message, "hint": h } }),
+            None => json!({ "error": { "code": code, "message": message } }),
+        };
+        (status, Json(body)).into_response()
     }
 }

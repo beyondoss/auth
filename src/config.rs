@@ -39,13 +39,13 @@ pub struct ServeConfig {
     #[arg(long, env = "ADMIN_SECRET")]
     pub admin_secret: Option<String>,
 
-    /// WebAuthn relying party ID (e.g. "example.com").
+    /// WebAuthn relying party ID (e.g. "example.com"). Required only when passkeys are used.
     #[arg(long, env = "WEBAUTHN_RP_ID")]
-    pub webauthn_rp_id: String,
+    pub webauthn_rp_id: Option<String>,
 
-    /// WebAuthn relying party origin (e.g. "https://example.com").
+    /// WebAuthn relying party origin (e.g. "https://example.com"). Required only when passkeys are used.
     #[arg(long, env = "WEBAUTHN_RP_ORIGIN")]
-    pub webauthn_rp_origin: String,
+    pub webauthn_rp_origin: Option<String>,
 
     /// Public base URL of this service (e.g. "https://auth.example.com").
     /// Used to construct OAuth callback URIs. If unset, derived from the

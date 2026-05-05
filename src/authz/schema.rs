@@ -35,12 +35,20 @@ pub struct AuthzSchema {
     pub subject_types: Vec<String>,
 }
 
+/// One entry in a resource's role inheritance list.
+/// `superior` subsumes `inferior`: a subject holding `superior` implicitly holds `inferior`.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RoleInheritanceEntry {
+    pub superior: String,
+    pub inferior: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ResourceDef {
     pub name: String,
     pub roles: Vec<String>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub role_inheritance: HashMap<String, Vec<String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub role_inheritance: Vec<RoleInheritanceEntry>,
     pub permissions: HashMap<String, Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchy: Option<HierarchyDef>,
@@ -134,21 +142,27 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
             .collect::<Result<Vec<_>, _>>()?;
         let role_set: HashSet<&str> = valid_roles.iter().map(|r| r.as_str()).collect();
 
-        for (superior, inferiors) in &resource.role_inheritance {
-            if !role_set.contains(superior.as_str()) {
+        for entry in &resource.role_inheritance {
+            if !role_set.contains(entry.superior.as_str()) {
                 return Err(SchemaError::UnknownHierarchyRole(
                     resource.name.clone(),
-                    superior.clone(),
+                    entry.superior.clone(),
                 ));
             }
-            for inferior in inferiors {
-                if !role_set.contains(inferior.as_str()) {
-                    return Err(SchemaError::UnknownHierarchyRole(
-                        resource.name.clone(),
-                        inferior.clone(),
-                    ));
-                }
+            if !role_set.contains(entry.inferior.as_str()) {
+                return Err(SchemaError::UnknownHierarchyRole(
+                    resource.name.clone(),
+                    entry.inferior.clone(),
+                ));
             }
+        }
+
+        let mut role_inh_map: HashMap<String, Vec<String>> = HashMap::new();
+        for entry in &resource.role_inheritance {
+            role_inh_map
+                .entry(entry.superior.clone())
+                .or_default()
+                .push(entry.inferior.clone());
         }
 
         if let Some(h) = &resource.hierarchy {
@@ -161,7 +175,7 @@ pub fn compile(schema: &AuthzSchema) -> Result<CompiledSchema, SchemaError> {
             }
         }
 
-        let inherited = compute_inherited_roles(&resource.roles, &resource.role_inheritance);
+        let inherited = compute_inherited_roles(&resource.roles, &role_inh_map);
 
         for (permission, direct_roles) in &resource.permissions {
             validate_ident(permission)?;
@@ -440,7 +454,10 @@ mod tests {
             "resources": [{
                 "name": "document",
                 "roles": ["owner", "editor", "viewer"],
-                "role_inheritance": {"owner": ["editor"], "editor": ["viewer"]},
+                "role_inheritance": [
+                    {"superior": "owner",  "inferior": "editor"},
+                    {"superior": "editor", "inferior": "viewer"}
+                ],
                 "permissions": {
                     "read":   ["viewer"],
                     "write":  ["editor"],
@@ -453,7 +470,10 @@ mod tests {
             }, {
                 "name": "folder",
                 "roles": ["owner", "editor", "viewer"],
-                "role_inheritance": {"owner": ["editor"], "editor": ["viewer"]},
+                "role_inheritance": [
+                    {"superior": "owner",  "inferior": "editor"},
+                    {"superior": "editor", "inferior": "viewer"}
+                ],
                 "permissions": {
                     "read":  ["viewer"],
                     "write": ["editor"]

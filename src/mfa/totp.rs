@@ -402,13 +402,17 @@ pub async fn regenerate_recovery_codes(
 }
 
 pub async fn disable(pool: &PgPool, user_id: Uuid) -> Result<(), AuthError> {
-    sqlx::query!(
+    let result = sqlx::query(
         "UPDATE auth.totp_factors SET deleted_at = now()
-         WHERE user_id = $1 AND deleted_at IS NULL",
-        user_id,
+         WHERE user_id = $1 AND enrolled_at IS NOT NULL AND deleted_at IS NULL",
     )
+    .bind(user_id)
     .execute(pool)
     .await
     .map_err(AuthError::from)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AuthError::NotFound);
+    }
     Ok(())
 }

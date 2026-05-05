@@ -63,7 +63,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         admin_secret: crate::http::AdminSecret::new(ADMIN_SECRET.to_string()),
         http_client,
         oauth: Arc::new(RwLock::new(OAuthProviders::default())),
-        webauthn: Arc::new(webauthn),
+        webauthn: Some(Arc::new(webauthn)),
         encryptor,
         oauth_redirect_allowlist: vec![],
         public_url: None,

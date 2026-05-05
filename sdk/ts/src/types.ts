@@ -1157,40 +1157,47 @@ export interface components {
     LinkCallbackResponse: {
       linked: boolean;
     };
-    LoginRequest: {
-      email: string;
-      /** @enum {string} */
-      grant_type: "password";
-      password: string;
-    } | {
-      /** @enum {string} */
-      grant_type: "magic_link";
-      token: string;
-    } | {
-      /** @enum {string} */
-      grant_type: "password_reset";
-      new_password: string;
-      token: string;
-    } | {
-      /** @enum {string} */
-      grant_type: "email_change";
-      token: string;
-    } | {
-      code: string;
-      /** @enum {string} */
-      grant_type: "totp_step_up";
-      step_up_token: string;
-    } | {
-      code: string;
-      /** @enum {string} */
-      grant_type: "totp_recovery";
-      step_up_token: string;
-    } | {
-      credential: Record<string, never>;
-      /** @enum {string} */
-      grant_type: "passkey";
-      state_token: string;
-    };
+    LoginRequest:
+      | {
+        email: string;
+        /** @enum {string} */
+        grant_type: "password";
+        password: string;
+      }
+      | {
+        /** @enum {string} */
+        grant_type: "magic_link";
+        token: string;
+      }
+      | {
+        /** @enum {string} */
+        grant_type: "password_reset";
+        new_password: string;
+        token: string;
+      }
+      | {
+        /** @enum {string} */
+        grant_type: "email_change";
+        token: string;
+      }
+      | {
+        code: string;
+        /** @enum {string} */
+        grant_type: "totp_step_up";
+        step_up_token: string;
+      }
+      | {
+        code: string;
+        /** @enum {string} */
+        grant_type: "totp_recovery";
+        step_up_token: string;
+      }
+      | {
+        credential: Record<string, never>;
+        /** @enum {string} */
+        grant_type: "passkey";
+        state_token: string;
+      };
     MagicLinkRequest: {
       email: string;
     };
@@ -1289,7 +1296,7 @@ export interface components {
       permissions: {
         [key: string]: string[];
       };
-      role_hierarchy?: components["schemas"]["RoleEdge"][];
+      role_inheritance?: components["schemas"]["RoleEdge"][];
       roles: string[];
     };
     RoleEdge: {

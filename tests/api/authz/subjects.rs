@@ -219,7 +219,7 @@ async fn subjects_by_permission_direct_viewer_returned() {
 /// owner > editor > viewer, so for `read` (granted to viewer) the full role chain
 /// [owner, editor, viewer] must all be expanded.
 #[tokio::test]
-async fn subjects_by_permission_role_hierarchy_included() {
+async fn subjects_by_permission_role_inheritance_included() {
     let _guard = with_schema().await;
     let auth = signup(
         &crate::helpers::unique_email(),

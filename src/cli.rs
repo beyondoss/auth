@@ -184,12 +184,22 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
 
     let encryptor: std::sync::Arc<dyn crate::crypto::KeyEncryptor> = std::sync::Arc::new(enc_key);
 
-    let wn_origin =
-        reqwest::Url::parse(&cfg.webauthn_rp_origin).context("invalid WEBAUTHN_RP_ORIGIN")?;
-    let webauthn = webauthn_rs::WebauthnBuilder::new(&cfg.webauthn_rp_id, &wn_origin)
-        .map_err(|e| anyhow::anyhow!("WebauthnBuilder::new failed: {e}"))?
-        .build()
-        .map_err(|e| anyhow::anyhow!("Webauthn::build failed: {e}"))?;
+    let webauthn = match (&cfg.webauthn_rp_id, &cfg.webauthn_rp_origin) {
+        (Some(rp_id), Some(rp_origin)) => {
+            let wn_origin = reqwest::Url::parse(rp_origin).context("invalid WEBAUTHN_RP_ORIGIN")?;
+            let wn = webauthn_rs::WebauthnBuilder::new(rp_id, &wn_origin)
+                .map_err(|e| anyhow::anyhow!("WebauthnBuilder::new failed: {e}"))?
+                .build()
+                .map_err(|e| anyhow::anyhow!("Webauthn::build failed: {e}"))?;
+            Some(Arc::new(wn))
+        }
+        _ => {
+            tracing::warn!(
+                "WEBAUTHN_RP_ID and WEBAUTHN_RP_ORIGIN are not set — passkey endpoints will return an error"
+            );
+            None
+        }
+    };
 
     let gc_handle = tokio::spawn(token_gc::run(pool.clone()));
 
@@ -211,7 +221,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         admin_secret: http::AdminSecret::new(secrets.admin_secret),
         http_client,
         oauth: Arc::new(RwLock::new(oauth)),
-        webauthn: Arc::new(webauthn),
+        webauthn,
         encryptor,
         oauth_redirect_allowlist,
         public_url: cfg.public_url.clone(),

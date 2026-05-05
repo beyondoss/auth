@@ -119,11 +119,11 @@ async fn lookup_via_parent_hierarchy() {
     assert!(res.object_ids.contains(&doc));
 }
 
-/// [x] lookup_role_hierarchy_expands
+/// [x] lookup_role_inheritance_expands
 /// User holds the owner role. lookup for the viewer-gated "read" permission must
 /// still return the document because owner transitively satisfies viewer.
 #[tokio::test]
-async fn lookup_role_hierarchy_expands() {
+async fn lookup_role_inheritance_expands() {
     let _guard = with_schema().await;
     let (token, user_id) = fresh_user().await;
     let doc = uid();

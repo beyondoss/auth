@@ -165,7 +165,7 @@ pub async fn remove(
 ) -> Result<StatusCode, AuthError> {
     // Cannot delete the primary email.
     if id == ctx.user.primary_email_id {
-        return Err(AuthError::Conflict);
+        return Err(AuthError::LastEmail);
     }
 
     let result = sqlx::query!(

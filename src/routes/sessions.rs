@@ -457,9 +457,13 @@ async fn login_passkey(
     state_token: &str,
     credential: &webauthn_rs::prelude::PublicKeyCredential,
 ) -> Result<Response, AuthError> {
+    let webauthn = state
+        .webauthn
+        .as_deref()
+        .ok_or(AuthError::PasskeysNotConfigured)?;
     let user_id = mfa::passkeys::verify_authentication(
         &state.pool,
-        &state.webauthn,
+        webauthn,
         &state.signing_key,
         state_token,
         credential,

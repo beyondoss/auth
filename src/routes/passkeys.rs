@@ -65,8 +65,11 @@ pub async fn begin_registration(
     State(state): State<AppState>,
     Extension(ctx): Extension<AuthContext>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AuthError> {
-    let (ccr, reg_state) = state
+    let webauthn = state
         .webauthn
+        .as_deref()
+        .ok_or(AuthError::PasskeysNotConfigured)?;
+    let (ccr, reg_state) = webauthn
         .start_passkey_registration(ctx.user.id, &ctx.email.email, &ctx.org.name, None)
         .map_err(|e| AuthError::internal_with("passkeys start registration", e))?;
 
@@ -103,8 +106,11 @@ pub async fn finish_registration(
 ) -> Result<(StatusCode, Json<serde_json::Value>), AuthError> {
     let reg_state = wn::unpack_reg_state(&req.state_token, ctx.user.id, &state.signing_key)?;
 
-    let passkey = state
+    let webauthn = state
         .webauthn
+        .as_deref()
+        .ok_or(AuthError::PasskeysNotConfigured)?;
+    let passkey = webauthn
         .finish_passkey_registration(&req.credential, &reg_state)
         .map_err(|e| AuthError::internal_with("passkeys finish registration", e))?;
 
@@ -203,8 +209,11 @@ pub async fn delete_credential(
 pub async fn begin_authentication(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AuthError> {
-    let (rcr, auth_state) = state
+    let webauthn = state
         .webauthn
+        .as_deref()
+        .ok_or(AuthError::PasskeysNotConfigured)?;
+    let (rcr, auth_state) = webauthn
         .start_discoverable_authentication()
         .map_err(|e| AuthError::internal_with("passkeys start auth", e))?;
 

@@ -24,11 +24,11 @@ async fn schema_put_valid_round_trips() {
     assert_eq!(body["resources"][1]["name"], "folder");
 }
 
-/// [x] schema_put_role_hierarchy_compiles_transitively
+/// [x] schema_put_role_inheritance_compiles_transitively
 /// Owner > editor > viewer (transitive). A user with the owner role must pass a
 /// check that only names viewer as a direct-grant role.
 #[tokio::test]
-async fn schema_put_role_hierarchy_compiles_transitively() {
+async fn schema_put_role_inheritance_compiles_transitively() {
     let _guard = with_schema().await;
     let (doc, user) = (uid(), uid());
 
@@ -108,16 +108,16 @@ async fn schema_put_unknown_parent_resource_rejected() {
         .assert_status(422);
 }
 
-/// [x] schema_put_unknown_role_in_role_hierarchy_rejected
+/// [x] schema_put_unknown_role_in_role_inheritance_rejected
 #[tokio::test]
-async fn schema_put_unknown_role_in_role_hierarchy_rejected() {
+async fn schema_put_unknown_role_in_role_inheritance_rejected() {
     let _guard = exclusive().await;
     let schema = serde_json::json!({
         "version": 1,
         "resources": [{
             "name": "document",
             "roles": ["owner"],
-            "role_hierarchy": [{"superior": "owner", "inferior": "phantom"}],
+            "role_inheritance": [{"superior": "owner", "inferior": "phantom"}],
             "permissions": {"read": ["owner"]}
         }]
     });
@@ -152,7 +152,7 @@ async fn schema_put_unknown_role_in_permissions_rejected() {
 /// when no new inferences can be added — cycles do not cause infinite loops.
 /// The schema is accepted (200) and authorization checks work correctly.
 #[tokio::test]
-async fn schema_put_role_hierarchy_cycle_does_not_hang() {
+async fn schema_put_role_inheritance_cycle_does_not_hang() {
     let _guard = exclusive().await;
 
     let schema = serde_json::json!({
@@ -160,7 +160,7 @@ async fn schema_put_role_hierarchy_cycle_does_not_hang() {
         "resources": [{
             "name": "thing",
             "roles": ["owner", "editor"],
-            "role_hierarchy": [
+            "role_inheritance": [
                 {"superior": "owner",  "inferior": "editor"},
                 {"superior": "editor", "inferior": "owner"}   // cycle
             ],

@@ -7,13 +7,13 @@
 //!
 //! ### schema.rs — PUT/GET /v1/authz/schema
 //! [x] schema_put_valid_round_trips
-//! [x] schema_put_role_hierarchy_compiles_transitively  (owner > editor > viewer → owner grants viewer perms)
+//! [x] schema_put_role_inheritance_compiles_transitively  (owner > editor > viewer → owner grants viewer perms)
 //! [x] schema_put_invalid_identifier_rejected           (uppercase / hyphen / leading digit)
 //! [x] schema_put_wrong_version_rejected                (version != 1)
 //! [x] schema_put_unknown_parent_resource_rejected
-//! [x] schema_put_unknown_role_in_role_hierarchy_rejected
+//! [x] schema_put_unknown_role_in_role_inheritance_rejected
 //! [x] schema_put_unknown_role_in_permissions_rejected
-//! [x] schema_put_role_hierarchy_cycle_does_not_hang      (cycle terminates; server does not hang)
+//! [x] schema_put_role_inheritance_cycle_does_not_hang      (cycle terminates; server does not hang)
 //!
 //! ### relations.rs — POST / DELETE / PATCH /v1/authz/relations
 //!
@@ -104,7 +104,7 @@
 //! ### subjects.rs — GET /v1/authz/subjects (authenticated, permission-based)
 //! [x] subjects_by_permission_requires_auth
 //! [x] subjects_by_permission_direct_viewer_returned
-//! [x] subjects_by_permission_role_hierarchy_included   (owner > editor > viewer all appear for `read`)
+//! [x] subjects_by_permission_role_inheritance_included   (owner > editor > viewer all appear for `read`)
 //! [x] subjects_by_permission_delete_only_owners        (delete not granted to viewers)
 //! [x] subjects_by_permission_empty_when_no_subjects
 //! [x] subjects_by_permission_unknown_permission_returns_422
@@ -115,7 +115,7 @@
 //! [x] lookup_no_grants_returns_empty
 //! [x] lookup_via_subject_set
 //! [x] lookup_via_parent_hierarchy
-//! [x] lookup_role_hierarchy_expands                    (owner role appears in viewer-permission lookup)
+//! [x] lookup_role_inheritance_expands                    (owner role appears in viewer-permission lookup)
 //! [x] lookup_pagination_limit_and_cursor
 //! [x] lookup_cursor_page_two
 //! [x] lookup_via_subject_set_and_parent_hierarchy  (subject-set on parent IS expanded by lookup, unlike check)
@@ -181,7 +181,7 @@ pub fn doc_folder_schema() -> serde_json::Value {
             {
                 "name": "document",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
+                "role_inheritance": [
                     {"superior": "owner",  "inferior": "editor"},
                     {"superior": "editor", "inferior": "viewer"}
                 ],
@@ -198,7 +198,7 @@ pub fn doc_folder_schema() -> serde_json::Value {
             {
                 "name": "folder",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
+                "role_inheritance": [
                     {"superior": "owner",  "inferior": "editor"},
                     {"superior": "editor", "inferior": "viewer"}
                 ],
@@ -235,7 +235,7 @@ pub fn three_level_schema() -> serde_json::Value {
             {
                 "name": "document",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
+                "role_inheritance": [
                     {"superior": "owner",  "inferior": "editor"},
                     {"superior": "editor", "inferior": "viewer"}
                 ],
@@ -252,7 +252,7 @@ pub fn three_level_schema() -> serde_json::Value {
             {
                 "name": "folder",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
+                "role_inheritance": [
                     {"superior": "owner",  "inferior": "editor"},
                     {"superior": "editor", "inferior": "viewer"}
                 ],
@@ -268,7 +268,7 @@ pub fn three_level_schema() -> serde_json::Value {
             {
                 "name": "workspace",
                 "roles": ["owner", "editor", "viewer"],
-                "role_hierarchy": [
+                "role_inheritance": [
                     {"superior": "owner",  "inferior": "editor"},
                     {"superior": "editor", "inferior": "viewer"}
                 ],
