@@ -1,16 +1,18 @@
 import type { NextResponse } from "next/server";
 import type { Client } from "openapi-fetch";
+import type { Profile } from "../account/me.js";
 import {
   clearCookieAttrs,
   type CookieOptions,
   sessionCookieAttrs,
 } from "../server/cookie.js";
 import type { SessionContext, SessionVerifier } from "../session.js";
-import type { components, paths } from "../types.js";
+import type { paths } from "../types.js";
 import { camelize } from "../utils/camelize.js";
-import type { Camelize } from "../utils/camelize.js";
 import { createProxy } from "./proxy.js";
 import type { ProxyOptions } from "./proxy.js";
+
+export type { Profile };
 
 /**
  * A Next.js-compatible read-only cookie store, compatible with the object
@@ -20,14 +22,11 @@ export interface CookieStore {
   get(name: string): { value: string } | undefined;
 }
 
-/** User profile from `GET /v1/users/me`. */
-export type MeResponse = Camelize<components["schemas"]["MeResponse"]>;
-
 type ServerHelpers = {
   /** Returns the current session record, or `null` if unauthenticated. */
   getSession(cookieStore: CookieStore): Promise<SessionContext | null>;
   /** Returns the authenticated user's full profile, or `null` if unauthenticated. */
-  getMe(cookieStore: CookieStore): Promise<MeResponse | null>;
+  getMe(cookieStore: CookieStore): Promise<Profile | null>;
 };
 
 type ServerHelpersWithProxy = ServerHelpers & {
@@ -120,7 +119,7 @@ export function createServerHelpers(
     const { data } = await client.GET("/v1/users/me", {
       headers: { Authorization: `Bearer ${token!}` },
     });
-    return data !== undefined ? camelize(data) : null;
+    return data !== undefined ? (camelize(data) as Profile) : null;
   });
 
   if (opts) {

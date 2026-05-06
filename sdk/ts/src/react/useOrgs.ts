@@ -1,15 +1,9 @@
 import React from "react";
+import type { Org } from "../client.js";
 import { camelize } from "../utils/camelize.js";
 import { useAuthContext } from "./context.js";
 
-export interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  imageUrl?: string | null;
-  metadata: unknown;
-  createdAt: string;
-}
+export type { Org };
 
 export type UseOrgsStatus = "fetching" | "success" | "error" | "disabled";
 

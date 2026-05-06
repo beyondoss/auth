@@ -30,6 +30,12 @@ impl ReadWriteMix {
     }
 }
 
+impl Default for ReadWriteMix {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Scenario for ReadWriteMix {
     fn name(&self) -> &str {

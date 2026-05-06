@@ -33,6 +33,8 @@ import { wrap } from "./utils/wrap.js";
 
 export type { paths };
 export type { components, operations } from "./types.js";
+export type Org = Camelize<components["schemas"]["OrgResponse"]>;
+export type Invitation = Camelize<components["schemas"]["InvitationResponse"]>;
 
 /** Options for {@link createAdminClient}. */
 export interface AdminClientOptions {
@@ -146,7 +148,24 @@ export function createAuthClient<OrgRole extends string = string>(
     },
 
     orgs: {
-      list: () => wrap(raw.GET("/v1/orgs", {})),
+      list: async (opts?: { cursor?: string; limit?: number }) => {
+        const result = await wrap(
+          raw.GET("/v1/orgs", {
+            params: {
+              query: {
+                ...(opts?.cursor != null && { after: opts.cursor }),
+                ...(opts?.limit != null && { limit: opts.limit }),
+              },
+            },
+          }),
+        );
+        if (!result.data) return result;
+        const { nextPage: _, ...rest } = result.data;
+        return {
+          ...result,
+          data: { ...rest, nextCursor: result.data.nextPage ?? undefined },
+        };
+      },
 
       create: (body: Camelize<components["schemas"]["CreateOrgRequest"]>) =>
         wrap(raw.POST("/v1/orgs", {
@@ -201,10 +220,28 @@ export function createAuthClient<OrgRole extends string = string>(
             body: body as components["schemas"]["CreateInvitationRequest"],
           })),
 
-        list: (orgId: string) =>
-          wrap(raw.GET("/v1/orgs/{id}/invitations", {
-            params: { path: { id: orgId } },
-          })),
+        list: async (
+          orgId: string,
+          opts?: { cursor?: string; limit?: number },
+        ) => {
+          const result = await wrap(
+            raw.GET("/v1/orgs/{id}/invitations", {
+              params: {
+                path: { id: orgId },
+                query: {
+                  ...(opts?.cursor != null && { after: opts.cursor }),
+                  ...(opts?.limit != null && { limit: opts.limit }),
+                },
+              },
+            }),
+          );
+          if (!result.data) return result;
+          const { nextPage: _, ...rest } = result.data;
+          return {
+            ...result,
+            data: { ...rest, nextCursor: result.data.nextPage ?? undefined },
+          };
+        },
 
         revoke: (orgId: string, invId: string) =>
           wrap(raw.DELETE("/v1/orgs/{id}/invitations/{inv_id}", {

@@ -99,6 +99,12 @@ impl HierarchyOrChainOld {
     }
 }
 
+impl Default for HierarchyOrChainOld {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Scenario for HierarchyOrChainOld {
     fn name(&self) -> &str {
@@ -144,6 +150,12 @@ impl HierarchyMulti {
         Self {
             doc_sampler: ZipfSampler::new(N_DOCS, 1.0),
         }
+    }
+}
+
+impl Default for HierarchyMulti {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -194,6 +206,12 @@ impl HierarchyOrChainNew {
         Self {
             doc_sampler: ZipfSampler::new(N_DOCS, 1.0),
         }
+    }
+}
+
+impl Default for HierarchyOrChainNew {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

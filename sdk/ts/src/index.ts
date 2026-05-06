@@ -37,7 +37,9 @@ export {
   type components,
   createAdminClient,
   createAuthClient,
+  type Invitation,
   type operations,
+  type Org,
   type paths,
 } from "./client.js";
 export {

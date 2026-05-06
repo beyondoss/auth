@@ -23,6 +23,12 @@ impl SingleCheck {
     }
 }
 
+impl Default for SingleCheck {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Scenario for SingleCheck {
     fn name(&self) -> &str {

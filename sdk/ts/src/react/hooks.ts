@@ -1,5 +1,5 @@
 import React from "react";
-import type { MeResponse } from "../next/server.js";
+import type { Profile } from "../account/me.js";
 import { camelize } from "../utils/camelize.js";
 import { useAuthContext } from "./context.js";
 
@@ -7,11 +7,11 @@ export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 export interface UseAuthResult {
   status: AuthStatus;
-  user: MeResponse | null;
+  user: Profile | null;
 }
 
-function camelizeMeResponse(data: unknown): MeResponse | null {
-  return data != null ? (camelize(data) as unknown as MeResponse) : null;
+function camelizeProfile(data: unknown): Profile | null {
+  return data != null ? (camelize(data) as unknown as Profile) : null;
 }
 
 /**
@@ -46,7 +46,7 @@ export function useAuth(): UseAuthResult {
 
   return {
     status,
-    user: camelizeMeResponse(result.data),
+    user: camelizeProfile(result.data),
   };
 }
 
@@ -54,8 +54,8 @@ export function useAuth(): UseAuthResult {
  * Returns the current user, suspending until loaded.
  * Use inside authenticated subtrees with a Suspense boundary.
  */
-export function useUser(): MeResponse {
+export function useUser(): Profile {
   const { client } = useAuthContext();
   const result = client.useLoader({ path: "GET /v1/users/me" });
-  return camelizeMeResponse(result.data)!;
+  return camelizeProfile(result.data)!;
 }

@@ -326,24 +326,21 @@ fn host_info() -> String {
     if let Ok(cpu) = std::process::Command::new("sysctl")
         .args(["-n", "machdep.cpu.brand_string"])
         .output()
+        && cpu.status.success()
     {
-        if cpu.status.success() {
-            s.push_str(&format!(
-                "cpu: {}",
-                String::from_utf8_lossy(&cpu.stdout).trim_end()
-            ));
-            s.push('\n');
-        }
+        s.push_str(&format!(
+            "cpu: {}",
+            String::from_utf8_lossy(&cpu.stdout).trim_end()
+        ));
+        s.push('\n');
     }
     if let Ok(mem) = std::process::Command::new("sysctl")
         .args(["-n", "hw.memsize"])
         .output()
+        && mem.status.success()
+        && let Ok(bytes) = String::from_utf8_lossy(&mem.stdout).trim().parse::<u64>()
     {
-        if mem.status.success() {
-            if let Ok(bytes) = String::from_utf8_lossy(&mem.stdout).trim().parse::<u64>() {
-                s.push_str(&format!("memory: {} GiB\n", bytes / 1024 / 1024 / 1024));
-            }
-        }
+        s.push_str(&format!("memory: {} GiB\n", bytes / 1024 / 1024 / 1024));
     }
     s
 }

@@ -28,6 +28,12 @@ impl MultiDecisionSerial {
     }
 }
 
+impl Default for MultiDecisionSerial {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Scenario for MultiDecisionSerial {
     fn name(&self) -> &str {

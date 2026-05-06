@@ -121,10 +121,10 @@ export type {
 export type { UpdateOrgStatus, UseUpdateOrgResult } from "./useUpdateOrg.js";
 
 // Re-export auth types used in hook signatures
+export type { Profile } from "../account/me.js";
 export type { SignInRequest, StepUpResponse } from "../flows/sign-in.js";
 export { isStepUpResponse } from "../flows/sign-in.js";
 export type { AuthResponse, SignUpRequest } from "../flows/sign-up.js";
-export type { MeResponse } from "../next/server.js";
 
 export interface BrowserAuthOptions {
   /**

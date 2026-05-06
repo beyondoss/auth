@@ -1,15 +1,9 @@
 import React from "react";
+import type { Invitation } from "../client.js";
 import { camelize } from "../utils/camelize.js";
 import { useAuthContext } from "./context.js";
 
-export interface Invitation {
-  id: string;
-  orgId: string;
-  email?: string | null;
-  role: string;
-  createdAt: string;
-  expiresAt: string;
-}
+export type { Invitation };
 
 export type UseOrgInvitationsStatus =
   | "fetching"

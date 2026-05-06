@@ -144,7 +144,7 @@ fn measure<F: Fn()>(name: &str, iters: usize, f: F) {
         "bucket", "allocs", "alloc/it", "bytes", "bytes/it"
     );
 
-    for i in 0..NUM_BUCKETS {
+    for (i, label) in LABELS.iter().enumerate().take(NUM_BUCKETS) {
         let c = after.counts[i] - before.counts[i];
         let b = after.bytes[i] - before.bytes[i];
         if c == 0 {
@@ -152,7 +152,7 @@ fn measure<F: Fn()>(name: &str, iters: usize, f: F) {
         }
         println!(
             "║  {:<12}  {:>9}  {:>9.1}  {:>12}  {:>10.1}",
-            LABELS[i],
+            label,
             c,
             c as f64 / iters as f64,
             b,

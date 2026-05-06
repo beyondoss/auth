@@ -7,7 +7,7 @@ export {
   clearSessionCookie,
   type CookieStore,
   createServerHelpers,
-  type MeResponse,
+  type Profile,
   type ServerHelpersOptions,
   setSessionCookie,
 } from "./server.js";
