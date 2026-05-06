@@ -1481,10 +1481,9 @@ export interface components {
     };
     /** @description Cursor-paginated list of pending org invitations. */
     InvitationsResponse: {
-      has_more: boolean;
       invitations: components["schemas"]["InvitationResponse"][];
-      /** @description Opaque cursor — pass as `after` to retrieve the next page. */
-      next_page?: string | null;
+      /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
     };
     IssueRequest: {
       /**
@@ -1612,10 +1611,9 @@ export interface components {
     };
     /** @description Cursor-paginated list of org members. */
     MembersResponse: {
-      has_more: boolean;
       members: components["schemas"]["MemberResponse"][];
-      /** @description Opaque cursor — pass as `after` to retrieve the next page. */
-      next_page?: string | null;
+      /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
     };
     MicrosoftRedacted: {
       client_id: string;
@@ -1623,9 +1621,8 @@ export interface components {
     };
     /** @description Cursor-paginated list of resource IDs the subject can access. */
     ObjectsResponse: {
-      has_more: boolean;
-      /** @description Opaque cursor — pass as `after` for the next page. */
-      next_page?: string | null;
+      /** @description Opaque cursor — pass as `cursor` for the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
       object_ids: string[];
     };
     OidcRedacted: {
@@ -1658,9 +1655,8 @@ export interface components {
     };
     /** @description Cursor-paginated list of orgs. */
     OrgsResponse: {
-      has_more: boolean;
-      /** @description Opaque cursor — pass as `after` to retrieve the next page. */
-      next_page?: string | null;
+      /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
       orgs: components["schemas"]["OrgResponse"][];
     };
     /** @description One-time token response for flows that require a follow-up session grant. */
@@ -2328,8 +2324,8 @@ export interface operations {
         permission: string;
         resource_type: string;
         limit?: number | null;
-        /** @description Opaque pagination cursor from a previous response's `next_page`. */
-        after?: string | null;
+        /** @description Opaque pagination cursor from a previous response's `next_cursor`. */
+        cursor?: string | null;
       };
       header?: never;
       path?: never;
@@ -3415,7 +3411,7 @@ export interface operations {
   list_orgs: {
     parameters: {
       query?: {
-        after?: string | null;
+        cursor?: string | null;
         limit?: number | null;
       };
       header?: never;
@@ -3603,7 +3599,7 @@ export interface operations {
   list_org_invitations: {
     parameters: {
       query?: {
-        after?: string | null;
+        cursor?: string | null;
         limit?: number | null;
       };
       header?: never;
@@ -3757,7 +3753,7 @@ export interface operations {
   list_org_members: {
     parameters: {
       query?: {
-        after?: string | null;
+        cursor?: string | null;
         limit?: number | null;
       };
       header?: never;

@@ -13,30 +13,30 @@ export type UseOrgInvitationsStatus =
 
 export interface UseOrgInvitationsResult {
   invitations: Invitation[];
-  hasMore: boolean;
+  nextCursor: string | undefined;
   status: UseOrgInvitationsStatus;
   error: unknown;
   refetch(): void;
 }
 
-export function useOrgInvitations(orgId: string): UseOrgInvitationsResult {
+export function useOrgInvitations(
+  orgId: string,
+  cursor?: string,
+): UseOrgInvitationsResult {
   const { client } = useAuthContext();
   const result = client.useInlineLoader({
     path: "GET /v1/orgs/{id}/invitations",
-    input: { path: { id: orgId } },
+    input: { path: { id: orgId }, query: cursor != null ? { cursor } : {} },
   });
 
-  const invitations = React.useMemo(
-    () =>
-      result.data
-        ? (camelize(result.data.invitations) as Invitation[])
-        : [],
+  const data = React.useMemo(
+    () => result.data ? camelize(result.data) : null,
     [result.data],
   );
 
   return {
-    invitations,
-    hasMore: result.data?.has_more ?? false,
+    invitations: data?.invitations as Invitation[] ?? [],
+    nextCursor: data?.nextCursor ?? undefined,
     status: result.status,
     error: result.error,
     refetch: result.refetch,

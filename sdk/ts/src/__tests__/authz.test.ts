@@ -44,14 +44,15 @@ beforeAll(async () => {
     adminSecret: getAdminSecret(),
     schema: SCHEMA,
   });
-  await authz.putSchema(SCHEMA);
+  const { error } = await authz.putSchema(SCHEMA);
+  if (error) throw error;
 });
 
 // ── Schema round-trip ────────────────────────────────────────────────────────
 
 describe("schema", () => {
   it("round-trips via putSchema / getSchema", async () => {
-    const fetched = await authz.getSchema();
+    const { data: fetched } = await authz.getSchema();
     expect(fetched).not.toBeNull();
     expect(fetched!.version).toBe(SCHEMA.version);
     expect(fetched!.resources).toHaveLength(1);
@@ -123,12 +124,12 @@ describe("checks", () => {
       relation: "editor",
       subject: user,
     });
-    const results = await authz.checks([
+    const { data: results } = await authz.checks([
       { resource: "document", id: doc, permission: "write", subject: user },
       { resource: "document", id: doc, permission: "delete", subject: user }, // editor cannot delete
     ]);
-    expect(results[0]!.allowed).toBe(true);
-    expect(results[1]!.allowed).toBe(false);
+    expect(results![0]!.allowed).toBe(true);
+    expect(results![1]!.allowed).toBe(false);
   });
 
   it("preserves input order in results", async () => {
@@ -139,16 +140,18 @@ describe("checks", () => {
       relation: "viewer",
       subject: user,
     });
-    const results = await authz.checks([
+    const { data: results } = await authz.checks([
       { resource: "document", id: doc2, permission: "read", subject: user },
       { resource: "document", id: doc1, permission: "read", subject: user },
     ]);
-    expect(results[0]!.allowed).toBe(false);
-    expect(results[1]!.allowed).toBe(true);
+    expect(results![0]!.allowed).toBe(false);
+    expect(results![1]!.allowed).toBe(true);
   });
 
   it("returns empty array for empty input", async () => {
-    await expect(authz.checks([])).resolves.toEqual([]);
+    const { data, error } = await authz.checks([]);
+    expect(error).toBeUndefined();
+    expect(data).toEqual([]);
   });
 });
 
@@ -164,22 +167,25 @@ describe("checksSession", () => {
       relation: "viewer",
       subject: auth.user.id,
     });
-    const results = await authz.checksSession({
+    const { data: results } = await authz.checksSession({
       token: auth.session.token,
       checks: [
         { resource: "document", id: doc1, permission: "read" },
         { resource: "document", id: doc2, permission: "read" },
       ],
     });
-    expect(results[0]!.allowed).toBe(true);
-    expect(results[1]!.allowed).toBe(false);
+    expect(results![0]!.allowed).toBe(true);
+    expect(results![1]!.allowed).toBe(false);
   });
 
   it("returns empty array for empty input", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
-    await expect(
-      authz.checksSession({ token: auth.session.token, checks: [] }),
-    ).resolves.toEqual([]);
+    const { data, error } = await authz.checksSession({
+      token: auth.session.token,
+      checks: [],
+    });
+    expect(error).toBeUndefined();
+    expect(data).toEqual([]);
   });
 });
 
@@ -239,8 +245,10 @@ describe("createRelations / deleteRelations", () => {
   });
 
   it("no-ops on empty batch", async () => {
-    await expect(authz.createRelations([])).resolves.toBeUndefined();
-    await expect(authz.deleteRelations([])).resolves.toBeUndefined();
+    const r1 = await authz.createRelations([]);
+    expect(r1.error).toBeUndefined();
+    const r2 = await authz.deleteRelations([]);
+    expect(r2.error).toBeUndefined();
   });
 
   it("deleteRelation is idempotent when the tuple does not exist", async () => {
@@ -250,10 +258,12 @@ describe("createRelations / deleteRelations", () => {
       relation: "viewer" as const,
       subject: uid(),
     };
-    await expect(authz.deleteRelation(rel)).resolves.toBeUndefined();
+    const r1 = await authz.deleteRelation(rel);
+    expect(r1.error).toBeUndefined();
     await authz.createRelation(rel);
     await authz.deleteRelation(rel);
-    await expect(authz.deleteRelation(rel)).resolves.toBeUndefined();
+    const r2 = await authz.deleteRelation(rel);
+    expect(r2.error).toBeUndefined();
   });
 });
 
@@ -267,12 +277,12 @@ describe("expand", () => {
       { resource: "document", id: doc, relation: "viewer", subject: alice },
       { resource: "document", id: doc, relation: "editor", subject: bob },
     ]);
-    const subjects = await authz.expand({
+    const { data: subjects } = await authz.expand({
       resource: "document",
       id: doc,
       relation: "viewer",
     });
-    expect(subjects.some((s) => s.id === alice)).toBe(true);
+    expect(subjects!.some((s) => s.id === alice)).toBe(true);
   });
 });
 
@@ -287,25 +297,25 @@ describe("trace", () => {
       relation: "editor",
       subject: user,
     });
-    const result = await authz.trace({
+    const { data } = await authz.trace({
       resource: "document",
       id: doc,
       permission: "write",
       subject: user,
     });
-    expect(result.allowed).toBe(true);
-    expect(result.subjects.some((s) => s.id === user)).toBe(true);
+    expect(data!.allowed).toBe(true);
+    expect(data!.subjects.some((s) => s.id === user)).toBe(true);
   });
 
   it("returns allowed=false when the subject has no relation", async () => {
     const [doc, user] = [uid(), uid()];
-    const result = await authz.trace({
+    const { data } = await authz.trace({
       resource: "document",
       id: doc,
       permission: "write",
       subject: user,
     });
-    expect(result.allowed).toBe(false);
+    expect(data!.allowed).toBe(false);
   });
 });
 
@@ -398,12 +408,12 @@ describe("lookup", () => {
       },
     ]);
 
-    const page = await authz.lookup({
+    const { data: page } = await authz.lookup({
       token: auth.session.token,
       resource: "document",
       permission: "read",
     });
-    expect(page.objectIds).toContain(doc1);
-    expect(page.objectIds).toContain(doc2);
+    expect(page!.objectIds).toContain(doc1);
+    expect(page!.objectIds).toContain(doc2);
   });
 });

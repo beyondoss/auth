@@ -12,27 +12,30 @@ export type UseOrgMembersStatus = "fetching" | "success" | "error" | "disabled";
 
 export interface UseOrgMembersResult {
   members: OrgMember[];
-  hasMore: boolean;
+  nextCursor: string | undefined;
   status: UseOrgMembersStatus;
   error: unknown;
   refetch(): void;
 }
 
-export function useOrgMembers(orgId: string): UseOrgMembersResult {
+export function useOrgMembers(
+  orgId: string,
+  cursor?: string,
+): UseOrgMembersResult {
   const { client } = useAuthContext();
   const result = client.useInlineLoader({
     path: "GET /v1/orgs/{id}/members",
-    input: { path: { id: orgId } },
+    input: { path: { id: orgId }, query: cursor != null ? { cursor } : {} },
   });
 
-  const members = React.useMemo(
-    () => (result.data ? (camelize(result.data.members) as OrgMember[]) : []),
+  const data = React.useMemo(
+    () => result.data ? camelize(result.data) : null,
     [result.data],
   );
 
   return {
-    members,
-    hasMore: result.data?.has_more ?? false,
+    members: data?.members as OrgMember[] ?? [],
+    nextCursor: data?.nextCursor ?? undefined,
     status: result.status,
     error: result.error,
     refetch: result.refetch,

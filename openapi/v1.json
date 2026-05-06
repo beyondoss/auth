@@ -635,9 +635,9 @@
             }
           },
           {
-            "name": "after",
+            "name": "cursor",
             "in": "query",
-            "description": "Opaque pagination cursor from a previous response's `next_page`.",
+            "description": "Opaque pagination cursor from a previous response's `next_cursor`.",
             "required": false,
             "schema": {
               "type": [
@@ -2144,7 +2144,7 @@
         "operationId": "list_orgs",
         "parameters": [
           {
-            "name": "after",
+            "name": "cursor",
             "in": "query",
             "required": false,
             "schema": {
@@ -2442,7 +2442,7 @@
             }
           },
           {
-            "name": "after",
+            "name": "cursor",
             "in": "query",
             "required": false,
             "schema": {
@@ -2708,7 +2708,7 @@
             }
           },
           {
-            "name": "after",
+            "name": "cursor",
             "in": "query",
             "required": false,
             "schema": {
@@ -4912,25 +4912,21 @@
         "type": "object",
         "description": "Cursor-paginated list of pending org invitations.",
         "required": [
-          "invitations",
-          "has_more"
+          "invitations"
         ],
         "properties": {
-          "has_more": {
-            "type": "boolean"
-          },
           "invitations": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/InvitationResponse"
             }
           },
-          "next_page": {
+          "next_cursor": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Opaque cursor — pass as `after` to retrieve the next page."
+            "description": "Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages."
           }
         }
       },
@@ -5304,25 +5300,21 @@
         "type": "object",
         "description": "Cursor-paginated list of org members.",
         "required": [
-          "members",
-          "has_more"
+          "members"
         ],
         "properties": {
-          "has_more": {
-            "type": "boolean"
-          },
           "members": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MemberResponse"
             }
           },
-          "next_page": {
+          "next_cursor": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Opaque cursor — pass as `after` to retrieve the next page."
+            "description": "Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages."
           }
         }
       },
@@ -5345,19 +5337,15 @@
         "type": "object",
         "description": "Cursor-paginated list of resource IDs the subject can access.",
         "required": [
-          "object_ids",
-          "has_more"
+          "object_ids"
         ],
         "properties": {
-          "has_more": {
-            "type": "boolean"
-          },
-          "next_page": {
+          "next_cursor": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Opaque cursor — pass as `after` for the next page."
+            "description": "Opaque cursor — pass as `cursor` for the next page. Absent when there are no further pages."
           },
           "object_ids": {
             "type": "array",
@@ -5463,19 +5451,15 @@
         "type": "object",
         "description": "Cursor-paginated list of orgs.",
         "required": [
-          "orgs",
-          "has_more"
+          "orgs"
         ],
         "properties": {
-          "has_more": {
-            "type": "boolean"
-          },
-          "next_page": {
+          "next_cursor": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Opaque cursor — pass as `after` to retrieve the next page."
+            "description": "Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages."
           },
           "orgs": {
             "type": "array",

@@ -144,9 +144,9 @@ describe("proxy integration", () => {
       const body = await res.json();
       // token must not appear in the body — it lives in the httpOnly cookie only
       expect(body.session?.token).toBeUndefined();
-      // non-sensitive session fields are preserved
+      // non-sensitive session fields are preserved, camelCased
       expect(body.session?.id).toBeDefined();
-      expect(body.session?.expires_at).toBeDefined();
+      expect(body.session?.expiresAt).toBeDefined();
     });
   });
 

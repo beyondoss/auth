@@ -6,6 +6,7 @@ const ErrorBody = v.object({
     v.object({
       code: v.optional(v.string()),
       message: v.optional(v.string()),
+      hint: v.optional(v.string()),
     }),
   ),
 });
@@ -20,5 +21,7 @@ export function parseServiceError(
     body.error?.code ?? "unknown_error",
     body.error?.message ?? response.statusText,
     response.status,
+    response,
+    body.error?.hint,
   );
 }

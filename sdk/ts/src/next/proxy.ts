@@ -4,6 +4,7 @@ import {
   sessionCookieAttrs,
 } from "../server/cookie.js";
 import type { CookieAttrs, CookieOptions } from "../server/cookie.js";
+import { camelize } from "../utils/camelize.js";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 type Handler = (req: Request, context: RouteContext) => Promise<Response>;
@@ -152,12 +153,9 @@ export function createProxy(
       );
       const stripped = {
         ...body,
-        session: {
-          id: body.session.id,
-          expires_at: body.session.expires_at,
-        },
+        session: { id: body.session.id, expires_at: body.session.expires_at },
       };
-      return new Response(JSON.stringify(stripped), {
+      return new Response(JSON.stringify(camelize(stripped)), {
         status: 201,
         headers: resHeaders,
       });
@@ -173,6 +171,15 @@ export function createProxy(
         "Set-Cookie",
         toCookieHeader(clearCookieAttrs(cookieOpts)),
       );
+    }
+
+    const ct = resHeaders.get("content-type");
+    if (ct?.includes("application/json") && upstream.status !== 204) {
+      const body = await upstream.json();
+      return new Response(JSON.stringify(camelize(body)), {
+        status: upstream.status,
+        headers: resHeaders,
+      });
     }
 
     return new Response(upstream.body, {

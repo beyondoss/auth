@@ -22,16 +22,13 @@ export function useIdentities(): UseIdentitiesResult {
   const { client } = useAuthContext();
   const result = client.useInlineLoader({ path: "GET /v1/identities" });
 
-  const identities = React.useMemo(
-    () =>
-      result.data
-        ? (camelize(result.data.identities) as Identity[])
-        : [],
+  const data = React.useMemo(
+    () => result.data ? camelize(result.data) : null,
     [result.data],
   );
 
   return {
-    identities,
+    identities: data?.identities as Identity[] ?? [],
     status: result.status,
     error: result.error,
     refetch: result.refetch,

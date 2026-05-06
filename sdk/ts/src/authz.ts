@@ -69,6 +69,7 @@ import createFetchClient from "openapi-fetch";
 import * as v from "valibot";
 import { AuthServiceError, AuthzError } from "./errors.js";
 import type { components, paths } from "./types.js";
+import type { AuthResult } from "./utils/wrap.js";
 
 export type { AuthzError };
 
@@ -189,6 +190,7 @@ const ErrorBody = v.object({
     v.object({
       code: v.optional(v.string()),
       message: v.optional(v.string()),
+      hint: v.optional(v.string()),
     }),
   ),
 });
@@ -196,14 +198,12 @@ const ErrorBody = v.object({
 function parseError(
   error: unknown,
   response: Response,
-):
-  | { data: undefined; error: AuthzError; response: Response }
-  | { data: undefined; error: AuthServiceError; response: Response }
-{
+): AuthResult<never> {
   const parsed = v.safeParse(ErrorBody, error);
   const body = parsed.success ? parsed.output : {};
   const code = body.error?.code;
   const message = body.error?.message ?? response.statusText;
+  const hint = body.error?.hint;
   if (
     code === "unauthorized"
     || code === "token_invalid"
@@ -216,7 +216,13 @@ function parseError(
       : code as AuthzError["code"];
     return {
       data: undefined,
-      error: new AuthzError(authzCode, message, response.status),
+      error: new AuthzError(
+        authzCode,
+        message,
+        response.status,
+        response,
+        hint,
+      ),
       response,
     };
   }
@@ -226,16 +232,11 @@ function parseError(
       code ?? "unknown_error",
       message,
       response.status,
+      response,
+      hint,
     ),
     response,
   };
-}
-
-function assertOk(
-  error: unknown,
-  response: Response | undefined,
-): asserts error is undefined {
-  if (error !== undefined) throw parseError(error, response as Response).error;
 }
 
 function toWire(r: Relation): components["schemas"]["RelationRequest"] {
@@ -336,8 +337,6 @@ export interface ResolvedSubject {
 export interface LookupPage {
   /** Object IDs the subject can reach. Sorted, stable across pages. */
   objectIds: string[];
-  /** `true` when additional pages exist. */
-  hasMore: boolean;
   /**
    * Opaque cursor for the next page. Pass as `cursor` on the next call.
    * `undefined` when there are no more results.
@@ -446,14 +445,7 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * if (error) return new Response('Forbidden', { status: 403 })
    * ```
    */
-  check(args: CheckArgs<S>): Promise<
-    | { data: boolean; error: undefined; response: Response }
-    | {
-      data: undefined;
-      error: AuthzError | AuthServiceError;
-      response: Response;
-    }
-  >;
+  check(args: CheckArgs<S>): Promise<AuthResult<boolean>>;
 
   /**
    * Batch **Check** with explicit subjects — all N checks in a single request.
@@ -463,22 +455,18 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    *
    * No-op (returns `[]`) when the input is empty.
    *
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   * @throws {AuthzError} `authz_unknown_resource` or `authz_unknown_permission`
-   *   if any check references a resource or permission not in the schema.
-   *
    * @example
    * ```ts
-   * const results = await authz.checks([
+   * const { data, error } = await authz.checks([
    *   { resource: 'document', id: doc1, permission: 'read', subject: userId },
    *   { resource: 'document', id: doc2, permission: 'write', subject: userId },
    * ])
-   * const readable = results.filter(r => r.allowed).map(r => r.id)
+   * const readable = data?.filter(r => r.allowed).map(r => r.id)
    * ```
    */
   checks(
     checks: CheckArgs<S>[],
-  ): Promise<Array<CheckArgs<S> & { allowed: boolean }>>;
+  ): Promise<AuthResult<Array<CheckArgs<S> & { allowed: boolean }>>>;
 
   /**
    * Zanzibar **Check** with a session token — one database round-trip.
@@ -496,14 +484,7 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * if (error) return new Response('Forbidden', { status: 403 })
    * ```
    */
-  checkSession(args: CheckSessionArgs<S>): Promise<
-    | { data: boolean; error: undefined; response: Response }
-    | {
-      data: undefined;
-      error: AuthzError | AuthServiceError;
-      response: Response;
-    }
-  >;
+  checkSession(args: CheckSessionArgs<S>): Promise<AuthResult<boolean>>;
 
   /**
    * Batch **Check** with a session token — all N checks in a single request.
@@ -514,50 +495,43 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    *
    * No-op (returns `[]`) when `checks` is empty.
    *
-   * @throws {AuthzError} `unauthorized` if the session token is invalid or expired.
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   *
    * @example
    * ```ts
    * // Filter a list to only documents the user can read
-   * const results = await authz.checksSession({
+   * const { data, error } = await authz.checksSession({
    *   token,
    *   checks: docIds.map(id => ({ resource: 'document', id, permission: 'read' })),
    * })
-   * const readable = results.filter(r => r.allowed).map(r => r.id)
+   * const readable = data?.filter(r => r.allowed).map(r => r.id)
    * ```
    */
   checksSession(
     args: ChecksSessionArgs<S>,
-  ): Promise<Array<ChecksSessionItem<S> & { allowed: boolean }>>;
+  ): Promise<AuthResult<Array<ChecksSessionItem<S> & { allowed: boolean }>>>;
 
   // ── Tuple writes (admin) ─────────────────────────────────────────────────────
 
   /**
    * Write a single relation tuple. Idempotent — duplicate writes are silently ignored.
-   *
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    */
-  createRelation(relation: Relation<S>): Promise<void>;
+  createRelation(relation: Relation<S>): Promise<AuthResult<void>>;
 
   /**
    * Write multiple relation tuples in a single transactional batch. Idempotent.
    *
    * No-op when `relations` is empty.
-   *
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
    */
-  createRelations(relations: Relation<S>[]): Promise<void>;
+  createRelations(relations: Relation<S>[]): Promise<AuthResult<void>>;
 
   /** Delete a single relation tuple. Idempotent — no-op when the tuple does not exist. */
-  deleteRelation(relation: Relation<S>): Promise<void>;
+  deleteRelation(relation: Relation<S>): Promise<AuthResult<void>>;
 
   /**
    * Delete multiple relation tuples in a single transactional batch.
    *
    * No-op when `relations` is empty.
    */
-  deleteRelations(relations: Relation<S>[]): Promise<void>;
+  deleteRelations(relations: Relation<S>[]): Promise<AuthResult<void>>;
 
   // ── Admin reads ──────────────────────────────────────────────────────────────
 
@@ -565,15 +539,13 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * Zanzibar **Expand** — return all subjects directly reachable from
    * `resource:id#relation`, resolving subject sets recursively.
    *
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   *
    * @example
    * ```ts
-   * const subjects = await authz.expand({ resource: 'document', id: 'doc1', relation: 'viewer' })
-   * // [{ id: 'alice', relation: 'viewer' }, { id: 'bob', relation: 'viewer' }]
+   * const { data, error } = await authz.expand({ resource: 'document', id: 'doc1', relation: 'viewer' })
+   * // data: [{ id: 'alice', relation: 'viewer' }, { id: 'bob', relation: 'viewer' }]
    * ```
    */
-  expand(args: ExpandArgs<S>): Promise<ResolvedSubject[]>;
+  expand(args: ExpandArgs<S>): Promise<AuthResult<ResolvedSubject[]>>;
 
   /**
    * Zanzibar **why-check** (Trace) — expand all relations that could grant
@@ -581,13 +553,12 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    *
    * Use to answer "why does Alice have edit access?" or "why was Bob denied?"
    *
-   * @returns `allowed` reflects whether `subject` appears in the expanded set.
-   *   `subjects` lists everyone who has access and through which relation.
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
+   * `data.allowed` reflects whether `subject` appears in the expanded set.
+   * `data.subjects` lists everyone who has access and through which relation.
    */
   trace(
     args: TraceArgs<S>,
-  ): Promise<{ allowed: boolean; subjects: ResolvedSubject[] }>;
+  ): Promise<AuthResult<{ allowed: boolean; subjects: ResolvedSubject[] }>>;
 
   /**
    * Zanzibar **Lookup Objects** (reverse index) — return all objects of
@@ -596,15 +567,12 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * Results are cursor-paginated. Pass `cursor` from the previous page's
    * `nextCursor` to continue.
    *
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   * @throws {AuthServiceError} `401` if the session token is invalid.
-   *
    * @example
    * ```ts
-   * const { objectIds, nextCursor } = await authz.lookup({ token, resource: 'document', permission: 'view' })
+   * const { data, error } = await authz.lookup({ token, resource: 'document', permission: 'view' })
    * ```
    */
-  lookup(args: LookupArgs<S>): Promise<LookupPage>;
+  lookup(args: LookupArgs<S>): Promise<AuthResult<LookupPage>>;
 
   // ── Schema management (admin) ────────────────────────────────────────────────
 
@@ -612,17 +580,15 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * Fetch the current authorization schema. Returns `null` if the authz
    * engine has not been enabled (no schema uploaded yet).
    */
-  getSchema(): Promise<AuthzSchema | null>;
+  getSchema(): Promise<AuthResult<AuthzSchema | null>>;
 
   /**
    * Upload (replace) the authorization schema. Validates and compiles the
    * schema before persisting. This is the only way to enable the authz engine.
    *
    * Accepts both mutable and `as const` schemas.
-   *
-   * @throws {AuthServiceError} `422` if the schema fails validation.
    */
-  putSchema(schema: SchemaInput): Promise<AuthzSchema>;
+  putSchema(schema: SchemaInput): Promise<AuthResult<AuthzSchema>>;
 }
 
 // ── Schema helper ────────────────────────────────────────────────────────────
@@ -765,7 +731,13 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
     },
 
     async checks(checks) {
-      if (checks.length === 0) return [];
+      if (checks.length === 0) {
+        return {
+          data: [],
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        };
+      }
       const { data, error, response } = await client.POST("/v1/authz/checks", {
         body: {
           checks: checks.map((c) => ({
@@ -776,15 +748,25 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           })),
         },
       });
-      assertOk(error, response);
-      return checks.map((c, i) => ({
-        ...c,
-        allowed: data.results[i]?.allowed ?? false,
-      }));
+      if (error !== undefined) return parseError(error, response);
+      return {
+        data: checks.map((c, i) => ({
+          ...c,
+          allowed: data.results[i]?.allowed ?? false,
+        })),
+        error: undefined,
+        response,
+      };
     },
 
     async checksSession({ token, checks }) {
-      if (checks.length === 0) return [];
+      if (checks.length === 0) {
+        return {
+          data: [],
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        };
+      }
       const { data, error, response } = await client.POST("/v1/authz/checks", {
         headers: { Authorization: `Bearer ${token}` },
         body: {
@@ -795,11 +777,15 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           })),
         },
       });
-      assertOk(error, response);
-      return checks.map((c, i) => ({
-        ...c,
-        allowed: data.results[i]?.allowed ?? false,
-      }));
+      if (error !== undefined) return parseError(error, response);
+      return {
+        data: checks.map((c, i) => ({
+          ...c,
+          allowed: data.results[i]?.allowed ?? false,
+        })),
+        error: undefined,
+        response,
+      };
     },
 
     async checkSession({ token, resource, id, permission }) {
@@ -832,16 +818,24 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: toWire(relation),
       });
-      assertOk(error, response);
+      if (error !== undefined) return parseError(error, response);
+      return { data: undefined, error: undefined, response };
     },
 
     async createRelations(relations) {
-      if (relations.length === 0) return;
+      if (relations.length === 0) {
+        return {
+          data: undefined,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        };
+      }
       const { error, response } = await client.PATCH("/v1/authz/relations", {
         headers: adminHeaders,
         body: { writes: relations.map(toWire), deletes: [] },
       });
-      assertOk(error, response);
+      if (error !== undefined) return parseError(error, response);
+      return { data: undefined, error: undefined, response };
     },
 
     async deleteRelation(relation) {
@@ -849,17 +843,27 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: toWire(relation),
       });
-      if (response?.status === 404) return;
-      assertOk(error, response);
+      if (response?.status === 404) {
+        return { data: undefined, error: undefined, response: response! };
+      }
+      if (error !== undefined) return parseError(error, response);
+      return { data: undefined, error: undefined, response };
     },
 
     async deleteRelations(relations) {
-      if (relations.length === 0) return;
+      if (relations.length === 0) {
+        return {
+          data: undefined,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        };
+      }
       const { error, response } = await client.PATCH("/v1/authz/relations", {
         headers: adminHeaders,
         body: { writes: [], deletes: relations.map(toWire) },
       });
-      assertOk(error, response);
+      if (error !== undefined) return parseError(error, response);
+      return { data: undefined, error: undefined, response };
     },
 
     async expand({ resource, id, relation }) {
@@ -872,8 +876,8 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       );
-      assertOk(error, response);
-      return data.subjects;
+      if (error !== undefined) return parseError(error, response);
+      return { data: data.subjects, error: undefined, response };
     },
 
     async trace({ resource, id, permission, subject }) {
@@ -888,8 +892,12 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       });
-      assertOk(error, response);
-      return { allowed: data.allowed, subjects: data.subjects };
+      if (error !== undefined) return parseError(error, response);
+      return {
+        data: { allowed: data.allowed, subjects: data.subjects },
+        error: undefined,
+        response,
+      };
     },
 
     async lookup({ token, resource, permission, subject, limit, cursor }) {
@@ -901,15 +909,18 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
             permission,
             ...(subject !== undefined && { user: subject }),
             ...(limit !== undefined && { limit }),
-            ...(cursor !== undefined && { after: cursor }),
+            ...(cursor !== undefined && { cursor }),
           },
         },
       });
-      assertOk(error, response);
+      if (error !== undefined) return parseError(error, response);
       return {
-        objectIds: data.object_ids,
-        hasMore: data.has_more,
-        ...(data.next_page != null && { nextCursor: data.next_page }),
+        data: {
+          objectIds: data.object_ids,
+          ...(data.next_cursor != null && { nextCursor: data.next_cursor }),
+        },
+        error: undefined,
+        response,
       };
     },
 
@@ -917,8 +928,8 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
       const { data, error, response } = await client.GET("/v1/authz/schema", {
         headers: adminHeaders,
       });
-      assertOk(error, response);
-      return data ?? null;
+      if (error !== undefined) return parseError(error, response);
+      return { data: data ?? null, error: undefined, response };
     },
 
     async putSchema(schema) {
@@ -926,8 +937,8 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         headers: adminHeaders,
         body: schema as AuthzSchema,
       });
-      assertOk(error, response);
-      return data;
+      if (error !== undefined) return parseError(error, response);
+      return { data, error: undefined, response };
     },
   };
 }

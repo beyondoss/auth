@@ -41,7 +41,7 @@ export function useInvitation(id: string, token: string): UseInvitationResult {
   });
 
   const invitation = React.useMemo(
-    () => (result.data ? (camelize(result.data) as InvitationView) : undefined),
+    () => result.data ? camelize(result.data) as InvitationView : undefined,
     [result.data],
   );
 

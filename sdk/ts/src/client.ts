@@ -260,7 +260,7 @@ export function createAuthClient<OrgRole extends string = string>(
             raw.GET("/v1/orgs", {
               params: {
                 query: {
-                  ...(opts?.cursor != null && { after: opts.cursor }),
+                  ...(opts?.cursor != null && { cursor: opts.cursor }),
                   ...(opts?.limit != null && { limit: opts.limit }),
                 },
               },
@@ -368,7 +368,7 @@ export function createAuthClient<OrgRole extends string = string>(
                 params: {
                   path: { id: orgId },
                   query: {
-                    ...(opts?.cursor != null && { after: opts.cursor }),
+                    ...(opts?.cursor != null && { cursor: opts.cursor }),
                     ...(opts?.limit != null && { limit: opts.limit }),
                   },
                 },

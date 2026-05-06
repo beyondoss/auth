@@ -37,10 +37,10 @@ pub struct OrgResponse {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrgsResponse {
     pub orgs: Vec<OrgResponse>,
-    pub has_more: bool,
-    /// Opaque cursor — pass as `after` to retrieve the next page.
+    /// Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages.
     #[schema(nullable)]
-    pub next_page: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 /// An org membership record.
@@ -56,10 +56,10 @@ pub struct MemberResponse {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MembersResponse {
     pub members: Vec<MemberResponse>,
-    pub has_more: bool,
-    /// Opaque cursor — pass as `after` to retrieve the next page.
+    /// Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages.
     #[schema(nullable)]
-    pub next_page: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 /// An org invitation. On creation, `token` is populated — it is never returned again.
@@ -84,10 +84,10 @@ pub struct InvitationResponse {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvitationsResponse {
     pub invitations: Vec<InvitationResponse>,
-    pub has_more: bool,
-    /// Opaque cursor — pass as `after` to retrieve the next page.
+    /// Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages.
     #[schema(nullable)]
-    pub next_page: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 fn org_response(org: Org) -> OrgResponse {
@@ -113,7 +113,7 @@ fn member_response(m: OrgMember) -> MemberResponse {
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct PageQuery {
-    pub after: Option<String>,
+    pub cursor: Option<String>,
     pub limit: Option<i64>,
 }
 
@@ -225,21 +225,20 @@ pub async fn list_orgs(
     Query(page): Query<PageQuery>,
 ) -> Result<Json<OrgsResponse>, AuthError> {
     let limit = pages::clamp_limit(page.limit);
-    let after = pages::decode_cursor(page.after.as_deref());
+    let after = pages::decode_cursor(page.cursor.as_deref());
     let mut orgs = orgs::list(&state.pool, ctx.user.id, after.as_deref(), limit + 1).await?;
     let has_more = orgs.len() as i64 > limit;
     if has_more {
         orgs.truncate(limit as usize);
     }
-    let next_page = if has_more {
+    let next_cursor = if has_more {
         orgs.last().map(|o| pages::encode_cursor(&o.id.to_string()))
     } else {
         None
     };
     Ok(Json(OrgsResponse {
         orgs: orgs.into_iter().map(org_response).collect(),
-        has_more,
-        next_page,
+        next_cursor,
     }))
 }
 
@@ -358,13 +357,13 @@ pub async fn list_members(
 ) -> Result<Json<MembersResponse>, AuthError> {
     orgs::require_member(&state.pool, org_id, ctx.user.id).await?;
     let limit = pages::clamp_limit(page.limit);
-    let after = pages::decode_cursor(page.after.as_deref());
+    let after = pages::decode_cursor(page.cursor.as_deref());
     let mut members = orgs::list_members(&state.pool, org_id, after.as_deref(), limit + 1).await?;
     let has_more = members.len() as i64 > limit;
     if has_more {
         members.truncate(limit as usize);
     }
-    let next_page = if has_more {
+    let next_cursor = if has_more {
         members
             .last()
             .map(|m| pages::encode_cursor(&m.user_id.to_string()))
@@ -373,8 +372,7 @@ pub async fn list_members(
     };
     Ok(Json(MembersResponse {
         members: members.into_iter().map(member_response).collect(),
-        has_more,
-        next_page,
+        next_cursor,
     }))
 }
 
@@ -526,13 +524,13 @@ pub async fn list_invitations(
 ) -> Result<Json<InvitationsResponse>, AuthError> {
     orgs::require_owner(&state.pool, org_id, ctx.user.id).await?;
     let limit = pages::clamp_limit(page.limit);
-    let after = pages::decode_cursor(page.after.as_deref());
+    let after = pages::decode_cursor(page.cursor.as_deref());
     let mut invs = invitations::list(&state.pool, org_id, after.as_deref(), limit + 1).await?;
     let has_more = invs.len() as i64 > limit;
     if has_more {
         invs.truncate(limit as usize);
     }
-    let next_page = if has_more {
+    let next_cursor = if has_more {
         invs.last()
             .map(|inv| pages::encode_cursor(&inv.id.to_string()))
     } else {
@@ -551,8 +549,7 @@ pub async fn list_invitations(
                 token: None,
             })
             .collect(),
-        has_more,
-        next_page,
+        next_cursor,
     }))
 }
 

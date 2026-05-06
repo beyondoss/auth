@@ -198,18 +198,18 @@ pub struct ObjectsQuery {
     pub permission: String,
     pub resource_type: String,
     pub limit: Option<i64>,
-    /// Opaque pagination cursor from a previous response's `next_page`.
-    pub after: Option<String>,
+    /// Opaque pagination cursor from a previous response's `next_cursor`.
+    pub cursor: Option<String>,
 }
 
 /// Cursor-paginated list of resource IDs the subject can access.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ObjectsResponse {
     pub object_ids: Vec<String>,
-    pub has_more: bool,
-    /// Opaque cursor — pass as `after` for the next page.
+    /// Opaque cursor — pass as `cursor` for the next page. Absent when there are no further pages.
     #[schema(nullable)]
-    pub next_page: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -1092,7 +1092,7 @@ pub async fn list_objects(
 
     let subject_id = params.user.unwrap_or_else(|| ctx.user.id.to_string());
     let limit = pages::clamp_limit(params.limit);
-    let cursor = pages::decode_cursor(params.after.as_deref());
+    let cursor = pages::decode_cursor(params.cursor.as_deref());
     let cursor = cursor.as_deref();
     let fetch_limit = limit + 1;
 
@@ -1171,7 +1171,7 @@ pub async fn list_objects(
 
     let has_more = object_ids.len() as i64 > limit;
     object_ids.truncate(limit as usize);
-    let next_page = if has_more {
+    let next_cursor = if has_more {
         object_ids.last().map(|id| pages::encode_cursor(id))
     } else {
         None
@@ -1179,8 +1179,7 @@ pub async fn list_objects(
 
     Ok(Json(ObjectsResponse {
         object_ids,
-        has_more,
-        next_page,
+        next_cursor,
     }))
 }
 

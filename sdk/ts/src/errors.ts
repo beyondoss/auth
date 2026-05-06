@@ -17,17 +17,27 @@ export class AuthServiceError extends Error {
   readonly code: string;
   /** HTTP status code of the response. */
   readonly status: number;
+  readonly response: Response | undefined;
+  readonly hint: string | undefined;
 
-  constructor(code: string, message: string, status: number) {
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    response?: Response,
+    hint?: string,
+  ) {
     super(message);
     this.name = "AuthServiceError";
     this.code = code;
     this.status = status;
+    this.response = response;
+    this.hint = hint;
   }
 }
 
 /**
- * Thrown on authorization failures from the authz engine.
+ * Returned on authorization failures from the authz engine.
  *
  * `code` narrows the failure:
  * - `unauthorized` — subject is not reachable from the object via the permission's
@@ -39,29 +49,29 @@ export class AuthServiceError extends Error {
  *
  * @example
  * ```ts
- * try {
- *   await authz.check('document', 'edit', docId, userId)
- * } catch (err) {
- *   if (err instanceof AuthzError && err.code === 'unauthorized') {
- *     return new Response('Forbidden', { status: 403 })
- *   }
+ * const { data, error } = await authz.check({ resource: 'document', id: docId, permission: 'edit', subject: userId })
+ * if (error instanceof AuthzError && error.code === 'unauthorized') {
+ *   return new Response('Forbidden', { status: 403 })
  * }
  * ```
  */
-export class AuthzError extends Error {
-  readonly code:
+export class AuthzError extends AuthServiceError {
+  declare readonly code:
     | "unauthorized"
     | "session_invalid"
     | "authz_not_enabled"
     | "authz_unknown_resource"
     | "authz_unknown_permission";
-  readonly status: number;
 
-  constructor(code: AuthzError["code"], message: string, status: number) {
-    super(message);
+  constructor(
+    code: AuthzError["code"],
+    message: string,
+    status: number,
+    response?: Response,
+    hint?: string,
+  ) {
+    super(code, message, status, response, hint);
     this.name = "AuthzError";
-    this.code = code;
-    this.status = status;
   }
 }
 

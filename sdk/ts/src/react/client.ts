@@ -9,6 +9,7 @@ import createFetchClient, {
 import type { HttpMethod, PathsWithMethod } from "openapi-typescript-helpers";
 import React from "react";
 import type { ConditionalExcept, RequiredKeysOf, Simplify } from "type-fest";
+import type { Camelize } from "../utils/camelize.js";
 
 export function createClient<Paths extends {}>(
   options: ClientOptions<Paths> = {},
@@ -705,9 +706,11 @@ export type ClientOptions<Paths extends {}> = {
   };
   querySerializer?: <T = unknown>(queryParams: T) => string;
   onEachSuccess?: (
-    data: Exclude<
-      ResponseUnion<Paths, HttpMethod>["data"],
-      undefined | Record<string, never>
+    data: Camelize<
+      Exclude<
+        ResponseUnion<Paths, HttpMethod>["data"],
+        undefined | Record<string, never>
+      >
     >,
   ) => void;
   onEachError?: (
@@ -733,11 +736,11 @@ export type CachedResponse<
   Paths extends {},
   Path extends Extract<keyof Paths, string>,
 > = {
-  data: Data<Paths, Path, "get">;
+  data: Camelize<Data<Paths, Path, "get">>;
   error: ErrorData<Paths, Path, "get"> | undefined;
   response: Response | undefined;
   status: FetchStatus;
-  promise: Promise<Data<Paths, Path, "get">>;
+  promise: Promise<Camelize<Data<Paths, Path, "get">>>;
   createdAt: number;
 };
 
@@ -846,7 +849,9 @@ export type UseLoaderOptions<
   refetchOnReconnect?: boolean;
   refetchInterval?:
     | number
-    | ((data: Data<Paths, Path, "get"> | undefined) => number | false);
+    | ((
+      data: Camelize<Data<Paths, Path, "get">> | undefined,
+    ) => number | false);
 } & Input<Paths, Path, "get">;
 
 export type UseLoaderResult<
@@ -855,7 +860,7 @@ export type UseLoaderResult<
   Disabled extends Readonly<boolean>,
 > =
   & (Disabled extends false ? {
-      data: Data<Paths, Path, "get">;
+      data: Camelize<Data<Paths, Path, "get">>;
       error: undefined;
       response: Response;
       lastError: undefined;
@@ -888,7 +893,7 @@ export type UseInlineLoaderResult<
 > =
   & (Disabled extends false ?
       | {
-        data: Data<Paths, Path, "get">;
+        data: Camelize<Data<Paths, Path, "get">>;
         error: undefined;
         response: Response;
         lastError:
@@ -929,7 +934,7 @@ export type UseInlineLoaderResult<
     })
   & {
     invalidate(): void;
-    refetch(): Promise<Data<Paths, Path, "get">>;
+    refetch(): Promise<Camelize<Data<Paths, Path, "get">>>;
   };
 
 export type UseActionOptions<
@@ -943,7 +948,7 @@ export type UseActionOptions<
     response: Response,
   ) => Promise<void> | void;
   onSuccess?: (
-    output: Data<Paths, Path, Lowercase<Method>>,
+    output: Camelize<Data<Paths, Path, Lowercase<Method>>>,
     response: Response,
   ) => Promise<void> | void;
 };
@@ -958,7 +963,7 @@ export type UseActionResult<
     input: Input<Paths, Path, Lowercase<Method>> extends { input: infer I } ? I
       : void,
     requestInit?: Omit<RequestInit, "method" | "body">,
-  ): Promise<Data<Paths, Path, Lowercase<Method>>>;
+  ): Promise<Camelize<Data<Paths, Path, Lowercase<Method>>>>;
 };
 
 export type TypedResponse<T> = Omit<Response, "json"> & {
