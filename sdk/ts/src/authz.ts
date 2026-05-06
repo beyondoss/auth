@@ -31,7 +31,7 @@
  *
  * ```ts
  * const authz = createAuthzClient({
- *   baseUrl: 'http://auth:8080',
+ \* url: 'http://auth:8080',
  *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
  *   schema: {
  *     version: 1,
@@ -84,7 +84,7 @@ export type AuthzSchema = components["schemas"]["AuthzSchema"];
  * @example
  * ```ts
  * const authz = createAuthzClient({
- *   baseUrl: '...',
+ \* url: '...',
  *   adminSecret: '...',
  *   schema: defineSchema({
  *     version: 1,
@@ -237,7 +237,7 @@ function toWire(r: Relation): components["schemas"]["RelationRequest"] {
 /** Options for {@link createAuthzClient}. */
 export interface AuthzClientOptions<S extends SchemaInput = AuthzSchema> {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  baseUrl: string;
+  url: string;
   /**
    * Admin secret. Sent as `Authorization: Bearer <adminSecret>` on all admin
    * operations (tuple writes, expand, trace, schema management).
@@ -252,7 +252,7 @@ export interface AuthzClientOptions<S extends SchemaInput = AuthzSchema> {
    * @example
    * ```ts
    * const authz = createAuthzClient({
-   *   baseUrl: 'http://auth:8080',
+   \* url: 'http://auth:8080',
    *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
    *   schema: {
    *     version: 1,
@@ -612,7 +612,7 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
  * @example
  * ```ts
  * const authz = createAuthzClient({
- *   baseUrl: process.env.AUTH_URL!,
+ \* url: process.env.AUTH_URL!,
  *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
  *   schema: defineSchema({
  *     version: 1,
@@ -680,7 +680,7 @@ export function defineSchema<const S extends SchemaDefinition>(
  * @example Without schema (all strings)
  * ```ts
  * const authz = createAuthzClient({
- *   baseUrl: process.env.AUTH_URL!,
+ \* url: process.env.AUTH_URL!,
  *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
  * })
  * ```
@@ -688,7 +688,7 @@ export function defineSchema<const S extends SchemaDefinition>(
  * @example With schema (strictly typed)
  * ```ts
  * const authz = createAuthzClient({
- *   baseUrl: process.env.AUTH_URL!,
+ \* url: process.env.AUTH_URL!,
  *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
  *   schema: {
  *     version: 1,
@@ -708,7 +708,7 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
   opts: AuthzClientOptions<S>,
 ): AuthzClient<S> {
   const client = createFetchClient<paths>({
-    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+    baseUrl: opts.url.replace(/\/+$/, ""),
   });
 
   const adminHeaders = { Authorization: `Bearer ${opts.adminSecret}` };

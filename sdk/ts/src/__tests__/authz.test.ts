@@ -40,7 +40,7 @@ let authz: AuthzClient<typeof SCHEMA>;
 
 beforeAll(async () => {
   authz = createAuthzClient({
-    baseUrl: getBaseUrl(),
+    url: getBaseUrl(),
     adminSecret: getAdminSecret(),
     schema: SCHEMA,
   });

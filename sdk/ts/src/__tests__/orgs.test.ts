@@ -5,7 +5,7 @@ import { getBaseUrl, publicClient, signup, uniqueEmail } from "./harness.js";
 const PASSWORD = "correct-horse-battery-staple";
 
 function authClient(token: string) {
-  return createAuthClient({ baseUrl: getBaseUrl(), token });
+  return createAuthClient({ url: getBaseUrl(), token });
 }
 
 async function newUser() {

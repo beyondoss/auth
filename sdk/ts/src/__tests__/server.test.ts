@@ -13,7 +13,7 @@ function makeCookieStore(token: string | null): CookieStore {
 
 function helpers() {
   const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-  const client = createAdminClient({ baseUrl: getBaseUrl() });
+  const client = createAdminClient({ url: getBaseUrl() });
   return createServerHelpers(verifier, client);
 }
 

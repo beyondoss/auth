@@ -5,7 +5,7 @@ import { createSessionVerifier } from "../session.js";
 import { getBaseUrl, uniqueEmail } from "./harness.js";
 
 function flows() {
-  return createAuthFlowClient({ baseUrl: getBaseUrl() });
+  return createAuthFlowClient({ url: getBaseUrl() });
 }
 
 describe("signUp", () => {

@@ -1,5 +1,6 @@
 import createFetchClient from "openapi-fetch";
 import type { paths } from "../types.js";
+import { buildFetch } from "../utils/fetch.js";
 import { requestMagicLink } from "./magic-link.js";
 import { requestPasswordReset } from "./password-reset.js";
 import {
@@ -27,7 +28,13 @@ export type { TokenResponse } from "./token.js";
 /** Options for {@link createAuthFlowClient}. */
 export interface AuthFlowClientOptions {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  baseUrl: string;
+  url: string;
+  /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
+  fetch?: typeof globalThis.fetch;
+  /** Per-request timeout in milliseconds. */
+  timeout?: number;
+  /** Number of retries on transient 5xx responses. Defaults to 2. */
+  retries?: number;
 }
 
 /** @see {@link createAuthFlowClient} */
@@ -99,7 +106,8 @@ export interface AuthFlowClient {
  */
 export function createAuthFlowClient(opts: AuthFlowClientOptions) {
   const client = createFetchClient<paths>({
-    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+    baseUrl: opts.url.replace(/\/+$/, ""),
+    fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
 
   return {

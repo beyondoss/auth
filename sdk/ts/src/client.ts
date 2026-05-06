@@ -29,6 +29,7 @@ import {
 import type { components, paths } from "./types.js";
 import { snakenize } from "./utils/camelize.js";
 import type { Camelize } from "./utils/camelize.js";
+import { buildFetch } from "./utils/fetch.js";
 import { wrap } from "./utils/wrap.js";
 
 export type { paths };
@@ -39,7 +40,17 @@ export type Invitation = Camelize<components["schemas"]["InvitationResponse"]>;
 /** Options for {@link createAdminClient}. */
 export interface AdminClientOptions {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  baseUrl: string;
+  url: string;
+  /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
+  fetch?: typeof globalThis.fetch;
+  /** Per-request timeout in milliseconds. */
+  timeout?: number;
+  /** Number of retries on transient 5xx responses. Defaults to 2. */
+  retries?: number;
+  /** Called before each request is sent. */
+  onRequest?: (req: Request) => void;
+  /** Called after each response is received. */
+  onResponse?: (res: Response) => void;
 }
 
 /**
@@ -54,7 +65,7 @@ export interface AdminClientOptions {
  *
  * @example
  * ```ts
- * const client = createAdminClient({ baseUrl: 'http://auth:8080' })
+ * const client = createAdminClient({ url: 'http://auth:8080' })
  *
  * const { data, error } = await client.POST('/v1/users', {
  *   body: { email: 'hi@example.com', password: 'secret' },
@@ -68,17 +79,48 @@ export interface AdminClientOptions {
 export function createAdminClient(
   opts: AdminClientOptions,
 ): Client<paths, `${string}/${string}`> {
-  return createFetchClient<paths>({
-    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+  const client = createFetchClient<paths>({
+    baseUrl: opts.url.replace(/\/+$/, ""),
+    fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
+  if (opts.onRequest || opts.onResponse) {
+    client.use({
+      onError: async () => undefined,
+      ...(opts.onRequest
+        && {
+          onRequest: ({ request }: { request: Request }) => {
+            opts.onRequest!(request);
+            return undefined;
+          },
+        }),
+      ...(opts.onResponse
+        && {
+          onResponse: ({ response }: { response: Response }) => {
+            opts.onResponse!(response);
+            return undefined;
+          },
+        }),
+    });
+  }
+  return client;
 }
 
 /** Options for {@link createAuthClient}. */
 export interface AuthClientOptions {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  baseUrl: string;
+  url: string;
   /** Session bearer token for authenticated requests. */
   token: string;
+  /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
+  fetch?: typeof globalThis.fetch;
+  /** Per-request timeout in milliseconds. */
+  timeout?: number;
+  /** Number of retries on transient 5xx responses. Defaults to 2. */
+  retries?: number;
+  /** Called before each request is sent. */
+  onRequest?: (req: Request) => void;
+  /** Called after each response is received. */
+  onResponse?: (res: Response) => void;
 }
 
 type InvitationBody<OrgRole extends string> =
@@ -95,7 +137,7 @@ type InvitationBody<OrgRole extends string> =
  * @example
  * ```ts
  * const client = createAuthClient<'admin' | 'billing' | 'member'>({
- *   baseUrl: 'http://auth:8080',
+ *   url: 'http://auth:8080',
  *   token: sessionToken,
  * })
  *
@@ -109,9 +151,29 @@ export function createAuthClient<OrgRole extends string = string>(
   opts: AuthClientOptions,
 ) {
   const raw = createFetchClient<paths>({
-    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+    baseUrl: opts.url.replace(/\/+$/, ""),
     headers: { Authorization: `Bearer ${opts.token}` },
+    fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
+  if (opts.onRequest || opts.onResponse) {
+    raw.use({
+      onError: async () => undefined,
+      ...(opts.onRequest
+        && {
+          onRequest: ({ request }: { request: Request }) => {
+            opts.onRequest!(request);
+            return undefined;
+          },
+        }),
+      ...(opts.onResponse
+        && {
+          onResponse: ({ response }: { response: Response }) => {
+            opts.onResponse!(response);
+            return undefined;
+          },
+        }),
+    });
+  }
 
   const { GET, POST, PUT, PATCH, DELETE } = raw;
 

@@ -4,7 +4,7 @@ import { getAdminSecret, getBaseUrl, signup, uniqueEmail } from "./harness.js";
 
 describe("createAdminClient", () => {
   it("creates a user via POST /v1/users", async () => {
-    const client = createAdminClient({ baseUrl: getBaseUrl() });
+    const client = createAdminClient({ url: getBaseUrl() });
     const email = uniqueEmail();
     const { data, error, response } = await client.POST("/v1/users", {
       body: { email, password: "correct-horse-battery-staple" },
@@ -17,7 +17,7 @@ describe("createAdminClient", () => {
   });
 
   it("returns an error body on invalid input", async () => {
-    const client = createAdminClient({ baseUrl: getBaseUrl() });
+    const client = createAdminClient({ url: getBaseUrl() });
     const { data, error, response } = await client.POST("/v1/users", {
       body: { email: "not-an-email", password: "pw" },
     });
@@ -29,7 +29,7 @@ describe("createAdminClient", () => {
   it("looks up a user by email with admin credentials", async () => {
     const email = uniqueEmail();
     const created = await signup(email, "correct-horse-battery-staple");
-    const client = createAdminClient({ baseUrl: getBaseUrl() });
+    const client = createAdminClient({ url: getBaseUrl() });
     const { data, error, response } = await client.GET("/v1/admin/users", {
       headers: { Authorization: `Bearer ${getAdminSecret()}` },
       params: { query: { email } },
@@ -44,7 +44,7 @@ describe("createAuthClient", () => {
   it("lists identities for the authenticated user", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const client = createAuthClient({
-      baseUrl: getBaseUrl(),
+      url: getBaseUrl(),
       token: auth.session.token,
     });
     const { data, error, response } = await client.identities.list();
@@ -56,7 +56,7 @@ describe("createAuthClient", () => {
   it("lists orgs for the authenticated user", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const client = createAuthClient({
-      baseUrl: getBaseUrl(),
+      url: getBaseUrl(),
       token: auth.session.token,
     });
     const { data, error, response } = await client.orgs.list();
@@ -69,7 +69,7 @@ describe("createAuthClient", () => {
   it("creates and then lists an org invitation", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const client = createAuthClient({
-      baseUrl: getBaseUrl(),
+      url: getBaseUrl(),
       token: auth.session.token,
     });
 

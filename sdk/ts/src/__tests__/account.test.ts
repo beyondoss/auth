@@ -52,11 +52,11 @@ async function totpConfirm(
 }
 
 function flows() {
-  return createAuthFlowClient({ baseUrl: getBaseUrl() });
+  return createAuthFlowClient({ url: getBaseUrl() });
 }
 
 function authClient(token: string) {
-  return createAuthClient({ baseUrl: getBaseUrl(), token });
+  return createAuthClient({ url: getBaseUrl(), token });
 }
 
 async function newUser() {
