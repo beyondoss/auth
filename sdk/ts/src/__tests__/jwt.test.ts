@@ -25,16 +25,17 @@ describe("createJwtVerifier", () => {
       throw new Error(`POST /v1/tokens failed: ${JSON.stringify(error)}`);
     }
 
-    const claims = await createJwtVerifier({
+    const result = await createJwtVerifier({
       jwksUri: jwksUri(),
       issuer: DEFAULT_ISSUER,
     }).verify(data.access_token);
 
-    expect(claims.sub).toBe(auth.user.id);
-    expect(claims.iss).toBe(DEFAULT_ISSUER);
+    expect(result.error).toBeUndefined();
+    expect(result.data!.sub).toBe(auth.user.id);
+    expect(result.data!.iss).toBe(DEFAULT_ISSUER);
   });
 
-  it("throws JwtVerificationError for a tampered signature", async () => {
+  it("returns JwtVerificationError for a tampered signature", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const { data } = await authedClient(auth.session.token).POST("/v1/tokens", {
       body: {},
@@ -44,25 +45,26 @@ describe("createJwtVerifier", () => {
     parts[2] = parts[2]!.split("").reverse().join("");
     const tampered = parts.join(".");
 
-    await expect(
-      createJwtVerifier({ jwksUri: jwksUri(), issuer: DEFAULT_ISSUER }).verify(
-        tampered,
-      ),
-    ).rejects.toBeInstanceOf(JwtVerificationError);
+    const result = await createJwtVerifier({
+      jwksUri: jwksUri(),
+      issuer: DEFAULT_ISSUER,
+    }).verify(
+      tampered,
+    );
+    expect(result.error).toBeInstanceOf(JwtVerificationError);
   });
 
-  it("throws JwtVerificationError for the wrong issuer", async () => {
+  it("returns JwtVerificationError for the wrong issuer", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const { data } = await authedClient(auth.session.token).POST("/v1/tokens", {
       body: {},
     });
 
-    await expect(
-      createJwtVerifier({
-        jwksUri: jwksUri(),
-        issuer: "https://wrong.example.com",
-      }).verify(data!.access_token),
-    ).rejects.toBeInstanceOf(JwtVerificationError);
+    const result = await createJwtVerifier({
+      jwksUri: jwksUri(),
+      issuer: "https://wrong.example.com",
+    }).verify(data!.access_token);
+    expect(result.error).toBeInstanceOf(JwtVerificationError);
   });
 
   it("marks JWKS fetch failures as retryable", async () => {
@@ -74,35 +76,31 @@ describe("createJwtVerifier", () => {
       "aW52YWxpZA",
     ].join(".");
 
-    const err = await createJwtVerifier({
+    const result = await createJwtVerifier({
       jwksUri: "http://127.0.0.1:1/v1/jwks.json",
       issuer: DEFAULT_ISSUER,
-    })
-      .verify(fakeJwt)
-      .catch((e: unknown) => e);
+    }).verify(fakeJwt);
 
-    expect(err).toBeInstanceOf(JwtVerificationError);
-    expect((err as JwtVerificationError).retryable).toBe(true);
+    expect(result.error).toBeInstanceOf(JwtVerificationError);
+    expect((result.error as JwtVerificationError).retryable).toBe(true);
   });
 
-  it("retries on transient JWKS failures and eventually throws", async () => {
+  it("retries on transient JWKS failures and eventually returns an error", async () => {
     const fakeJwt = [
       b64url({ alg: "RS256", kid: "test" }),
       b64url({ sub: "u", iss: DEFAULT_ISSUER, iat: 0, exp: 9_999_999_999 }),
       "aW52YWxpZA",
     ].join(".");
 
-    const err = await createJwtVerifier({
+    const result = await createJwtVerifier({
       jwksUri: "http://127.0.0.1:1/v1/jwks.json",
       issuer: DEFAULT_ISSUER,
       retryAttempts: 2,
       retryDelay: 10,
-    })
-      .verify(fakeJwt)
-      .catch((e: unknown) => e);
+    }).verify(fakeJwt);
 
-    expect(err).toBeInstanceOf(JwtVerificationError);
-    expect((err as JwtVerificationError).retryable).toBe(true);
+    expect(result.error).toBeInstanceOf(JwtVerificationError);
+    expect((result.error as JwtVerificationError).retryable).toBe(true);
   });
 
   it("does not retry non-retryable failures", async () => {
@@ -115,17 +113,15 @@ describe("createJwtVerifier", () => {
     parts[2] = parts[2]!.split("").reverse().join("");
     const tampered = parts.join(".");
 
-    const err = await createJwtVerifier({
+    const result = await createJwtVerifier({
       jwksUri: jwksUri(),
       issuer: DEFAULT_ISSUER,
       retryAttempts: 3,
       retryDelay: 10,
-    })
-      .verify(tampered)
-      .catch((e: unknown) => e);
+    }).verify(tampered);
 
-    expect(err).toBeInstanceOf(JwtVerificationError);
-    expect((err as JwtVerificationError).retryable).toBe(false);
+    expect(result.error).toBeInstanceOf(JwtVerificationError);
+    expect((result.error as JwtVerificationError).retryable).toBe(false);
   });
 
   it("succeeds normally when retryAttempts is configured", async () => {
@@ -134,12 +130,13 @@ describe("createJwtVerifier", () => {
       body: {},
     });
 
-    const claims = await createJwtVerifier({
+    const result = await createJwtVerifier({
       jwksUri: jwksUri(),
       issuer: DEFAULT_ISSUER,
       retryAttempts: 2,
     }).verify(data!.access_token);
 
-    expect(claims.sub).toBe(auth.user.id);
+    expect(result.error).toBeUndefined();
+    expect(result.data!.sub).toBe(auth.user.id);
   });
 });

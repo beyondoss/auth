@@ -109,7 +109,12 @@ export function createServerHelpers(
   const getSession = withCache(async (cookieStore: CookieStore) => {
     const token = getTokenFromCookieStore(cookieStore);
     if (!token) return null;
-    return verifier.verify(token);
+    const result = await verifier.verify(token);
+    if (result.error) {
+      if (result.error.status >= 500) throw result.error;
+      return null;
+    }
+    return result.data;
   });
 
   const getMe = withCache(async (cookieStore: CookieStore) => {

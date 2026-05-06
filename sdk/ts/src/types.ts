@@ -1126,13 +1126,13 @@ export interface components {
       email: string;
     };
     AdminOAuthRequest: {
-      apple: Record<string, never> | null;
+      apple: Record<string, unknown> | null;
       /** @description When true, OAuth identities are linked to existing accounts with the same email. */
       email_link?: boolean | null;
-      github: Record<string, never> | null;
-      google: Record<string, never> | null;
-      microsoft: Record<string, never> | null;
-      oidc: Record<string, never>[] | null;
+      github: Record<string, unknown> | null;
+      google: Record<string, unknown> | null;
+      microsoft: Record<string, unknown> | null;
+      oidc: Record<string, unknown>[] | null;
     };
     AdminOAuthResponse: {
       apple?: null | components["schemas"]["AppleRedacted"];
@@ -1215,7 +1215,7 @@ export interface components {
     };
     BeginResponse: {
       /** @description WebAuthn options object — pass directly to the browser's WebAuthn API. */
-      options: Record<string, never>;
+      options: Record<string, unknown>;
       /** @description Opaque state token; include in the corresponding finish request. */
       state_token: string;
     };
@@ -1290,7 +1290,7 @@ export interface components {
     };
     /** @description Request to create a new organization. */
     CreateOrgRequest: {
-      metadata: Record<string, never> | null;
+      metadata?: unknown;
       name: string;
       /** @description URL-safe identifier. Defaults to a slugified version of `name` if omitted. */
       slug?: string | null;
@@ -1408,7 +1408,7 @@ export interface components {
     };
     FinishRegistrationRequest: {
       /** @description WebAuthn `PublicKeyCredential` response from the browser. */
-      credential: Record<string, never>;
+      credential: Record<string, unknown>;
       nickname?: string | null;
       state_token: string;
     };
@@ -1493,7 +1493,7 @@ export interface components {
        *     `impersonated`) are always overwritten by the service and cannot be
        *     supplied here.
        */
-      claims?: Record<string, never> | null;
+      claims?: Record<string, unknown> | null;
     };
     /** @description A single JSON Web Key (Ed25519 public key in JWK format). */
     Jwk: {
@@ -1573,7 +1573,7 @@ export interface components {
       step_up_token: string;
     } | {
       /** @description WebAuthn `PublicKeyCredential` response from the browser's `navigator.credentials.get()`. */
-      credential: Record<string, never>;
+      credential: Record<string, unknown>;
       /** @enum {string} */
       grant_type: "passkey";
       /** @description The `state_token` from the `POST /v1/passkey-authentications` response. */
@@ -1651,7 +1651,7 @@ export interface components {
       id: string;
       image_url?: string | null;
       /** @description Arbitrary JSON metadata. */
-      metadata: Record<string, never>;
+      metadata: Record<string, unknown>;
       name: string;
       /** @description URL-safe identifier, unique across all orgs. */
       slug: string;
@@ -1855,7 +1855,7 @@ export interface components {
     UpdateMeRequest: {
       image_url?: string | null;
       /** @description Arbitrary JSON merged into the org's metadata field (full replacement, not merge). */
-      metadata: Record<string, never> | null;
+      metadata?: unknown;
       /** @description Display name for the user and their personal org. */
       name?: string | null;
       /** @description URL-safe org identifier. Must be unique. Returns 409 if already taken. */
@@ -1870,7 +1870,7 @@ export interface components {
     UpdateOrgRequest: {
       image_url?: string | null;
       /** @description Full replacement of the org's metadata field. */
-      metadata: Record<string, never> | null;
+      metadata?: unknown;
       name?: string | null;
       /** @description URL-safe identifier. Returns 409 if already taken. */
       slug?: string | null;
@@ -1883,7 +1883,7 @@ export interface components {
       id: string;
       image_url?: string | null;
       /** @description Arbitrary JSON metadata stored on the personal org. */
-      metadata: Record<string, never>;
+      metadata: Record<string, unknown>;
       /** @description Display name (mirrors the personal org name). */
       name: string;
       /**

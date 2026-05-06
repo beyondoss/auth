@@ -8,6 +8,10 @@ import {
 } from "jose";
 import { JwtVerificationError } from "./errors.js";
 
+export type VerifyResult<T, E extends Error = Error> =
+  | { data: T; error: undefined }
+  | { data: undefined; error: E };
+
 /** Options for {@link createJwtVerifier}. */
 export interface JwtVerifierOptions {
   /** Full URL to the JWKS endpoint, e.g. `https://auth.example.com/v1/jwks.json`. */
@@ -54,16 +58,16 @@ export interface JwtVerifier {
    * the token is rejected.
    *
    * @param token - Raw JWT string (without `Bearer ` prefix).
-   * @returns Verified claims.
-   * @throws {JwtVerificationError} If the token is invalid, expired, or has the wrong issuer/audience.
+   * @returns `{ data: JwtClaims }` on success; `{ error: JwtVerificationError }` on any failure.
    *
    * @example
    * ```ts
-   * const claims = await verifier.verify(accessToken)
-   * console.log(claims.sub) // user ID
+   * const { data, error } = await verifier.verify(accessToken)
+   * if (error) return new Response('Unauthorized', { status: 401 })
+   * console.log(data.sub) // user ID
    * ```
    */
-  verify(token: string): Promise<JwtClaims>;
+  verify(token: string): Promise<VerifyResult<JwtClaims, JwtVerificationError>>;
 }
 
 /**
@@ -105,7 +109,9 @@ export function createJwtVerifier(opts: JwtVerifierOptions): JwtVerifier {
   const retryDelay = opts.retryDelay ?? 100;
 
   return {
-    async verify(token: string): Promise<JwtClaims> {
+    async verify(
+      token: string,
+    ): Promise<VerifyResult<JwtClaims, JwtVerificationError>> {
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         if (attempt > 0) {
           await new Promise<void>((res) =>
@@ -115,13 +121,16 @@ export function createJwtVerifier(opts: JwtVerifierOptions): JwtVerifier {
         try {
           const { payload } = await jwtVerify(token, jwks, verifyOptions);
           if (!payload.sub) {
-            throw new JwtVerificationError("JWT is missing sub claim");
+            return {
+              data: undefined,
+              error: new JwtVerificationError("JWT is missing sub claim"),
+            };
           }
-          return payload as JwtClaims;
+          return { data: payload as JwtClaims, error: undefined };
         } catch (err) {
           if (err instanceof JwtVerificationError) {
             if (err.retryable && attempt < maxAttempts - 1) continue;
-            throw err;
+            return { data: undefined, error: err };
           }
           // JWKSTimeout = explicit JWKS fetch timeout; non-JOSEError = network failure.
           const retryable = err instanceof joseErrors.JWKSTimeout
@@ -132,11 +141,14 @@ export function createJwtVerifier(opts: JwtVerifierOptions): JwtVerifier {
             retryable,
           );
           if (retryable && attempt < maxAttempts - 1) continue;
-          throw wrapped;
+          return { data: undefined, error: wrapped };
         }
       }
-      // unreachable — loop always throws or returns
-      throw new JwtVerificationError("JWT verification failed");
+      // unreachable — loop always returns
+      return {
+        data: undefined,
+        error: new JwtVerificationError("JWT verification failed"),
+      };
     },
   };
 }

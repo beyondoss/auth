@@ -193,7 +193,13 @@ const ErrorBody = v.object({
   ),
 });
 
-function parseError(error: unknown, response: Response): never {
+function parseError(
+  error: unknown,
+  response: Response,
+):
+  | { data: undefined; error: AuthzError; response: Response }
+  | { data: undefined; error: AuthServiceError; response: Response }
+{
   const parsed = v.safeParse(ErrorBody, error);
   const body = parsed.success ? parsed.output : {};
   const code = body.error?.code;
@@ -208,16 +214,28 @@ function parseError(error: unknown, response: Response): never {
     const authzCode: AuthzError["code"] = code === "token_invalid"
       ? "session_invalid"
       : code as AuthzError["code"];
-    throw new AuthzError(authzCode, message, response.status);
+    return {
+      data: undefined,
+      error: new AuthzError(authzCode, message, response.status),
+      response,
+    };
   }
-  throw new AuthServiceError(code ?? "unknown_error", message, response.status);
+  return {
+    data: undefined,
+    error: new AuthServiceError(
+      code ?? "unknown_error",
+      message,
+      response.status,
+    ),
+    response,
+  };
 }
 
 function assertOk(
   error: unknown,
   response: Response | undefined,
 ): asserts error is undefined {
-  if (error !== undefined) parseError(error, response as Response);
+  if (error !== undefined) throw parseError(error, response as Response).error;
 }
 
 function toWire(r: Relation): components["schemas"]["RelationRequest"] {
@@ -419,20 +437,23 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * prefer {@link checkSession} — it validates the session and checks the
    * permission in a single database round-trip.
    *
-   * **Throws on denial.** To check multiple permissions at once without throwing,
-   * use {@link checks} — it returns an `allowed` boolean per item instead.
-   *
-   * @throws {AuthzError} `unauthorized` if the subject cannot reach the resource.
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
-   * @throws {AuthzError} `authz_unknown_resource` if `resource` is not in the schema.
+   * To check multiple permissions at once, use {@link checks} — it returns an
+   * `allowed` boolean per item.
    *
    * @example
    * ```ts
-   * await authz.check({ resource: 'document', id: docId, permission: 'edit', subject: userId })
-   * // throws AuthzError if denied; returns void if allowed
+   * const { data, error } = await authz.check({ resource: 'document', id: docId, permission: 'edit', subject: userId })
+   * if (error) return new Response('Forbidden', { status: 403 })
    * ```
    */
-  check(args: CheckArgs<S>): Promise<void>;
+  check(args: CheckArgs<S>): Promise<
+    | { data: boolean; error: undefined; response: Response }
+    | {
+      data: undefined;
+      error: AuthzError | AuthServiceError;
+      response: Response;
+    }
+  >;
 
   /**
    * Batch **Check** with explicit subjects — all N checks in a single request.
@@ -466,19 +487,23 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
    * CTE query. This is the hot path for request middleware: you pay one DB
    * round-trip instead of two (session validate + authz check separately).
    *
-   * **Throws on denial.** To check multiple permissions at once without throwing,
-   * use {@link checksSession} — it returns an `allowed` boolean per item instead.
-   *
-   * @throws {AuthzError} `unauthorized` if the token is invalid, expired, or
-   *   the session user cannot reach the resource.
-   * @throws {AuthzError} `authz_not_enabled` if no schema has been uploaded.
+   * To check multiple permissions at once, use {@link checksSession} — it
+   * returns an `allowed` boolean per item.
    *
    * @example
    * ```ts
-   * await authz.checkSession({ token, resource: 'document', id: docId, permission: 'edit' })
+   * const { data, error } = await authz.checkSession({ token, resource: 'document', id: docId, permission: 'edit' })
+   * if (error) return new Response('Forbidden', { status: 403 })
    * ```
    */
-  checkSession(args: CheckSessionArgs<S>): Promise<void>;
+  checkSession(args: CheckSessionArgs<S>): Promise<
+    | { data: boolean; error: undefined; response: Response }
+    | {
+      data: undefined;
+      error: AuthzError | AuthServiceError;
+      response: Response;
+    }
+  >;
 
   /**
    * Batch **Check** with a session token — all N checks in a single request.
@@ -728,10 +753,15 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       );
-      assertOk(error, response);
+      if (error !== undefined) return parseError(error, response);
       if (!data.allowed) {
-        throw new AuthzError("unauthorized", "permission denied", 403);
+        return {
+          data: undefined,
+          error: new AuthzError("unauthorized", "permission denied", 403),
+          response,
+        };
       }
+      return { data: data.allowed, error: undefined, response };
     },
 
     async checks(checks) {
@@ -786,10 +816,15 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
           },
         },
       );
-      assertOk(error, response);
+      if (error !== undefined) return parseError(error, response);
       if (!data.allowed) {
-        throw new AuthzError("unauthorized", "permission denied", 403);
+        return {
+          data: undefined,
+          error: new AuthzError("unauthorized", "permission denied", 403),
+          response,
+        };
       }
+      return { data: data.allowed, error: undefined, response };
     },
 
     async createRelation(relation) {

@@ -70,28 +70,26 @@ describe("check", () => {
       relation: "editor",
       subject: user,
     });
-    await expect(
-      authz.check({
-        resource: "document",
-        id: doc,
-        permission: "write",
-        subject: user,
-      }),
-    ).resolves.toBeUndefined();
+    const result = await authz.check({
+      resource: "document",
+      id: doc,
+      permission: "write",
+      subject: user,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.data).toBe(true);
   });
 
-  it("throws AuthzError(unauthorized) when the subject has no relation", async () => {
+  it("returns AuthzError(unauthorized) when the subject has no relation", async () => {
     const [doc, user] = [uid(), uid()];
-    await expect(
-      authz.check({
-        resource: "document",
-        id: doc,
-        permission: "read",
-        subject: user,
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
-    );
+    const result = await authz.check({
+      resource: "document",
+      id: doc,
+      permission: "read",
+      subject: user,
+    });
+    expect(result.error).toBeInstanceOf(AuthzError);
+    expect((result.error as AuthzError).code).toBe("unauthorized");
   });
 
   it("resolves for a permission granted via role hierarchy", async () => {
@@ -103,14 +101,14 @@ describe("check", () => {
       relation: "owner",
       subject: user,
     });
-    await expect(
-      authz.check({
-        resource: "document",
-        id: doc,
-        permission: "read",
-        subject: user,
-      }),
-    ).resolves.toBeUndefined();
+    const result = await authz.check({
+      resource: "document",
+      id: doc,
+      permission: "read",
+      subject: user,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.data).toBe(true);
   });
 });
 
@@ -200,14 +198,14 @@ describe("createRelations / deleteRelations", () => {
       })),
     );
     for (const u of users) {
-      await expect(
-        authz.check({
-          resource: "document",
-          id: doc,
-          permission: "read",
-          subject: u,
-        }),
-      ).resolves.toBeUndefined();
+      const result = await authz.check({
+        resource: "document",
+        id: doc,
+        permission: "read",
+        subject: u,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.data).toBe(true);
     }
   });
 
@@ -220,26 +218,24 @@ describe("createRelations / deleteRelations", () => {
       subject: user,
     };
     await authz.createRelation(rel);
-    await expect(
-      authz.check({
-        resource: "document",
-        id: doc,
-        permission: "read",
-        subject: user,
-      }),
-    ).resolves.toBeUndefined();
+    const before = await authz.check({
+      resource: "document",
+      id: doc,
+      permission: "read",
+      subject: user,
+    });
+    expect(before.error).toBeUndefined();
+    expect(before.data).toBe(true);
 
     await authz.deleteRelation(rel);
-    await expect(
-      authz.check({
-        resource: "document",
-        id: doc,
-        permission: "read",
-        subject: user,
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
-    );
+    const after = await authz.check({
+      resource: "document",
+      id: doc,
+      permission: "read",
+      subject: user,
+    });
+    expect(after.error).toBeInstanceOf(AuthzError);
+    expect((after.error as AuthzError).code).toBe("unauthorized");
   });
 
   it("no-ops on empty batch", async () => {
@@ -325,31 +321,29 @@ describe("checkSession", () => {
       relation: "viewer",
       subject: auth.user.id,
     });
-    await expect(
-      authz.checkSession({
-        token: auth.session.token,
-        resource: "document",
-        id: doc,
-        permission: "read",
-      }),
-    ).resolves.toBeUndefined();
+    const result = await authz.checkSession({
+      token: auth.session.token,
+      resource: "document",
+      id: doc,
+      permission: "read",
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.data).toBe(true);
   });
 
-  it("throws AuthzError(unauthorized) for an invalid token", async () => {
+  it("returns AuthzError(unauthorized) for an invalid token", async () => {
     const doc = uid();
-    await expect(
-      authz.checkSession({
-        token: "invalid-token",
-        resource: "document",
-        id: doc,
-        permission: "read",
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => e instanceof AuthzError && e.code === "unauthorized",
-    );
+    const result = await authz.checkSession({
+      token: "invalid-token",
+      resource: "document",
+      id: doc,
+      permission: "read",
+    });
+    expect(result.error).toBeInstanceOf(AuthzError);
+    expect((result.error as AuthzError).code).toBe("unauthorized");
   });
 
-  it("throws AuthzError(session_invalid) for a revoked session token", async () => {
+  it("returns AuthzError(session_invalid) for a revoked session token", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const doc = uid();
     await authz.createRelation({
@@ -358,30 +352,28 @@ describe("checkSession", () => {
       relation: "viewer",
       subject: auth.user.id,
     });
-    await expect(
-      authz.checkSession({
-        token: auth.session.token,
-        resource: "document",
-        id: doc,
-        permission: "read",
-      }),
-    ).resolves.toBeUndefined();
+    const before = await authz.checkSession({
+      token: auth.session.token,
+      resource: "document",
+      id: doc,
+      permission: "read",
+    });
+    expect(before.error).toBeUndefined();
+    expect(before.data).toBe(true);
 
     const { error } = await authedClient(auth.session.token).DELETE(
       "/v1/sessions/current",
     );
     expect(error).toBeUndefined();
 
-    await expect(
-      authz.checkSession({
-        token: auth.session.token,
-        resource: "document",
-        id: doc,
-        permission: "read",
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => e instanceof AuthzError && e.code === "session_invalid",
-    );
+    const after = await authz.checkSession({
+      token: auth.session.token,
+      resource: "document",
+      id: doc,
+      permission: "read",
+    });
+    expect(after.error).toBeInstanceOf(AuthzError);
+    expect((after.error as AuthzError).code).toBe("session_invalid");
   });
 });
 

@@ -124,7 +124,7 @@ pub struct CreateOrgRequest {
     /// URL-safe identifier. Defaults to a slugified version of `name` if omitted.
     #[schema(nullable)]
     pub slug: Option<String>,
-    #[schema(nullable, value_type = Object)]
+    #[schema(nullable)]
     pub metadata: Option<serde_json::Value>,
 }
 
@@ -139,7 +139,7 @@ pub struct UpdateOrgRequest {
     #[schema(nullable)]
     pub image_url: Option<String>,
     /// Full replacement of the org's metadata field.
-    #[schema(nullable, value_type = Object)]
+    #[schema(nullable)]
     pub metadata: Option<serde_json::Value>,
 }
 

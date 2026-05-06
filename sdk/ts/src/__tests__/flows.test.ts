@@ -136,7 +136,7 @@ describe("signOut", () => {
     await flows().signOut(token);
 
     const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-    expect(await verifier.verify(token)).toBeNull();
+    expect((await verifier.verify(token)).data).toBeNull();
   });
 });
 
@@ -150,7 +150,7 @@ describe("signOutAll", () => {
     await flows().signOutAll(auth!.session.token);
 
     const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-    expect(await verifier.verify(auth!.session.token)).toBeNull();
+    expect((await verifier.verify(auth!.session.token)).data).toBeNull();
   });
 
   it("signs out all sessions except current", async () => {
@@ -162,7 +162,7 @@ describe("signOutAll", () => {
     await flows().signOutAll(auth!.session.token, { exceptCurrent: true });
 
     const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-    expect(await verifier.verify(auth!.session.token)).not.toBeNull();
+    expect((await verifier.verify(auth!.session.token)).data).not.toBeNull();
   });
 });
 

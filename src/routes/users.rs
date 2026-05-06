@@ -307,7 +307,7 @@ pub struct UpdateMeRequest {
     #[schema(nullable)]
     pub image_url: Option<String>,
     /// Arbitrary JSON merged into the org's metadata field (full replacement, not merge).
-    #[schema(nullable, value_type = Object)]
+    #[schema(nullable)]
     pub metadata: Option<serde_json::Value>,
 }
 

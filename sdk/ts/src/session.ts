@@ -2,7 +2,8 @@ import createFetchClient from "openapi-fetch";
 import type { components, paths } from "./types.js";
 import { camelize } from "./utils/camelize.js";
 import type { Camelize } from "./utils/camelize.js";
-import { throwServiceError } from "./utils/error.js";
+import { parseServiceError } from "./utils/error.js";
+import type { AuthResult } from "./utils/wrap.js";
 
 /** Options for {@link createSessionVerifier}. */
 export interface SessionVerifierOptions {
@@ -24,21 +25,19 @@ export interface SessionVerifier {
    * Verifies an opaque session token against the auth service.
    *
    * Calls `GET /v1/sessions/current` with the token as a Bearer credential.
-   * Returns the session context on success, or `null` when the token is
-   * absent, invalid, or expired (401).
    *
    * @param token - Raw opaque session token.
-   * @returns Session context, or `null` for an invalid/expired token.
-   * @throws {AuthServiceError} On unexpected auth service errors (5xx, etc.).
+   * @returns `{ data: SessionContext }` on success; `{ data: null }` for an invalid/expired token (401); `{ error }` on service errors.
    *
    * @example
    * ```ts
-   * const ctx = await verifier.verify(token)
-   * if (!ctx) return new Response('Unauthorized', { status: 401 })
-   * console.log(ctx.id) // session ID
+   * const { data, error } = await verifier.verify(token)
+   * if (error) throw error
+   * if (!data) return new Response('Unauthorized', { status: 401 })
+   * console.log(data.id) // session ID
    * ```
    */
-  verify(token: string): Promise<SessionContext | null>;
+  verify(token: string): Promise<AuthResult<SessionContext | null>>;
 }
 
 /**
@@ -65,15 +64,23 @@ export function createSessionVerifier(
   });
 
   return {
-    async verify(token: string): Promise<SessionContext | null> {
+    async verify(token: string): Promise<AuthResult<SessionContext | null>> {
       const { data, error, response } = await client.GET(
         "/v1/sessions/current",
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (response.status === 401) return null;
-      if (error !== undefined) throwServiceError(error, response);
-      return camelize(data!);
+      if (response.status === 401) {
+        return { data: null, error: undefined, response };
+      }
+      if (error !== undefined) {
+        return {
+          data: undefined,
+          error: parseServiceError(error, response),
+          response,
+        };
+      }
+      return { data: camelize(data!), error: undefined, response };
     },
   };
 }

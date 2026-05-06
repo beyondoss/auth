@@ -61,7 +61,9 @@ function matchesPublicPath(pathname: string, publicPaths: string[]): boolean {
  * ```
  */
 export function createAuthMiddleware(
-  verifier: { verify(token: string): Promise<unknown> },
+  verifier: {
+    verify(token: string): Promise<{ data: unknown; error: unknown }>;
+  },
   opts?: AuthMiddlewareOptions,
 ): (request: NextRequest) => Promise<NextResponseType> {
   const redirectTo = opts?.redirectTo ?? "/login";
@@ -83,12 +85,16 @@ export function createAuthMiddleware(
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
 
-    try {
-      await verifier.verify(token);
-      return NextResponse.next();
-    } catch (err) {
-      if (err instanceof AuthServiceError && err.status >= 500) throw err;
+    const result = await verifier.verify(token);
+    if (result.error) {
+      if (
+        result.error instanceof AuthServiceError && result.error.status >= 500
+      ) throw result.error;
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
+    if (!result.data) {
+      return NextResponse.redirect(new URL(redirectTo, request.url));
+    }
+    return NextResponse.next();
   };
 }

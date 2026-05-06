@@ -4405,16 +4405,10 @@
         "type": "object",
         "description": "Request to create a new organization.",
         "required": [
-          "name",
-          "metadata"
+          "name"
         ],
         "properties": {
-          "metadata": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
+          "metadata": {},
           "name": {
             "type": "string"
           },
@@ -5982,9 +5976,6 @@
       "UpdateMeRequest": {
         "type": "object",
         "description": "Partial update for the user's personal org. All fields are optional; omitted fields\nare left unchanged.",
-        "required": [
-          "metadata"
-        ],
         "properties": {
           "image_url": {
             "type": [
@@ -5993,10 +5984,6 @@
             ]
           },
           "metadata": {
-            "type": [
-              "object",
-              "null"
-            ],
             "description": "Arbitrary JSON merged into the org's metadata field (full replacement, not merge)."
           },
           "name": {
@@ -6031,9 +6018,6 @@
       "UpdateOrgRequest": {
         "type": "object",
         "description": "Partial org update. Omitted fields are left unchanged.",
-        "required": [
-          "metadata"
-        ],
         "properties": {
           "image_url": {
             "type": [
@@ -6042,10 +6026,6 @@
             ]
           },
           "metadata": {
-            "type": [
-              "object",
-              "null"
-            ],
             "description": "Full replacement of the org's metadata field."
           },
           "name": {

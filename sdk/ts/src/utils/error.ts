@@ -22,7 +22,3 @@ export function parseServiceError(
     response.status,
   );
 }
-
-export function throwServiceError(error: unknown, response: Response): never {
-  throw parseServiceError(error, response);
-}

@@ -3,6 +3,10 @@ import { camelize } from "./camelize.js";
 import type { Camelize } from "./camelize.js";
 import { parseServiceError } from "./error.js";
 
+export type AuthResult<T> =
+  | { data: T; error: undefined; response: Response }
+  | { data: undefined; error: AuthServiceError; response: Response };
+
 export async function wrap<T>(
   promise: Promise<{ data?: T; error?: unknown; response: Response }>,
 ): Promise<

@@ -18,17 +18,19 @@ describe("createApiKeyVerifier", () => {
     });
     expect(data).toBeDefined();
 
-    const ctx = await verifier.verify(data!.key);
-    expect(ctx).not.toBeNull();
-    expect(ctx!.userId).toBe(auth.user.id);
+    const result = await verifier.verify(data!.key);
+    expect(result.error).toBeUndefined();
+    expect(result.data).not.toBeNull();
+    expect(result.data!.userId).toBe(auth.user.id);
   });
 
-  it("returns null for an invalid key", async () => {
-    const ctx = await verifier.verify("key_thisisnotavalidkey");
-    expect(ctx).toBeNull();
+  it("returns null data for an invalid key", async () => {
+    const result = await verifier.verify("key_thisisnotavalidkey");
+    expect(result.error).toBeUndefined();
+    expect(result.data).toBeNull();
   });
 
-  it("returns null for a deleted key", async () => {
+  it("returns null data for a deleted key", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const client = authedClient(auth.session.token);
     const { data } = await client.POST("/v1/keys", {
@@ -38,7 +40,8 @@ describe("createApiKeyVerifier", () => {
       params: { path: { id: data!.id } },
     });
 
-    const ctx = await verifier.verify(data!.key);
-    expect(ctx).toBeNull();
+    const result = await verifier.verify(data!.key);
+    expect(result.error).toBeUndefined();
+    expect(result.data).toBeNull();
   });
 });

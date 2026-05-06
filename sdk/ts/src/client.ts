@@ -27,6 +27,7 @@ import {
   regenerateTotpRecoveryCodes,
 } from "./account/totp.js";
 import type { components, paths } from "./types.js";
+import { camelize } from "./utils/camelize.js";
 import { snakenize } from "./utils/camelize.js";
 import type { Camelize } from "./utils/camelize.js";
 import { buildFetch } from "./utils/fetch.js";
@@ -36,6 +37,18 @@ export type { paths };
 export type { components, operations } from "./types.js";
 export type Org = Camelize<components["schemas"]["OrgResponse"]>;
 export type Invitation = Camelize<components["schemas"]["InvitationResponse"]>;
+
+/** The typed HTTP client returned by {@link createAdminClient}. */
+export type AdminClient = Client<paths, `${string}/${string}`>;
+
+export interface AuthRequestEvent {
+  command: string;
+}
+
+export interface AuthResponseEvent {
+  command: string;
+  durationMs: number;
+}
 
 /** Options for {@link createAdminClient}. */
 export interface AdminClientOptions {
@@ -47,10 +60,10 @@ export interface AdminClientOptions {
   timeout?: number;
   /** Number of retries on transient 5xx responses. Defaults to 2. */
   retries?: number;
-  /** Called before each request is sent. */
-  onRequest?: (req: Request) => void;
-  /** Called after each response is received. */
-  onResponse?: (res: Response) => void;
+  /** Called before each request. */
+  onRequest?: (event: AuthRequestEvent) => void;
+  /** Called after each response. */
+  onResponse?: (event: AuthResponseEvent) => void;
 }
 
 /**
@@ -76,33 +89,53 @@ export interface AdminClientOptions {
  * })
  * ```
  */
-export function createAdminClient(
-  opts: AdminClientOptions,
-): Client<paths, `${string}/${string}`> {
-  const client = createFetchClient<paths>({
+export function createAdminClient(opts: AdminClientOptions): AdminClient {
+  const { onRequest, onResponse } = opts;
+  const raw = createFetchClient<paths>({
     baseUrl: opts.url.replace(/\/+$/, ""),
     fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
-  if (opts.onRequest || opts.onResponse) {
-    client.use({
-      onError: async () => undefined,
-      ...(opts.onRequest
-        && {
-          onRequest: ({ request }: { request: Request }) => {
-            opts.onRequest!(request);
-            return undefined;
-          },
-        }),
-      ...(opts.onResponse
-        && {
-          onResponse: ({ response }: { response: Response }) => {
-            opts.onResponse!(response);
-            return undefined;
-          },
-        }),
-    });
+
+  raw.use({
+    onError: async () => undefined,
+    async onResponse({ response }) {
+      const ct = response.headers.get("content-type");
+      if (ct?.includes("application/json") && response.status !== 204) {
+        const body = await response.json();
+        return new Response(JSON.stringify(camelize(body)), {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      }
+      return undefined;
+    },
+  });
+
+  function cmd<F extends (...args: never[]) => Promise<unknown>>(
+    name: string,
+    fn: F,
+  ): F {
+    return (async (...args: Parameters<F>) => {
+      onRequest?.({ command: name });
+      const start = Date.now();
+      try {
+        return await fn(...args);
+      } finally {
+        onResponse?.({ command: name, durationMs: Date.now() - start });
+      }
+    }) as F;
   }
-  return client;
+
+  const { GET, POST, PUT, PATCH, DELETE } = raw;
+  return {
+    ...raw,
+    GET: cmd("GET", GET),
+    POST: cmd("POST", POST),
+    PUT: cmd("PUT", PUT),
+    PATCH: cmd("PATCH", PATCH),
+    DELETE: cmd("DELETE", DELETE),
+  };
 }
 
 /** Options for {@link createAuthClient}. */
@@ -117,14 +150,16 @@ export interface AuthClientOptions {
   timeout?: number;
   /** Number of retries on transient 5xx responses. Defaults to 2. */
   retries?: number;
-  /** Called before each request is sent. */
-  onRequest?: (req: Request) => void;
-  /** Called after each response is received. */
-  onResponse?: (res: Response) => void;
+  /** Called before each request. */
+  onRequest?: (event: AuthRequestEvent) => void;
+  /** Called after each response. */
+  onResponse?: (event: AuthResponseEvent) => void;
 }
 
 type InvitationBody<OrgRole extends string> =
-  & Camelize<components["schemas"]["CreateInvitationRequest"]>
+  & Camelize<
+    components["schemas"]["CreateInvitationRequest"]
+  >
   & { role: OrgRole };
 
 /**
@@ -150,29 +185,26 @@ type InvitationBody<OrgRole extends string> =
 export function createAuthClient<OrgRole extends string = string>(
   opts: AuthClientOptions,
 ) {
+  const { onRequest, onResponse } = opts;
   const raw = createFetchClient<paths>({
     baseUrl: opts.url.replace(/\/+$/, ""),
     headers: { Authorization: `Bearer ${opts.token}` },
     fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
-  if (opts.onRequest || opts.onResponse) {
-    raw.use({
-      onError: async () => undefined,
-      ...(opts.onRequest
-        && {
-          onRequest: ({ request }: { request: Request }) => {
-            opts.onRequest!(request);
-            return undefined;
-          },
-        }),
-      ...(opts.onResponse
-        && {
-          onResponse: ({ response }: { response: Response }) => {
-            opts.onResponse!(response);
-            return undefined;
-          },
-        }),
-    });
+
+  function cmd<F extends (...args: never[]) => Promise<unknown>>(
+    name: string,
+    fn: F,
+  ): F {
+    return (async (...args: Parameters<F>) => {
+      onRequest?.({ command: name });
+      const start = Date.now();
+      try {
+        return await fn(...args);
+      } finally {
+        onResponse?.({ command: name, durationMs: Date.now() - start });
+      }
+    }) as F;
   }
 
   const { GET, POST, PUT, PATCH, DELETE } = raw;
@@ -185,111 +217,48 @@ export function createAuthClient<OrgRole extends string = string>(
     DELETE,
 
     identities: {
-      list: () => wrap(raw.GET("/v1/identities", {})),
+      list: cmd("identities.list", () => wrap(raw.GET("/v1/identities", {}))),
 
-      addPassword: (
-        body: Camelize<components["schemas"]["AddPasswordRequest"]>,
-      ) =>
-        wrap(raw.POST("/v1/identities", {
-          body: body as components["schemas"]["AddPasswordRequest"],
-        })),
+      addPassword: cmd(
+        "identities.addPassword",
+        (body: Camelize<components["schemas"]["AddPasswordRequest"]>) =>
+          wrap(
+            raw.POST("/v1/identities", {
+              body: body as components["schemas"]["AddPasswordRequest"],
+            }),
+          ),
+      ),
 
-      update: (
-        id: string,
-        body: Camelize<components["schemas"]["UpdateIdentityRequest"]>,
-      ) =>
-        wrap(raw.PATCH("/v1/identities/{id}", {
-          params: { path: { id } },
-          body: snakenize(
-            body as Record<string, unknown>,
-          ) as components["schemas"]["UpdateIdentityRequest"],
-        })),
+      update: cmd(
+        "identities.update",
+        (
+          id: string,
+          body: Camelize<components["schemas"]["UpdateIdentityRequest"]>,
+        ) =>
+          wrap(
+            raw.PATCH("/v1/identities/{id}", {
+              params: { path: { id } },
+              body: snakenize(
+                body as Record<string, unknown>,
+              ) as components["schemas"]["UpdateIdentityRequest"],
+            }),
+          ),
+      ),
 
-      unlink: (id: string) =>
-        wrap(raw.DELETE("/v1/identities/{id}", { params: { path: { id } } })),
+      unlink: cmd(
+        "identities.unlink",
+        (id: string) =>
+          wrap(raw.DELETE("/v1/identities/{id}", { params: { path: { id } } })),
+      ),
     },
 
     orgs: {
-      list: async (opts?: { cursor?: string; limit?: number }) => {
-        const result = await wrap(
-          raw.GET("/v1/orgs", {
-            params: {
-              query: {
-                ...(opts?.cursor != null && { after: opts.cursor }),
-                ...(opts?.limit != null && { limit: opts.limit }),
-              },
-            },
-          }),
-        );
-        if (!result.data) return result;
-        const { nextPage: _, ...rest } = result.data;
-        return {
-          ...result,
-          data: { ...rest, nextCursor: result.data.nextPage ?? undefined },
-        };
-      },
-
-      create: (body: Camelize<components["schemas"]["CreateOrgRequest"]>) =>
-        wrap(raw.POST("/v1/orgs", {
-          body: body as components["schemas"]["CreateOrgRequest"],
-        })),
-
-      get: (orgId: string) =>
-        wrap(raw.GET("/v1/orgs/{id}", { params: { path: { id: orgId } } })),
-
-      update: (
-        orgId: string,
-        body: Camelize<components["schemas"]["UpdateOrgRequest"]>,
-      ) =>
-        wrap(raw.PATCH("/v1/orgs/{id}", {
-          params: { path: { id: orgId } },
-          body: snakenize(
-            body as Record<string, unknown>,
-          ) as components["schemas"]["UpdateOrgRequest"],
-        })),
-
-      delete: (orgId: string) =>
-        wrap(raw.DELETE("/v1/orgs/{id}", { params: { path: { id: orgId } } })),
-
-      members: {
-        list: (orgId: string) =>
-          wrap(
-            raw.GET("/v1/orgs/{id}/members", {
-              params: { path: { id: orgId } },
-            }),
-          ),
-
-        update: (
-          orgId: string,
-          memberId: string,
-          body: components["schemas"]["UpdateMemberRequest"],
-        ) =>
-          wrap(raw.PATCH("/v1/orgs/{id}/members/{member_id}", {
-            params: { path: { id: orgId, member_id: memberId } },
-            body,
-          })),
-
-        remove: (orgId: string, memberId: string) =>
-          wrap(raw.DELETE("/v1/orgs/{id}/members/{member_id}", {
-            params: { path: { id: orgId, member_id: memberId } },
-          })),
-      },
-
-      invitations: {
-        create: (orgId: string, body: InvitationBody<OrgRole>) =>
-          wrap(raw.POST("/v1/orgs/{id}/invitations", {
-            params: { path: { id: orgId } },
-            body: body as components["schemas"]["CreateInvitationRequest"],
-          })),
-
-        list: async (
-          orgId: string,
-          opts?: { cursor?: string; limit?: number },
-        ) => {
+      list: cmd(
+        "orgs.list",
+        async (opts?: { cursor?: string; limit?: number }) => {
           const result = await wrap(
-            raw.GET("/v1/orgs/{id}/invitations", {
+            raw.GET("/v1/orgs", {
               params: {
-                path: { id: orgId },
                 query: {
                   ...(opts?.cursor != null && { after: opts.cursor }),
                   ...(opts?.limit != null && { limit: opts.limit }),
@@ -298,82 +267,229 @@ export function createAuthClient<OrgRole extends string = string>(
             }),
           );
           if (!result.data) return result;
-          const { nextPage: _, ...rest } = result.data;
-          return {
-            ...result,
-            data: { ...rest, nextCursor: result.data.nextPage ?? undefined },
-          };
+          return result;
         },
+      ),
 
-        revoke: (orgId: string, invId: string) =>
-          wrap(raw.DELETE("/v1/orgs/{id}/invitations/{inv_id}", {
-            params: { path: { id: orgId, inv_id: invId } },
-          })),
+      create: cmd(
+        "orgs.create",
+        (body: Camelize<components["schemas"]["CreateOrgRequest"]>) =>
+          wrap(
+            raw.POST("/v1/orgs", {
+              body: body as components["schemas"]["CreateOrgRequest"],
+            }),
+          ),
+      ),
+
+      get: cmd(
+        "orgs.get",
+        (orgId: string) =>
+          wrap(raw.GET("/v1/orgs/{id}", { params: { path: { id: orgId } } })),
+      ),
+
+      update: cmd(
+        "orgs.update",
+        (
+          orgId: string,
+          body: Camelize<components["schemas"]["UpdateOrgRequest"]>,
+        ) =>
+          wrap(
+            raw.PATCH("/v1/orgs/{id}", {
+              params: { path: { id: orgId } },
+              body: snakenize(
+                body as Record<string, unknown>,
+              ) as components["schemas"]["UpdateOrgRequest"],
+            }),
+          ),
+      ),
+
+      delete: cmd(
+        "orgs.delete",
+        (orgId: string) =>
+          wrap(
+            raw.DELETE("/v1/orgs/{id}", { params: { path: { id: orgId } } }),
+          ),
+      ),
+
+      members: {
+        list: cmd("orgs.members.list", (orgId: string) =>
+          wrap(
+            raw.GET("/v1/orgs/{id}/members", {
+              params: { path: { id: orgId } },
+            }),
+          )),
+
+        update: cmd(
+          "orgs.members.update",
+          (
+            orgId: string,
+            memberId: string,
+            body: components["schemas"]["UpdateMemberRequest"],
+          ) =>
+            wrap(
+              raw.PATCH("/v1/orgs/{id}/members/{member_id}", {
+                params: { path: { id: orgId, member_id: memberId } },
+                body,
+              }),
+            ),
+        ),
+
+        remove: cmd(
+          "orgs.members.remove",
+          (orgId: string, memberId: string) =>
+            wrap(
+              raw.DELETE("/v1/orgs/{id}/members/{member_id}", {
+                params: { path: { id: orgId, member_id: memberId } },
+              }),
+            ),
+        ),
+      },
+
+      invitations: {
+        create: cmd(
+          "orgs.invitations.create",
+          (orgId: string, body: InvitationBody<OrgRole>) =>
+            wrap(
+              raw.POST("/v1/orgs/{id}/invitations", {
+                params: { path: { id: orgId } },
+                body: body as components["schemas"]["CreateInvitationRequest"],
+              }),
+            ),
+        ),
+
+        list: cmd(
+          "orgs.invitations.list",
+          async (
+            orgId: string,
+            opts?: { cursor?: string; limit?: number },
+          ) => {
+            const result = await wrap(
+              raw.GET("/v1/orgs/{id}/invitations", {
+                params: {
+                  path: { id: orgId },
+                  query: {
+                    ...(opts?.cursor != null && { after: opts.cursor }),
+                    ...(opts?.limit != null && { limit: opts.limit }),
+                  },
+                },
+              }),
+            );
+            if (!result.data) return result;
+            return result;
+          },
+        ),
+
+        revoke: cmd(
+          "orgs.invitations.revoke",
+          (orgId: string, invId: string) =>
+            wrap(
+              raw.DELETE("/v1/orgs/{id}/invitations/{inv_id}", {
+                params: { path: { id: orgId, inv_id: invId } },
+              }),
+            ),
+        ),
       },
     },
 
     invitations: {
-      view: (invId: string, token: string) =>
-        wrap(raw.GET("/v1/invitations/{id}", {
-          params: { path: { id: invId }, query: { token } },
-        })),
+      view: cmd("invitations.view", (invId: string, token: string) =>
+        wrap(
+          raw.GET("/v1/invitations/{id}", {
+            params: { path: { id: invId }, query: { token } },
+          }),
+        )),
 
-      accept: (invId: string, token: string) =>
-        wrap(raw.POST("/v1/invitations/{id}/acceptances", {
-          params: { path: { id: invId }, query: { token } },
-        })),
+      accept: cmd("invitations.accept", (invId: string, token: string) =>
+        wrap(
+          raw.POST("/v1/invitations/{id}/acceptances", {
+            params: { path: { id: invId }, query: { token } },
+          }),
+        )),
 
-      decline: (invId: string, token: string) =>
-        wrap(raw.POST("/v1/invitations/{id}/declinations", {
-          params: { path: { id: invId }, query: { token } },
-        })),
+      decline: cmd(
+        "invitations.decline",
+        (invId: string, token: string) =>
+          wrap(
+            raw.POST("/v1/invitations/{id}/declinations", {
+              params: { path: { id: invId }, query: { token } },
+            }),
+          ),
+      ),
     },
 
     passkeys: {
-      list: () => listPasskeys(raw),
-      beginRegistration: () => beginPasskeyRegistration(raw),
-      finishRegistration: (
-        body: Parameters<typeof finishPasskeyRegistration>[1],
-      ) => finishPasskeyRegistration(raw, body),
-      update: (id: string, nickname: string) =>
-        updatePasskey(raw, id, nickname),
-      delete: (id: string) => deletePasskey(raw, id),
+      list: cmd("passkeys.list", () => listPasskeys(raw)),
+      beginRegistration: cmd(
+        "passkeys.beginRegistration",
+        () => beginPasskeyRegistration(raw),
+      ),
+      finishRegistration: cmd(
+        "passkeys.finishRegistration",
+        (body: Parameters<typeof finishPasskeyRegistration>[1]) =>
+          finishPasskeyRegistration(raw, body),
+      ),
+      update: cmd(
+        "passkeys.update",
+        (id: string, nickname: string) => updatePasskey(raw, id, nickname),
+      ),
+      delete: cmd("passkeys.delete", (id: string) => deletePasskey(raw, id)),
     },
 
     me: {
-      get: () => getMe(raw),
-      update: (body: Parameters<typeof updateMe>[1]) => updateMe(raw, body),
-      delete: () => deleteMe(raw),
+      get: cmd("me.get", () => getMe(raw)),
+      update: cmd(
+        "me.update",
+        (body: Parameters<typeof updateMe>[1]) => updateMe(raw, body),
+      ),
+      delete: cmd("me.delete", () => deleteMe(raw)),
     },
 
     emails: {
-      list: () => listEmails(raw),
-      add: (email: string) => addEmail(raw, email),
-      delete: (id: string) => deleteEmail(raw, id),
-      makePrimary: (id: string) => makeEmailPrimary(raw, id),
-      createVerification: (id: string) => createEmailVerification(raw, id),
+      list: cmd("emails.list", () => listEmails(raw)),
+      add: cmd("emails.add", (email: string) => addEmail(raw, email)),
+      delete: cmd("emails.delete", (id: string) => deleteEmail(raw, id)),
+      makePrimary: cmd(
+        "emails.makePrimary",
+        (id: string) => makeEmailPrimary(raw, id),
+      ),
+      createVerification: cmd(
+        "emails.createVerification",
+        (id: string) => createEmailVerification(raw, id),
+      ),
     },
 
     totp: {
-      enroll: () => enrollTotp(raw),
-      confirm: (code: string) => confirmTotp(raw, code),
-      disable: () => disableTotp(raw),
-      regenerateRecoveryCodes: (code: string) =>
-        regenerateTotpRecoveryCodes(raw, code),
+      enroll: cmd("totp.enroll", () => enrollTotp(raw)),
+      confirm: cmd("totp.confirm", (code: string) => confirmTotp(raw, code)),
+      disable: cmd("totp.disable", () => disableTotp(raw)),
+      regenerateRecoveryCodes: cmd(
+        "totp.regenerateRecoveryCodes",
+        (code: string) => regenerateTotpRecoveryCodes(raw, code),
+      ),
     },
 
     sessions: {
-      list: () => listSessions(raw),
-      getCurrent: () => getCurrentSession(raw),
-      deleteById: (id: string) => deleteSessionById(raw, id),
+      list: cmd("sessions.list", () => listSessions(raw)),
+      getCurrent: cmd("sessions.getCurrent", () => getCurrentSession(raw)),
+      deleteById: cmd(
+        "sessions.deleteById",
+        (id: string) => deleteSessionById(raw, id),
+      ),
     },
 
     keys: {
-      list: () => listKeys(raw),
-      create: (name: string, expiresAt?: string) =>
-        createKey(raw, name, expiresAt),
-      get: (id: string) => getKey(raw, id),
-      delete: (id: string) => deleteKey(raw, id),
+      list: cmd("keys.list", () => listKeys(raw)),
+      create: cmd(
+        "keys.create",
+        (name: string, expiresAt?: string) => createKey(raw, name, expiresAt),
+      ),
+      get: cmd("keys.get", (id: string) => getKey(raw, id)),
+      delete: cmd("keys.delete", (id: string) => deleteKey(raw, id)),
     },
   };
 }
+
+/** The typed hierarchical client returned by {@link createAuthClient}. */
+export type AuthClient<OrgRole extends string = string> = ReturnType<
+  typeof createAuthClient<OrgRole>
+>;

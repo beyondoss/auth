@@ -29,11 +29,13 @@ function makeRequest(
   } as unknown as NextRequest;
 }
 
-const okVerifier = { verify: vi.fn().mockResolvedValue({}) };
+const okVerifier = {
+  verify: vi.fn().mockResolvedValue({ data: {}, error: undefined }),
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  okVerifier.verify.mockResolvedValue({});
+  okVerifier.verify.mockResolvedValue({ data: {}, error: undefined });
 });
 
 // ── Path matching ─────────────────────────────────────────────────────────────
@@ -103,7 +105,9 @@ describe("path matching", () => {
 describe("error dispatch", () => {
   it("re-throws AuthServiceError with status >= 500", async () => {
     const err = new AuthServiceError("internal_error", "oops", 500);
-    const m = createAuthMiddleware({ verify: vi.fn().mockRejectedValue(err) });
+    const m = createAuthMiddleware({
+      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
+    });
     await expect(
       m(makeRequest("/dashboard", { token: "tok" })),
     ).rejects.toBe(err);
@@ -111,7 +115,9 @@ describe("error dispatch", () => {
 
   it("redirects on AuthServiceError with status < 500", async () => {
     const err = new AuthServiceError("not_found", "nope", 404);
-    const m = createAuthMiddleware({ verify: vi.fn().mockRejectedValue(err) });
+    const m = createAuthMiddleware({
+      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
+    });
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
@@ -119,7 +125,9 @@ describe("error dispatch", () => {
 
   it("redirects on AuthzError — not re-thrown", async () => {
     const err = new AuthzError("unauthorized", "denied", 403);
-    const m = createAuthMiddleware({ verify: vi.fn().mockRejectedValue(err) });
+    const m = createAuthMiddleware({
+      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
+    });
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
@@ -127,7 +135,9 @@ describe("error dispatch", () => {
 
   it("redirects on JwtVerificationError — not re-thrown", async () => {
     const err = new JwtVerificationError("expired");
-    const m = createAuthMiddleware({ verify: vi.fn().mockRejectedValue(err) });
+    const m = createAuthMiddleware({
+      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
+    });
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
@@ -135,7 +145,19 @@ describe("error dispatch", () => {
 
   it("redirects on generic Error — not re-thrown", async () => {
     const m = createAuthMiddleware({
-      verify: vi.fn().mockRejectedValue(new Error("unexpected")),
+      verify: vi.fn().mockResolvedValue({
+        data: undefined,
+        error: new Error("unexpected"),
+      }),
+    });
+    await m(makeRequest("/dashboard", { token: "tok" }));
+    expect(NextResponse.redirect).toHaveBeenCalledOnce();
+    expect(NextResponse.next).not.toHaveBeenCalled();
+  });
+
+  it("redirects when data is null (expired session)", async () => {
+    const m = createAuthMiddleware({
+      verify: vi.fn().mockResolvedValue({ data: null, error: undefined }),
     });
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();

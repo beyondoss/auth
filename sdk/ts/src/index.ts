@@ -32,7 +32,9 @@ export {
   type TraceArgs,
 } from "./authz.js";
 export {
+  type AdminClient,
   type AdminClientOptions,
+  type AuthClient,
   type AuthClientOptions,
   type components,
   createAdminClient,
@@ -60,4 +62,6 @@ export {
   type StepUpResponse,
   type TokenResponse,
 } from "./flows/index.js";
+export { type VerifyResult } from "./jwt.js";
 export { type Camelize } from "./utils/camelize.js";
+export { type AuthResult } from "./utils/wrap.js";

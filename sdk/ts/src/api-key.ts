@@ -1,6 +1,7 @@
 import createFetchClient from "openapi-fetch";
 import type { paths } from "./types.js";
-import { throwServiceError } from "./utils/error.js";
+import { parseServiceError } from "./utils/error.js";
+import type { AuthResult } from "./utils/wrap.js";
 
 /** Options for {@link createApiKeyVerifier}. */
 export interface ApiKeyVerifierOptions {
@@ -19,19 +20,18 @@ export interface ApiKeyVerifier {
   /**
    * Verifies an API key and returns the associated user context.
    *
-   * Returns `null` when the key is invalid, expired, or revoked (401).
-   *
    * @param key - Raw API key bearer token (the `key` field from `keys.create()`).
-   * @throws {AuthServiceError} On unexpected auth service errors (5xx, etc.).
+   * @returns `{ data: ApiKeyContext }` on success; `{ data: null }` for an invalid/revoked key (401); `{ error }` on service errors.
    *
    * @example
    * ```ts
-   * const ctx = await verifier.verify(apiKey)
-   * if (!ctx) return new Response('Unauthorized', { status: 401 })
-   * console.log(ctx.userId) // user ID
+   * const { data, error } = await verifier.verify(apiKey)
+   * if (error) throw error
+   * if (!data) return new Response('Unauthorized', { status: 401 })
+   * console.log(data.userId) // user ID
    * ```
    */
-  verify(key: string): Promise<ApiKeyContext | null>;
+  verify(key: string): Promise<AuthResult<ApiKeyContext | null>>;
 }
 
 /**
@@ -59,13 +59,21 @@ export function createApiKeyVerifier(
   });
 
   return {
-    async verify(key: string): Promise<ApiKeyContext | null> {
+    async verify(key: string): Promise<AuthResult<ApiKeyContext | null>> {
       const { data, error, response } = await client.GET("/v1/users/me", {
         headers: { Authorization: `Bearer ${key}` },
       });
-      if (response.status === 401) return null;
-      if (error !== undefined) throwServiceError(error, response);
-      return { userId: data!.user.id };
+      if (response.status === 401) {
+        return { data: null, error: undefined, response };
+      }
+      if (error !== undefined) {
+        return {
+          data: undefined,
+          error: parseServiceError(error, response),
+          response,
+        };
+      }
+      return { data: { userId: data!.user.id }, error: undefined, response };
     },
   };
 }
