@@ -117,6 +117,53 @@ export function clearCookieAttrs(
 }
 
 /**
+ * Extracts the Beyond Auth session token from Node.js-style headers.
+ *
+ * Checks the `__Host-session` cookie first (preferred), then
+ * `__Secure-session`, then falls back to the `Authorization: Bearer <token>`
+ * header. Returns `null` when no token is present.
+ *
+ * Use this with Fastify and Express where headers are `IncomingHttpHeaders`.
+ * For Web API `Request` objects (Hono, Next.js), use {@link getSessionToken}.
+ */
+export function getSessionTokenFromNodeHeaders(
+  headers: {
+    cookie?: string | string[] | undefined;
+    authorization?: string | string[] | undefined;
+  },
+): string | null {
+  const cookieHeader = Array.isArray(headers.cookie)
+    ? headers.cookie.join("; ")
+    : headers.cookie;
+
+  if (cookieHeader) {
+    let hostValue: string | undefined;
+    let secureValue: string | undefined;
+    for (const part of cookieHeader.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq === -1) continue;
+      const name = part.slice(0, eq).trim();
+      const value = part.slice(eq + 1).trim();
+      if (name === HOST_COOKIE && value) hostValue = value;
+      else if (name === SECURE_COOKIE && value) secureValue = value;
+    }
+    if (hostValue) return hostValue;
+    if (secureValue) return secureValue;
+  }
+
+  const authHeader = Array.isArray(headers.authorization)
+    ? headers.authorization[0]
+    : headers.authorization;
+
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) return token;
+  }
+
+  return null;
+}
+
+/**
  * Extracts the Beyond Auth session token from an incoming `Request`.
  *
  * Checks the `__Host-session` cookie first (preferred), then
@@ -133,27 +180,8 @@ export function clearCookieAttrs(
  * ```
  */
 export function getSessionToken(request: Request): string | null {
-  const cookieHeader = request.headers.get("cookie");
-  if (cookieHeader) {
-    let hostValue: string | undefined;
-    let secureValue: string | undefined;
-    for (const part of cookieHeader.split(";")) {
-      const eq = part.indexOf("=");
-      if (eq === -1) continue;
-      const name = part.slice(0, eq).trim();
-      const value = part.slice(eq + 1).trim();
-      if (name === HOST_COOKIE && value) hostValue = value;
-      else if (name === SECURE_COOKIE && value) secureValue = value;
-    }
-    if (hostValue) return hostValue;
-    if (secureValue) return secureValue;
-  }
-
-  const auth = request.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    const token = auth.slice(7).trim();
-    if (token) return token;
-  }
-
-  return null;
+  return getSessionTokenFromNodeHeaders({
+    cookie: request.headers.get("cookie") ?? undefined,
+    authorization: request.headers.get("authorization") ?? undefined,
+  });
 }

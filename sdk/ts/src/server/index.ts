@@ -21,5 +21,6 @@ export {
   type CookieAttrs,
   type CookieOptions,
   getSessionToken,
+  getSessionTokenFromNodeHeaders,
   sessionCookieAttrs,
 } from "./cookie.js";

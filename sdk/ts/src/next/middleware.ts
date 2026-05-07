@@ -4,6 +4,7 @@ import type {
 } from "next/server";
 import { AuthServiceError } from "../errors.js";
 import { getSessionToken } from "../server/cookie.js";
+import { matchesPublicPath } from "../server/proxy-core.js";
 
 /** Options for {@link createAuthMiddleware}. */
 export interface AuthMiddlewareOptions {
@@ -22,17 +23,6 @@ export interface AuthMiddlewareOptions {
    * Mid-path wildcards and regex patterns are not supported.
    */
   publicPaths?: string[];
-}
-
-function matchesPublicPath(pathname: string, publicPaths: string[]): boolean {
-  for (const pattern of publicPaths) {
-    if (pattern.endsWith("*")) {
-      if (pathname.startsWith(pattern.slice(0, -1))) return true;
-    } else if (pathname === pattern) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
