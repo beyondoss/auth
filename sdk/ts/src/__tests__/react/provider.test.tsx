@@ -25,7 +25,8 @@ beforeEach(() => {
   );
 });
 
-// Raw API response shape (snake_case) for GET /v1/users/me
+// Wire shape (camelCase, post-proxy) for GET /v1/users/me — this is what
+// the SDK actually sees from the network in production.
 function meFixture(email: string, id = "u1") {
   return {
     email: { email, id: "eid-1" },
@@ -33,9 +34,9 @@ function meFixture(email: string, id = "u1") {
     user: {
       id,
       name: "Test User",
-      created_at: "2024-01-01T00:00:00Z",
+      createdAt: "2024-01-01T00:00:00Z",
       metadata: null,
-      primary_org_id: "org-1",
+      primaryOrgId: "org-1",
     },
   };
 }

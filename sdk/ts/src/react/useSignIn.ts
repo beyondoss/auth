@@ -2,11 +2,11 @@ import React from "react";
 import { isStepUpResponse } from "../flows/sign-in.js";
 import type { SignInRequest, StepUpResponse } from "../flows/sign-in.js";
 import type { AuthResponse } from "../flows/sign-up.js";
-import type { paths } from "../types.js";
 import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
 import type { ErrorData } from "./client.js";
 import { useAuthContext } from "./context.js";
+import type { paths } from "./types.js";
 
 export type SignInStatus = "idle" | "fetching" | "success" | "error";
 

@@ -32,9 +32,9 @@ export function AuthProvider({
 
   React.useMemo(() => {
     if (initialUser) {
-      client.seed("GET /v1/users/me", initialUser);
+      client.hydrate({ path: "GET /v1/users/me", data: initialUser });
     }
-    // Only run once on mount — seed is idempotent when data is already present
+    // Only run once on mount — hydrate is idempotent when data is already present
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

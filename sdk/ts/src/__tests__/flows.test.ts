@@ -108,11 +108,26 @@ describe("requestPasswordReset + signIn password_reset", () => {
     expect("session" in auth!).toBe(true);
   });
 
-  it("returns AuthError(404) for unknown email", async () => {
-    const { error } = await flows().requestPasswordReset(uniqueEmail());
-    expect(error).toSatisfy(
-      (e: unknown) => e instanceof AuthError && e.status === 404,
-    );
+  it("returns a syntactically-valid token for unknown emails so callers can't distinguish registered addresses", async () => {
+    // POST /v1/password-resets always returns 200 by design — when no
+    // matching account or password identity exists, an unstored token is
+    // returned that looks identical to a real one. This prevents enumeration
+    // of registered email addresses via the password-reset endpoint.
+    const known = uniqueEmail();
+    await flows().signUp({
+      email: known,
+      password: "correct-horse-battery-staple",
+    });
+
+    const knownResult = await flows().requestPasswordReset(known);
+    const unknownResult = await flows().requestPasswordReset(uniqueEmail());
+
+    expect(knownResult.error).toBeUndefined();
+    expect(unknownResult.error).toBeUndefined();
+    expect(knownResult.data?.token).toBeDefined();
+    expect(unknownResult.data?.token).toBeDefined();
+    expect(knownResult.data?.expiresAt).toBeDefined();
+    expect(unknownResult.data?.expiresAt).toBeDefined();
   });
 });
 

@@ -1,9 +1,9 @@
 import React from "react";
 import type { StepUpResponse } from "../flows/sign-in.js";
-import type { paths } from "../types.js";
 import { ErrorResponse } from "./client.js";
 import type { ErrorData } from "./client.js";
 import { useAuthContext } from "./context.js";
+import type { paths } from "./types.js";
 
 export type UseOAuthStatus = "idle" | "fetching" | "success" | "error";
 

@@ -40,12 +40,15 @@
   },
   "scripts": {
     "build": "tsdown",
-    "generate-types": "node scripts/generate-types.mjs",
+    "generate-types": "node scripts/generate-types.mjs && node scripts/generate-react-types.mjs",
+    "generate-types:server": "node scripts/generate-types.mjs",
+    "generate-types:react": "node scripts/generate-react-types.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@beyond.dev/openapi-react": "^0.1.1",
     "fastify-plugin": "^5.0.1",
     "jose": "^6.2.2",
     "openapi-fetch": "^0.17.0",

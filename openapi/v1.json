@@ -3155,7 +3155,7 @@
         "tags": [
           "password-resets"
         ],
-        "summary": "Issue a password-reset token for the given email address. The caller is responsible\nfor delivering the token to the user. The token is exchanged — along with a new password\n— via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all\nexisting sessions. Expires in 1 hour. Returns 404 if no account exists or the account\nhas no password identity.",
+        "summary": "Issue a password-reset token for the given email address. The caller is responsible\nfor delivering the token to the user. The token is exchanged — along with a new password\n— via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all\nexisting sessions. Expires in 15 minutes. Always returns 200 — when no matching account\nor password identity exists, a syntactically-valid but unstored token is returned so that\ncallers cannot distinguish registered from unregistered addresses.",
         "operationId": "create_password_reset",
         "requestBody": {
           "content": {
@@ -3174,16 +3174,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PasswordResetResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No account with that email or no password identity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

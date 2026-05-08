@@ -57,7 +57,10 @@ depends = ["generate:types", "build:rs"]
 run = "cargo run -- generate-openapi"
 
 [tasks."generate:types"]
-run = ["cd ts && node scripts/generate-types.mjs"]
+run = [
+  "cd ts && node scripts/generate-types.mjs",
+  "cd ts && node scripts/generate-react-types.mjs",
+]
 dir = "sdk"
 depends = ["install:ts", "generate:openapi"]
 

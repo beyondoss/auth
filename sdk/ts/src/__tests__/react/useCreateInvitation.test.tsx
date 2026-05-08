@@ -8,12 +8,13 @@ import type { CreatedInvitation } from "../../react/useCreateInvitation.js";
 
 const AUTH_URL = "http://auth";
 
+// Wire shape (camelCase, post-proxy) returned by the gateway in production.
 const INVITATION_BODY = {
   id: "inv-123",
-  org_id: "org-456",
+  orgId: "org-456",
   role: "member",
-  created_at: "2024-01-01T00:00:00Z",
-  expires_at: "2024-01-08T00:00:00Z",
+  createdAt: "2024-01-01T00:00:00Z",
+  expiresAt: "2024-01-08T00:00:00Z",
   token: "plaintext-one-time-token",
 };
 

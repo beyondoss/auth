@@ -1,7 +1,7 @@
 import React from "react";
 import type { StepUpResponse } from "../flows/sign-in.js";
-import type { paths } from "../types.js";
 import type { createClient } from "./client.js";
+import type { paths } from "./types.js";
 
 export type AuthClient = ReturnType<typeof createClient<paths>>;
 

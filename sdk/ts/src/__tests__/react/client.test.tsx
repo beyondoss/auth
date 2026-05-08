@@ -128,7 +128,7 @@ describe("staleTime", () => {
 
 // ─── seed() ─────────────────────────────────────────────────────────────────
 
-describe("seed()", () => {
+describe("hydrate()", () => {
   it("pre-populates cache so load() skips the network within staleTime", async () => {
     let calls = 0;
     handlers.set("GET /items", () => {
@@ -137,7 +137,7 @@ describe("seed()", () => {
     });
 
     const client = createClient<P>({ baseUrl: BASE });
-    client.seed("GET /items", { id: "seeded" } as any);
+    client.hydrate({ path: "GET /items", data: { id: "seeded" } as any });
 
     const result = await client.load({ path: "GET /items", staleTime: 60_000 });
     expect((result as any).data?.id).toBe("seeded");
@@ -153,10 +153,13 @@ describe("seed()", () => {
 
     const client = createClient<P>({ baseUrl: BASE });
     await client.load({ path: "GET /items" });
-    client.seed("GET /items", { id: "seed-attempt" } as any);
+    client.hydrate({
+      path: "GET /items",
+      data: { id: "hydrate-attempt" } as any,
+    });
 
     const result = await client.load({ path: "GET /items", staleTime: 60_000 });
-    expect((result as any).data?.id).toBe("fetched"); // original fetch result, seed ignored
+    expect((result as any).data?.id).toBe("fetched"); // original fetch result, hydrate ignored
     expect(calls).toBe(1);
   });
 });
@@ -397,9 +400,9 @@ describe("useLoader() — suspense", () => {
     );
   });
 
-  it("does not suspend when cache is pre-seeded", () => {
+  it("does not suspend when cache is pre-hydrated", () => {
     const client = createClient<P>({ baseUrl: BASE });
-    client.seed("GET /items", { id: "seeded" } as any);
+    client.hydrate({ path: "GET /items", data: { id: "seeded" } as any });
 
     function Component() {
       const result = client.useLoader({ path: "GET /items" });

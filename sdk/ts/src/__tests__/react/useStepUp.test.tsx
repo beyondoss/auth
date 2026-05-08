@@ -25,9 +25,10 @@ function setupFetch(handler: (req: Request) => Response | Promise<Response>) {
 }
 
 function makeAuthResponse() {
+  // Mock the proxy's camelCase wire format, not the raw auth-server shape.
   return new Response(
     JSON.stringify({
-      session: { id: "s1", expires_at: "2099-01-01" },
+      session: { id: "s1", expiresAt: "2099-01-01" },
       user: { id: "u1" },
     }),
     { status: 201, headers: { "content-type": "application/json" } },
@@ -117,7 +118,7 @@ describe("useStepUp", () => {
       callCount++;
       if (callCount === 1) {
         return new Response(
-          JSON.stringify({ step_up_token: "tok_mfa" }),
+          JSON.stringify({ stepUpToken: "tok_mfa" }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
       }
@@ -148,7 +149,7 @@ describe("useStepUp", () => {
       callCount++;
       if (callCount === 1) {
         return new Response(
-          JSON.stringify({ step_up_token: "tok_mfa" }),
+          JSON.stringify({ stepUpToken: "tok_mfa" }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
       }
@@ -180,7 +181,7 @@ describe("useStepUp", () => {
       callCount++;
       if (callCount === 1) {
         return new Response(
-          JSON.stringify({ step_up_token: "tok_mfa" }),
+          JSON.stringify({ stepUpToken: "tok_mfa" }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
       }
@@ -205,7 +206,7 @@ describe("useStepUp", () => {
 
   it("cancel clears stepUp and error", async () => {
     setupFetch(() =>
-      new Response(JSON.stringify({ step_up_token: "tok_mfa" }), {
+      new Response(JSON.stringify({ stepUpToken: "tok_mfa" }), {
         status: 200,
         headers: { "content-type": "application/json" },
       })

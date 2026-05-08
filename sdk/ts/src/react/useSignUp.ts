@@ -1,10 +1,10 @@
 import React from "react";
 import type { AuthResponse, SignUpRequest } from "../flows/sign-up.js";
-import type { paths } from "../types.js";
 import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
 import type { ErrorData } from "./client.js";
 import { useAuthContext } from "./context.js";
+import type { paths } from "./types.js";
 
 export type SignUpStatus = "idle" | "fetching" | "success" | "error";
 

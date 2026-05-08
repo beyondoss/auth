@@ -1,10 +1,10 @@
 import React from "react";
-import type { paths } from "../types.js";
 import { createClient } from "./client.js";
 import { useAuth } from "./hooks.js";
 import { useUser } from "./hooks.js";
 import { AuthProvider as AuthProviderBase } from "./provider.js";
 import type { AuthProviderProps } from "./provider.js";
+import type { paths } from "./types.js";
 import { useAcceptInvitation } from "./useAcceptInvitation.js";
 import { useAddPassword } from "./useAddPassword.js";
 import { useChangePassword } from "./useChangePassword.js";

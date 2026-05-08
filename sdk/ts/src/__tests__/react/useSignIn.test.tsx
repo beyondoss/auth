@@ -19,9 +19,12 @@ function setupFetch(handler: (req: Request) => Response | Promise<Response>) {
 }
 
 function makeAuthResponse() {
+  // The mock simulates the proxy in front of the auth server, which emits
+  // camelCase responses. Mirror that here so the SDK sees the same shape it
+  // sees in production.
   return new Response(
     JSON.stringify({
-      session: { id: "s1", expires_at: "2099-01-01" },
+      session: { id: "s1", expiresAt: "2099-01-01" },
       user: { id: "u1", email: "a@b.com" },
     }),
     { status: 201, headers: { "content-type": "application/json" } },
@@ -30,7 +33,7 @@ function makeAuthResponse() {
 
 function makeStepUpResponse() {
   return new Response(
-    JSON.stringify({ step_up_token: "tok_mfa" }),
+    JSON.stringify({ stepUpToken: "tok_mfa" }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
 }
