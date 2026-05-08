@@ -6,13 +6,13 @@
  * try {
  *   await verifier.verify(token)
  * } catch (err) {
- *   if (err instanceof AuthServiceError) {
+ *   if (err instanceof AuthError) {
  *     console.error(err.code, err.message)
  *   }
  * }
  * ```
  */
-export class AuthServiceError extends Error {
+export class AuthError extends Error {
   /** Machine-readable error code returned by the auth service. */
   readonly code: string;
   /** HTTP status code of the response. */
@@ -28,7 +28,7 @@ export class AuthServiceError extends Error {
     hint?: string,
   ) {
     super(message);
-    this.name = "AuthServiceError";
+    this.name = "AuthError";
     this.code = code;
     this.status = status;
     this.response = response;
@@ -55,7 +55,7 @@ export class AuthServiceError extends Error {
  * }
  * ```
  */
-export class AuthzError extends AuthServiceError {
+export class AuthzError extends AuthError {
   declare readonly code:
     | "unauthorized"
     | "session_invalid"

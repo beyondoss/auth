@@ -1,45 +1,45 @@
 import React from "react";
 import { isStepUpResponse } from "../flows/sign-in.js";
-import type { SignInRequest } from "../flows/sign-in.js";
+import type { SignInRequest, StepUpResponse } from "../flows/sign-in.js";
 import type { AuthResponse } from "../flows/sign-up.js";
-import { camelize } from "../utils/camelize.js";
+import type { paths } from "../types.js";
 import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
+import type { ErrorData } from "./client.js";
 import { useAuthContext } from "./context.js";
 
 export type SignInStatus = "idle" | "fetching" | "success" | "error";
 
 export interface UseSignInResult {
-  signIn(req: SignInRequest): Promise<AuthResponse>;
+  signIn(
+    req: SignInRequest,
+  ): Promise<AuthResponse & { redirectTo?: string } | StepUpResponse>;
   status: SignInStatus;
-  error: ErrorResponse<any> | null;
+  error: ErrorResponse<ErrorData<paths, "/v1/sessions", "post">> | null;
 }
 
 export function useSignIn(): UseSignInResult {
   const { client, setStepUp } = useAuthContext();
   const action = client.useAction({ path: "POST /v1/sessions" });
-  const [error, setError] = React.useState<ErrorResponse<any> | null>(null);
+  const [error, setError] = React.useState<
+    ErrorResponse<ErrorData<paths, "/v1/sessions", "post">> | null
+  >(null);
 
   const signIn = React.useCallback(
-    async (req: SignInRequest): Promise<AuthResponse> => {
+    async (
+      req: SignInRequest,
+    ): Promise<AuthResponse & { redirectTo?: string } | StepUpResponse> => {
       setError(null);
       try {
-        const raw = await action.send({
-          body: {
-            grant_type: "password",
-            ...req,
-          } as any,
-        });
+        const data = await action.send({ body: req });
 
-        const data = camelize(raw) as unknown as AuthResponse;
-
-        if (isStepUpResponse(data as any)) {
-          setStepUp(data as any);
+        if (isStepUpResponse(data)) {
+          setStepUp(data);
           return data;
         }
 
         const redirectTo = getRedirectParam();
-        return redirectTo ? { ...data, redirectTo } as AuthResponse : data;
+        return redirectTo ? { ...data, redirectTo } : data;
       } catch (err) {
         if (err instanceof ErrorResponse) {
           setError(err);

@@ -1,21 +1,19 @@
-import type { AuthServiceError } from "../errors.js";
+import type { AuthError } from "../errors.js";
 import { camelize } from "./camelize.js";
 import type { Camelize } from "./camelize.js";
 import { parseServiceError } from "./error.js";
 
 export type AuthResult<T> =
   | { data: T; error: undefined; response: Response }
-  | { data: undefined; error: AuthServiceError; response: Response };
+  | { data: undefined; error: AuthError; response: Response };
 
 export async function wrap<T>(
   promise: Promise<{ data?: T; error?: unknown; response: Response }>,
-): Promise<
-  {
-    data: Camelize<T> | undefined;
-    error: AuthServiceError | undefined;
-    response: Response;
-  }
-> {
+): Promise<{
+  data: Camelize<T> | undefined;
+  error: AuthError | undefined;
+  response: Response;
+}> {
   const { data, error, response } = await promise;
   if (error !== undefined) {
     return {

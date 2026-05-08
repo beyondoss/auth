@@ -1,5 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 import { getSessionTokenFromNodeHeaders } from "../server/cookie.js";
 import {
   matchesPublicPath,
@@ -78,10 +78,7 @@ export function createAuthMiddleware(
 
       const result = await verifier.verify(token);
       if (result.error) {
-        if (
-          result.error instanceof AuthServiceError
-          && result.error.status >= 500
-        ) {
+        if (result.error instanceof AuthError && result.error.status >= 500) {
           return next(result.error);
         }
         return onUnauthorized(req, res, next);

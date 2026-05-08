@@ -2,7 +2,7 @@ import type {
   NextRequest,
   NextResponse as NextResponseType,
 } from "next/server";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 import { getSessionToken } from "../server/cookie.js";
 import { matchesPublicPath } from "../server/proxy-core.js";
 
@@ -77,9 +77,9 @@ export function createAuthMiddleware(
 
     const result = await verifier.verify(token);
     if (result.error) {
-      if (
-        result.error instanceof AuthServiceError && result.error.status >= 500
-      ) throw result.error;
+      if (result.error instanceof AuthError && result.error.status >= 500) {
+        throw result.error;
+      }
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
     if (!result.data) {

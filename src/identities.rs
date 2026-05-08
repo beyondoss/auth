@@ -95,8 +95,10 @@ pub async fn find_password_secret_by_user(
         Some(r) => match r.secret {
             None => Ok(None),
             Some(s) => {
-                let hash = String::from_utf8(s)
-                    .map_err(|_| AuthError::internal("corrupted password hash"))?;
+                let hash = String::from_utf8(s).map_err(|_| {
+                    tracing::error!(%user_id, "password hash is not valid utf-8");
+                    AuthError::internal("corrupted password hash")
+                })?;
                 Ok(Some((r.subject, hash)))
             }
         },
@@ -136,8 +138,10 @@ pub async fn find_password_secret(
         Some(r) => match r.secret {
             None => Ok(None),
             Some(s) => {
-                let hash = String::from_utf8(s)
-                    .map_err(|_| AuthError::internal("corrupted password hash"))?;
+                let hash = String::from_utf8(s).map_err(|_| {
+                    tracing::error!(user_id = %r.user_id, "password hash is not valid utf-8");
+                    AuthError::internal("corrupted password hash")
+                })?;
                 Ok(Some((r.user_id, hash)))
             }
         },

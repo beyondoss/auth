@@ -15,7 +15,7 @@ Incoming request
   └── verifier.verify(token)
         │
         GET /v1/sessions/current  ─► 401 → return null
-        Authorization: Bearer <token>  ─► 5xx/4xx → throw AuthServiceError
+        Authorization: Bearer <token>  ─► 5xx/4xx → throw AuthError
                                        ─► 200 → return SessionContext
 ```
 
@@ -48,7 +48,7 @@ authz.check(resourceType, permission, resourceId, subject)
   │
   ├── { allowed: true }  → resolve void
   ├── { allowed: false } → throw AuthzError("unauthorized")
-  └── error body         → throw AuthzError or AuthServiceError by code
+  └── error body         → throw AuthzError or AuthError by code
 
 authz.checkSession(token, resourceType, permission, resourceId)
   │
@@ -73,7 +73,7 @@ request arrives
               │
               verifier.verify(token)
               ├── ok → NextResponse.next()
-              ├── AuthServiceError(status >= 500) → re-throw
+              ├── AuthError(status >= 500) → re-throw
               └── any other error → redirect(redirectTo)
 ```
 
@@ -111,9 +111,9 @@ getSession(cookieStore) / getMe(cookieStore)
 
 Both clients wrap `openapi-fetch` with the OpenAPI `paths` type parameter. Every path, method, request body, query parameter, and response shape is inferred from `types.ts` (generated from the OpenAPI spec).
 
-`createAdminClient` returns the raw fetch client with no default headers. Callers supply `Authorization` themselves per-request.
+`createAdminClient` takes a `secret` at construction time and bakes `Authorization: Bearer <secret>` into every request. It exposes namespaced semantic methods for admin operations (`users.*`, `config.*`, `oauthProviders.*`, `authz.*`) — consistent with the rest of the Beyond SDK family.
 
-`createAuthClient` wraps the same raw client and adds `Authorization: Bearer <token>` to all requests via the `headers` option. It also exposes namespaced ergonomic methods (`identities.*`, `orgs.*`, `orgs.members.*`, `orgs.invitations.*`, `invitations.*`) on top of spreading the raw client methods.
+`createAuthClient` takes a session `token` at construction time and bakes `Authorization: Bearer <token>` into every request. It exposes namespaced semantic methods for user-scoped operations (`identities.*`, `orgs.*`, `orgs.members.*`, `orgs.invitations.*`, `me.*`, `emails.*`, `sessions.*`, `keys.*`, `passkeys.*`, `totp.*`).
 
 The generic `OrgRole` type parameter (`createAuthClient<{ OrgRole: 'admin' | 'member' }>`) constrains the `role` field on invitation bodies at compile time. It is a phantom type — nothing happens at runtime.
 
@@ -128,7 +128,7 @@ Stateful — holds JWKS in memory. Create once at startup and reuse.
 
 ### Session verifier (`createSessionVerifier`)
 
-Stateless — no in-memory state. Every `verify()` call makes `GET /v1/sessions/current`. Returns `null` on 401; throws `AuthServiceError` on anything else non-2xx. In Next.js RSCs, wrap with `React.cache()` (done automatically by `createServerHelpers`) to avoid redundant requests within one render tree.
+Stateless — no in-memory state. Every `verify()` call makes `GET /v1/sessions/current`. Returns `null` on 401; throws `AuthError` on anything else non-2xx. In Next.js RSCs, wrap with `React.cache()` (done automatically by `createServerHelpers`) to avoid redundant requests within one render tree.
 
 ### Authz client (`createAuthzClient`)
 
@@ -138,7 +138,7 @@ Stateless — schema is compiled and cached server-side.
 
 Batch writes use `PATCH /v1/authz/relations` with a `{ writes, deletes }` body. `createRelations` sends writes with an empty deletes array; `deleteRelations` does the reverse. Both short-circuit on empty input.
 
-Error dispatch (`parseError`): if the error code is one of the four authz-specific codes it throws `AuthzError`; everything else becomes `AuthServiceError`.
+Error dispatch (`parseError`): if the error code is one of the four authz-specific codes it throws `AuthzError`; everything else becomes `AuthError`.
 
 ### Cookie helpers (`sessionCookieAttrs` / `clearCookieAttrs` / `getSessionToken`)
 
@@ -179,7 +179,7 @@ The auth service is the authoritative store for sessions, permissions, and schem
 | `src/session.ts`         | `createSessionVerifier` — stateless opaque token verifier via `GET /v1/sessions/current`                     |
 | `src/jwt.ts`             | `createJwtVerifier` — stateful JWKS-backed JWT verifier                                                      |
 | `src/authz.ts`           | `createAuthzClient` — Zanzibar check/expand/trace/lookup/write/schema operations                             |
-| `src/errors.ts`          | `AuthServiceError`, `AuthzError`, `JwtVerificationError`                                                     |
+| `src/errors.ts`          | `AuthError`, `AuthzError`, `JwtVerificationError`                                                            |
 | `src/server/cookie.ts`   | `sessionCookieAttrs`, `clearCookieAttrs`, `getSessionToken` — framework-agnostic cookie helpers              |
 | `src/next/middleware.ts` | `createAuthMiddleware` — Next.js route protection with public path matching                                  |
 | `src/next/server.ts`     | `createServerHelpers` (RSC `getSession`/`getMe`), `setSessionCookie`, `clearSessionCookie`                   |
@@ -191,9 +191,10 @@ The auth service is the authoritative store for sessions, permissions, and schem
 
 ### `createAdminClient`
 
-| Option    | Effect                                                |
-| --------- | ----------------------------------------------------- |
-| `baseUrl` | Base URL of the auth service; trailing slash stripped |
+| Option   | Effect                                                         |
+| -------- | -------------------------------------------------------------- |
+| `url`    | Base URL of the auth service; trailing slash stripped          |
+| `secret` | Prepended as `Authorization: Bearer <secret>` on every request |
 
 ### `createAuthClient`
 
@@ -237,14 +238,14 @@ The auth service is the authoritative store for sessions, permissions, and schem
 | Failure                                      | What Actually Happens                                                       | Recovery                                                    |
 | -------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | Auth service returns 401 on session verify   | `verify()` returns `null` — not an exception                                | Caller redirects to login                                   |
-| Auth service returns 5xx on session verify   | Throws `AuthServiceError(status >= 500)`                                    | Middleware re-throws; RSC helpers surface as uncaught error |
+| Auth service returns 5xx on session verify   | Throws `AuthError(status >= 500)`                                           | Middleware re-throws; RSC helpers surface as uncaught error |
 | JWKS fetch timeout                           | Throws `JwtVerificationError(retryable=true)`                               | Caller retries with backoff                                 |
 | JWT bad signature / expired / wrong issuer   | Throws `JwtVerificationError(retryable=false)`                              | Do not retry; reject token                                  |
 | Unknown JWT `kid`                            | JWKS refreshed once (if cooldown elapsed), retried                          | If still unknown, `JwtVerificationError(retryable=false)`   |
 | `authz.check` denied                         | Throws `AuthzError("unauthorized")`                                         | Caller returns 403                                          |
 | Schema not uploaded                          | Throws `AuthzError("authz_not_enabled")`                                    | Upload schema via `putSchema`                               |
 | Unknown resource type / permission in check  | Throws `AuthzError("authz_unknown_resource" \| "authz_unknown_permission")` | Fix schema or caller argument                               |
-| `deleteRelation` on nonexistent tuple        | Throws `AuthServiceError(status=404)`                                       | Treat as already-deleted if idempotency is needed           |
+| `deleteRelation` on nonexistent tuple        | Throws `AuthError(status=404)`                                              | Treat as already-deleted if idempotency is needed           |
 | React not available in `createServerHelpers` | `require("react")` throws; `withCache` falls back to identity function      | Functions work correctly; no per-request deduplication      |
 
 ## Build

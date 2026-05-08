@@ -1,6 +1,5 @@
 import React from "react";
 import type { Profile } from "../account/me.js";
-import { camelize } from "../utils/camelize.js";
 import { useAuthContext } from "./context.js";
 
 export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -10,8 +9,8 @@ export interface UseAuthResult {
   user: Profile | null;
 }
 
-function camelizeProfile(data: unknown): Profile | null {
-  return data != null ? (camelize(data) as unknown as Profile) : null;
+function asProfile(data: unknown): Profile | null {
+  return (data as Profile | null) ?? null;
 }
 
 /**
@@ -46,7 +45,7 @@ export function useAuth(): UseAuthResult {
 
   return {
     status,
-    user: camelizeProfile(result.data),
+    user: asProfile(result.data),
   };
 }
 
@@ -57,5 +56,5 @@ export function useAuth(): UseAuthResult {
 export function useUser(): Profile {
   const { client } = useAuthContext();
   const result = client.useLoader({ path: "GET /v1/users/me" });
-  return camelizeProfile(result.data)!;
+  return asProfile(result.data)!;
 }

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { createAdminClient } from "../client.js";
 import { type CookieStore, createServerHelpers } from "../next/server.js";
 import { createSessionVerifier } from "../session.js";
 import { getBaseUrl, signup, uniqueEmail } from "./harness.js";
@@ -13,8 +12,7 @@ function makeCookieStore(token: string | null): CookieStore {
 
 function helpers() {
   const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-  const client = createAdminClient({ url: getBaseUrl() });
-  return createServerHelpers(verifier, client);
+  return createServerHelpers(verifier, getBaseUrl());
 }
 
 describe("getSession", () => {

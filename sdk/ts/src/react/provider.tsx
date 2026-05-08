@@ -32,7 +32,7 @@ export function AuthProvider({
 
   React.useMemo(() => {
     if (initialUser) {
-      client.seed("GET /v1/users/me", initialUser as any);
+      client.seed("GET /v1/users/me", initialUser);
     }
     // Only run once on mount — seed is idempotent when data is already present
     // eslint-disable-next-line react-hooks/exhaustive-deps

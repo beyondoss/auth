@@ -16,6 +16,9 @@ path = "src/main.rs"
 name = "beyond_auth"
 path = "src/lib.rs"
 
+[features]
+test-server = []
+
 [dependencies]
 aes-gcm = "0.10"
 anyhow = "1"
@@ -66,3 +69,4 @@ wiremock = "0.6"
 [[test]]
 name = "api"
 path = "tests/api/main.rs"
+required-features = ["test-server"]

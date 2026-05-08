@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 
 const ErrorBody = v.object({
   error: v.optional(
@@ -14,10 +14,10 @@ const ErrorBody = v.object({
 export function parseServiceError(
   error: unknown,
   response: Response,
-): AuthServiceError {
+): AuthError {
   const parsed = v.safeParse(ErrorBody, error);
   const body = parsed.success ? parsed.output : {};
-  return new AuthServiceError(
+  return new AuthError(
     body.error?.code ?? "unknown_error",
     body.error?.message ?? response.statusText,
     response.status,

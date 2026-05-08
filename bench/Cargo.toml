@@ -12,7 +12,7 @@ anyhow = "1"
 argon2 = { version = "0.5", features = ["password-hash", "std"] }
 async-trait = "0.1"
 base64 = "0.22"
-beyond_auth = { package = "beyond-auth", path = "..", default-features = false }
+beyond_auth = { package = "beyond-auth", path = "..", default-features = false, features = ["test-server"] }
 chrono = { version = "0.4", features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
 ed25519-dalek = { version = "2.2", features = ["rand_core"] }

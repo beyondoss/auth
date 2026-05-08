@@ -30,6 +30,7 @@ pub mod token_gc;
 mod tokens;
 mod users;
 
+#[cfg(any(test, feature = "test-server"))]
 pub mod test_server;
 pub use routes::orgs::{
     InvitationResponse, InvitationsResponse, MemberResponse, MembersResponse, OrgResponse,

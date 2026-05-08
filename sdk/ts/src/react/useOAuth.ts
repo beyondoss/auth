@@ -1,6 +1,8 @@
 import React from "react";
 import type { StepUpResponse } from "../flows/sign-in.js";
+import type { paths } from "../types.js";
 import { ErrorResponse } from "./client.js";
+import type { ErrorData } from "./client.js";
 import { useAuthContext } from "./context.js";
 
 export type UseOAuthStatus = "idle" | "fetching" | "success" | "error";
@@ -29,7 +31,7 @@ export interface UseOAuthResult {
    */
   linkIdentity(provider: string, opts?: OAuthOptions): Promise<void>;
   status: UseOAuthStatus;
-  error: ErrorResponse<any> | null;
+  error: ErrorResponse<ErrorData<paths, "/v1/oauth/{provider}", "get">> | null;
 }
 
 interface OAuthMessage {
@@ -39,6 +41,49 @@ interface OAuthMessage {
   stepUpRequired?: string;
   stepUpToken?: string;
   error?: string;
+}
+
+type PopupResult =
+  | { kind: "success" }
+  | { kind: "linked" }
+  | { kind: "step-up"; stepUpRequired: string; stepUpToken: string }
+  | { kind: "cancelled" }
+  | { kind: "error"; message: string };
+
+function messageToResult(msg: OAuthMessage): PopupResult {
+  if (msg.error) return { kind: "error", message: msg.error };
+  if (msg.stepUpRequired && msg.stepUpToken) {
+    return {
+      kind: "step-up",
+      stepUpRequired: msg.stepUpRequired,
+      stepUpToken: msg.stepUpToken,
+    };
+  }
+  if (msg.linked) return { kind: "linked" };
+  return { kind: "success" };
+}
+
+function awaitOAuthPopup(popup: Window): Promise<PopupResult> {
+  return new Promise((resolve) => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const msg = event.data as OAuthMessage;
+      if (!msg || msg.type !== "beyond:oauth") return;
+      done(messageToResult(msg));
+    };
+
+    const interval = setInterval(() => {
+      if (popup.closed) done({ kind: "cancelled" });
+    }, 500);
+
+    const done = (result: PopupResult) => {
+      window.removeEventListener("message", onMessage);
+      clearInterval(interval);
+      resolve(result);
+    };
+
+    window.addEventListener("message", onMessage);
+  });
 }
 
 function isMobile(): boolean {
@@ -51,16 +96,17 @@ function isMobile(): boolean {
 export function useOAuth(): UseOAuthResult {
   const { client, setStepUp } = useAuthContext();
   const [status, setStatus] = React.useState<UseOAuthStatus>("idle");
-  const [error, setError] = React.useState<ErrorResponse<any> | null>(null);
+  const [error, setError] = React.useState<
+    ErrorResponse<ErrorData<paths, "/v1/oauth/{provider}", "get">> | null
+  >(null);
 
   const getOAuthUrl = React.useCallback(
     async (provider: string, redirectUrl: string): Promise<string> => {
-      const res = await client.fetch("/v1/oauth/{provider}", {
-        method: "GET",
+      const res = await client.fetch("GET /v1/oauth/{provider}", {
         input: { path: { provider }, query: { redirect_url: redirectUrl } },
       });
       if (res.error) throw new ErrorResponse(res.error, res.response);
-      return (res.data as any).url as string;
+      return res.data.url;
     },
     [client],
   );
@@ -101,58 +147,20 @@ export function useOAuth(): UseOAuthResult {
           return;
         }
 
-        const success = await new Promise<boolean>((resolve, reject) => {
-          let settled = false;
+        const result = await awaitOAuthPopup(popup);
 
-          const cleanup = () => {
-            window.removeEventListener("message", onMessage);
-            clearInterval(pollInterval);
-          };
+        if (result.kind === "error") throw new Error(result.message);
 
-          const settle = (fn: () => void) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            fn();
-          };
+        if (result.kind === "success" || result.kind === "linked") {
+          client.refetch({ match: (_, rc) => rc > 0 }).catch(() => {});
+        } else if (result.kind === "step-up") {
+          setStepUp({
+            stepUpRequired: result.stepUpRequired,
+            stepUpToken: result.stepUpToken,
+          } as StepUpResponse);
+        }
 
-          const onMessage = (event: MessageEvent) => {
-            if (event.origin !== window.location.origin) return;
-            const msg = event.data as OAuthMessage;
-            if (!msg || msg.type !== "beyond:oauth") return;
-
-            if (msg.error) {
-              settle(() => reject(new Error(msg.error)));
-              return;
-            }
-
-            if (msg.success) {
-              client.refetch({ match: (_, rc) => rc > 0 }).catch(() => {});
-            } else if (msg.linked) {
-              client.refetch({ match: (_, rc) => rc > 0 }).catch(() => {});
-            } else if (msg.stepUpRequired && msg.stepUpToken) {
-              setStepUp({
-                stepUpRequired: msg.stepUpRequired,
-                stepUpToken: msg.stepUpToken,
-              } as StepUpResponse);
-            }
-
-            settle(() =>
-              resolve(msg.success || msg.linked || !!msg.stepUpRequired)
-            );
-          };
-
-          // Detect manual popup close (no postMessage received)
-          const pollInterval = setInterval(() => {
-            if (popup.closed) {
-              settle(() => resolve(false));
-            }
-          }, 500);
-
-          window.addEventListener("message", onMessage);
-        });
-
-        setStatus(success ? "success" : "idle");
+        setStatus(result.kind === "cancelled" ? "idle" : "success");
       } catch (err) {
         setStatus("error");
         if (err instanceof ErrorResponse) {

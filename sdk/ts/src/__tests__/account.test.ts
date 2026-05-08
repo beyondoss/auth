@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createAuthClient } from "../client.js";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 import {
   type AuthResponse,
   createAuthFlowClient,
@@ -211,8 +211,7 @@ describe("totp", () => {
     );
     expect(error).toSatisfy(
       (e: unknown) =>
-        e instanceof AuthServiceError && e.code === "mfa_error"
-        && e.status === 401,
+        e instanceof AuthError && e.code === "mfa_error" && e.status === 401,
     );
   });
 

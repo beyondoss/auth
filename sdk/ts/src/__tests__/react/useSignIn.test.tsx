@@ -37,7 +37,7 @@ function makeStepUpResponse() {
 
 function makeErrorResponse(code: string, status = 401) {
   return new Response(
-    JSON.stringify({ code, message: "error" }),
+    JSON.stringify({ error: { code, message: "error" } }),
     { status, headers: { "content-type": "application/json" } },
   );
 }
@@ -143,7 +143,7 @@ describe("useSignIn", () => {
       return (
         <div>
           <span data-testid="status">{status}</span>
-          <span data-testid="error">{error?.data?.code ?? "none"}</span>
+          <span data-testid="error">{error?.data?.error?.code ?? "none"}</span>
           <button
             onClick={() =>
               signIn(

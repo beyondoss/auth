@@ -1,5 +1,4 @@
 import type { NextResponse } from "next/server";
-import type { Client } from "openapi-fetch";
 import type { Profile } from "../account/me.js";
 import {
   clearCookieAttrs,
@@ -7,7 +6,6 @@ import {
   sessionCookieAttrs,
 } from "../server/cookie.js";
 import type { SessionContext, SessionVerifier } from "../session.js";
-import type { paths } from "../types.js";
 import { camelize } from "../utils/camelize.js";
 import { createProxy } from "./proxy.js";
 import type { ProxyOptions } from "./proxy.js";
@@ -41,8 +39,7 @@ type ServerHelpersWithProxy = ServerHelpers & {
 export interface ServerHelpersOptions extends ProxyOptions {
   /**
    * The base URL of the auth service — the same URL passed to
-   * `createSessionVerifier` and `createAdminClient`. Required to enable the
-   * proxy route handlers.
+   * `createSessionVerifier`. Required to enable the proxy route handlers.
    */
   authServiceUrl: string;
 }
@@ -62,14 +59,17 @@ export interface ServerHelpersOptions extends ProxyOptions {
  * @example
  * ```ts
  * // lib/auth.server.ts
- * import { createSessionVerifier, createAdminClient } from '@beyond.dev/auth'
+ * import { createSessionVerifier } from '@beyond.dev/auth'
  * import { createServerHelpers } from '@beyond.dev/auth/next'
  *
  * const AUTH_URL = process.env.AUTH_URL!
  * const verifier = createSessionVerifier({ baseUrl: AUTH_URL })
- * const client = createAdminClient({ baseUrl: AUTH_URL })
  *
- * export const { getSession, getMe, proxy } = createServerHelpers(verifier, client, { authServiceUrl: AUTH_URL })
+ * // Without proxy:
+ * export const { getSession, getMe } = createServerHelpers(verifier, AUTH_URL)
+ *
+ * // With proxy:
+ * export const { getSession, getMe, proxy } = createServerHelpers(verifier, { authServiceUrl: AUTH_URL })
  *
  * // app/api/auth/[...path]/route.ts
  * export const { GET, POST, DELETE, PUT, PATCH } = proxy
@@ -77,18 +77,20 @@ export interface ServerHelpersOptions extends ProxyOptions {
  */
 export function createServerHelpers(
   verifier: SessionVerifier,
-  client: Client<paths>,
   opts: ServerHelpersOptions,
 ): ServerHelpersWithProxy;
 export function createServerHelpers(
   verifier: SessionVerifier,
-  client: Client<paths>,
+  url: string,
 ): ServerHelpers;
 export function createServerHelpers(
   verifier: SessionVerifier,
-  client: Client<paths>,
-  opts?: ServerHelpersOptions,
+  urlOrOpts: string | ServerHelpersOptions,
 ): ServerHelpers | ServerHelpersWithProxy {
+  const url = (
+    typeof urlOrOpts === "string" ? urlOrOpts : urlOrOpts.authServiceUrl
+  ).replace(/\/+$/, "");
+
   function withCache<A extends unknown[], R>(
     fn: (...args: A) => Promise<R>,
   ): (...args: A) => Promise<R> {
@@ -121,16 +123,16 @@ export function createServerHelpers(
     const session = await getSession(cookieStore);
     if (!session) return null;
     const token = getTokenFromCookieStore(cookieStore);
-    const { data } = await client.GET("/v1/users/me", {
+    const res = await fetch(`${url}/v1/users/me`, {
       headers: { Authorization: `Bearer ${token!}` },
     });
-    return data !== undefined ? (camelize(data) as Profile) : null;
+    if (!res.ok) return null;
+    return camelize(await res.json() as unknown) as Profile;
   });
 
-  if (opts) {
-    const { authServiceUrl, ...proxyOpts } = opts;
-    const proxy = createProxy(authServiceUrl, proxyOpts);
-    return { getSession, getMe, proxy };
+  if (typeof urlOrOpts === "object") {
+    const { authServiceUrl: _, ...proxyOpts } = urlOrOpts;
+    return { getSession, getMe, proxy: createProxy(url, proxyOpts) };
   }
 
   return { getSession, getMe };

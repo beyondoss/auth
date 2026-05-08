@@ -280,16 +280,19 @@ fn resolve_or_chain(
     })
 }
 
-fn into_batch_op(r: RelationRequest) -> BatchOp {
-    BatchOp {
-        // object_type was already validated by the caller before this fn is invoked.
-        object_type: validate_ident(&r.object.object_type).expect("object_type already validated"),
+fn into_batch_op(r: RelationRequest) -> Result<BatchOp, AuthError> {
+    Ok(BatchOp {
+        object_type: validate_ident(&r.object.object_type).map_err(|e| {
+            AuthError::AuthzSchemaInvalid {
+                message: e.to_string(),
+            }
+        })?,
         object_id: r.object.id,
         relation: r.relation,
         subject_id: r.subject.id,
         subject_set_type: r.subject.subject_type,
         subject_set_relation: r.subject.relation,
-    }
+    })
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -470,9 +473,7 @@ pub async fn batch_check_permissions(
     for (i, check) in req.checks.iter().enumerate() {
         let subject_id: Arc<str> = match &check.user {
             Some(u) => Arc::from(u.as_str()),
-            None => session_subject
-                .clone()
-                .expect("invariant: session_subject set when user field is absent"),
+            None => session_subject.clone().ok_or(AuthError::Unauthorized)?,
         };
         let cache_key = CheckKey {
             subject_id: subject_id.clone(),
@@ -596,9 +597,7 @@ pub async fn post_checks(
     for (i, check) in req.checks.iter().enumerate() {
         let subject_id: Arc<str> = match &check.user {
             Some(u) => Arc::from(u.as_str()),
-            None => session_subject
-                .clone()
-                .expect("invariant: session_subject set when user field is absent"),
+            None => session_subject.clone().ok_or(AuthError::Unauthorized)?,
         };
         subjects[i] = Some(subject_id.clone());
 
@@ -736,7 +735,7 @@ pub async fn post_checks(
             let check = &req.checks[i];
             let subject_id = subjects[i]
                 .clone()
-                .expect("invariant: subjects[i] populated for all handled[i] indices");
+                .ok_or_else(|| AuthError::internal("subjects entry missing for handled index"))?;
             state.authz_cache.insert_check(
                 CheckKey {
                     subject_id,
@@ -881,8 +880,16 @@ pub async fn batch_relations(
         let g = state.authz_schema.read().await;
         schema_guard_to_compiled(&g)?;
     }
-    let write_ops: Vec<_> = req.writes.into_iter().map(into_batch_op).collect();
-    let delete_ops: Vec<_> = req.deletes.into_iter().map(into_batch_op).collect();
+    let write_ops: Vec<BatchOp> = req
+        .writes
+        .into_iter()
+        .map(into_batch_op)
+        .collect::<Result<_, _>>()?;
+    let delete_ops: Vec<BatchOp> = req
+        .deletes
+        .into_iter()
+        .map(into_batch_op)
+        .collect::<Result<_, _>>()?;
     for op in write_ops.iter().chain(delete_ops.iter()) {
         state.authz_cache.invalidate_for_write(
             op.object_type.as_str(),

@@ -23,7 +23,13 @@ const ENC_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 pub struct BenchServer {
     pub url: String,
     pub admin_secret: &'static str,
-    _handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for BenchServer {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
 }
 
 pub struct BenchSession {
@@ -83,7 +89,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
     Ok(BenchServer {
         url,
         admin_secret: ADMIN_SECRET,
-        _handle: handle,
+        handle,
     })
 }
 

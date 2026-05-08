@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 import { createAuthFlowClient } from "../flows/index.js";
 import { createSessionVerifier } from "../session.js";
 import { getBaseUrl, uniqueEmail } from "./harness.js";
@@ -23,7 +23,7 @@ describe("signUp", () => {
     expect(auth?.org.id).toBeDefined();
   });
 
-  it("returns AuthServiceError(409) on duplicate email", async () => {
+  it("returns AuthError(409) on duplicate email", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
     const { error } = await flows().signUp({
@@ -31,7 +31,7 @@ describe("signUp", () => {
       password: "another-password",
     });
     expect(error).toSatisfy(
-      (e: unknown) => e instanceof AuthServiceError && e.status === 409,
+      (e: unknown) => e instanceof AuthError && e.status === 409,
     );
   });
 });
@@ -52,7 +52,7 @@ describe("signIn", () => {
     }
   });
 
-  it("returns AuthServiceError(401) on wrong password", async () => {
+  it("returns AuthError(401) on wrong password", async () => {
     const email = uniqueEmail();
     await flows().signUp({ email, password: "correct-horse-battery-staple" });
     const { error } = await flows().signIn({
@@ -61,7 +61,7 @@ describe("signIn", () => {
       password: "wrong",
     });
     expect(error).toSatisfy(
-      (e: unknown) => e instanceof AuthServiceError && e.status === 401,
+      (e: unknown) => e instanceof AuthError && e.status === 401,
     );
   });
 });
@@ -84,10 +84,10 @@ describe("requestMagicLink + signIn magic_link", () => {
     }
   });
 
-  it("returns AuthServiceError(404) for unknown email", async () => {
+  it("returns AuthError(404) for unknown email", async () => {
     const { error } = await flows().requestMagicLink(uniqueEmail());
     expect(error).toSatisfy(
-      (e: unknown) => e instanceof AuthServiceError && e.status === 404,
+      (e: unknown) => e instanceof AuthError && e.status === 404,
     );
   });
 });
@@ -108,10 +108,10 @@ describe("requestPasswordReset + signIn password_reset", () => {
     expect("session" in auth!).toBe(true);
   });
 
-  it("returns AuthServiceError(404) for unknown email", async () => {
+  it("returns AuthError(404) for unknown email", async () => {
     const { error } = await flows().requestPasswordReset(uniqueEmail());
     expect(error).toSatisfy(
-      (e: unknown) => e instanceof AuthServiceError && e.status === 404,
+      (e: unknown) => e instanceof AuthError && e.status === 404,
     );
   });
 });

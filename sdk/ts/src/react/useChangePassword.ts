@@ -31,8 +31,8 @@ export function useChangePassword(): UseChangePasswordResult {
         await action.send({
           path: { id },
           body: {
-            current_password: currentPassword,
-            new_password: newPassword,
+            currentPassword,
+            newPassword,
           },
         });
       } catch (err) {

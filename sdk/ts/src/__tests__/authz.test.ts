@@ -3,7 +3,7 @@ import { type AuthzClient, createAuthzClient } from "../authz.js";
 import { AuthzError } from "../errors.js";
 import {
   authedClient,
-  getAdminSecret,
+  getAdminToken,
   getBaseUrl,
   signup,
   uniqueEmail,
@@ -41,7 +41,7 @@ let authz: AuthzClient<typeof SCHEMA>;
 beforeAll(async () => {
   authz = createAuthzClient({
     url: getBaseUrl(),
-    adminSecret: getAdminSecret(),
+    adminSecret: getAdminToken(),
     schema: SCHEMA,
   });
   const { error } = await authz.putSchema(SCHEMA);

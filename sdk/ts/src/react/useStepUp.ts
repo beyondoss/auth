@@ -1,8 +1,10 @@
 import React from "react";
-import type { StepUpResponse } from "../flows/sign-in.js";
+import type { SignInRequest, StepUpResponse } from "../flows/sign-in.js";
+import { isStepUpResponse } from "../flows/sign-in.js";
 import type { AuthResponse } from "../flows/sign-up.js";
-import { camelize } from "../utils/camelize.js";
+import type { paths } from "../types.js";
 import { ErrorResponse } from "./client.js";
+import type { ErrorData } from "./client.js";
 import { useAuthContext } from "./context.js";
 
 export type StepUpStatus = "idle" | "fetching" | "error";
@@ -14,13 +16,15 @@ export interface UseStepUpResult {
   completeTotpRecovery(code: string): Promise<AuthResponse>;
   cancel(): void;
   status: StepUpStatus;
-  error: ErrorResponse<any> | null;
+  error: ErrorResponse<ErrorData<paths, "/v1/sessions", "post">> | null;
 }
 
 export function useStepUp(): UseStepUpResult {
   const { client, stepUp, setStepUp } = useAuthContext();
   const action = client.useAction({ path: "POST /v1/sessions" });
-  const [error, setError] = React.useState<ErrorResponse<any> | null>(null);
+  const [error, setError] = React.useState<
+    ErrorResponse<ErrorData<paths, "/v1/sessions", "post">> | null
+  >(null);
   const [status, setStatus] = React.useState<StepUpStatus>("idle");
 
   const complete = React.useCallback(
@@ -36,17 +40,22 @@ export function useStepUp(): UseStepUpResult {
       setStatus("fetching");
 
       try {
-        const raw = await action.send({
-          body: {
-            grant_type: grantType,
-            step_up_token: stepUp.stepUpToken,
+        const body: SignInRequest = grantType === "totp_step_up"
+          ? { grantType: "totp_step_up", stepUpToken: stepUp.stepUpToken, code }
+          : {
+            grantType: "totp_recovery",
+            stepUpToken: stepUp.stepUpToken,
             code,
-          } as any,
-        });
-        // Success — clear the challenge
+          };
+        const data = await action.send({ body });
+        if (isStepUpResponse(data)) {
+          throw new Error(
+            "Unexpected step-up challenge during step-up completion",
+          );
+        }
         setStepUp(null);
         setStatus("idle");
-        return camelize(raw) as unknown as AuthResponse;
+        return data;
       } catch (err) {
         setStatus("error");
         if (err instanceof ErrorResponse) {
@@ -54,7 +63,7 @@ export function useStepUp(): UseStepUpResult {
           // Expired token — clear challenge so user must sign in again
           if (
             err.response?.status === 401
-            || (err.data as any)?.code === "step_up_token_expired"
+            || err.data?.error?.code === "step_up_token_expired"
           ) {
             setStepUp(null);
           }

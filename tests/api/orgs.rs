@@ -164,8 +164,8 @@ async fn list_orgs_paginates() {
         .json::<OrgsResponse>();
 
     assert_eq!(page1.orgs.len(), 2);
-    assert!(page1.has_more);
-    let cursor = page1.next_page.expect("must have next_page");
+    assert!(page1.next_cursor.is_some());
+    let cursor = page1.next_cursor.expect("must have next_cursor");
 
     let page2 = TestClient::new()
         .bearer(&auth.session.token)
@@ -175,7 +175,7 @@ async fn list_orgs_paginates() {
         .json::<OrgsResponse>();
 
     assert!(!page2.orgs.is_empty());
-    assert!(!page2.has_more);
+    assert!(page2.next_cursor.is_none());
 
     let all_ids: std::collections::HashSet<_> = page1
         .orgs
@@ -401,8 +401,8 @@ async fn list_members_paginates() {
         .json::<MembersResponse>();
 
     assert_eq!(page1.members.len(), 2);
-    assert!(page1.has_more);
-    let cursor = page1.next_page.expect("must have next_page");
+    assert!(page1.next_cursor.is_some());
+    let cursor = page1.next_cursor.expect("must have next_cursor");
 
     let page2 = TestClient::new()
         .bearer(&owner.session.token)
@@ -415,7 +415,7 @@ async fn list_members_paginates() {
         .json::<MembersResponse>();
 
     assert!(!page2.members.is_empty());
-    assert!(!page2.has_more);
+    assert!(page2.next_cursor.is_none());
 
     let all_ids: std::collections::HashSet<_> = page1
         .members
@@ -693,8 +693,8 @@ async fn list_invitations_paginates() {
         .json::<InvitationsResponse>();
 
     assert_eq!(page1.invitations.len(), 2);
-    assert!(page1.has_more);
-    let cursor = page1.next_page.expect("must have next_page");
+    assert!(page1.next_cursor.is_some());
+    let cursor = page1.next_cursor.expect("must have next_cursor");
 
     let page2 = TestClient::new()
         .bearer(&auth.session.token)
@@ -707,7 +707,7 @@ async fn list_invitations_paginates() {
         .json::<InvitationsResponse>();
 
     assert_eq!(page2.invitations.len(), 1);
-    assert!(!page2.has_more);
+    assert!(page2.next_cursor.is_none());
 }
 
 // ── POST /v1/orgs/{id}/invitations/{inv_id}/resends ──────────────────────────

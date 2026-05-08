@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -47,9 +47,10 @@ impl VersionTable {
 }
 
 fn hash_one(val: impl Hash) -> u64 {
-    let mut h = std::hash::DefaultHasher::new();
-    val.hash(&mut h);
-    h.finish()
+    use std::hash::BuildHasher;
+    static HASHER: std::sync::LazyLock<std::hash::RandomState> =
+        std::sync::LazyLock::new(std::hash::RandomState::new);
+    HASHER.hash_one(val)
 }
 
 pub struct AuthzCache {

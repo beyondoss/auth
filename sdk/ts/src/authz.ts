@@ -67,7 +67,7 @@
 
 import createFetchClient from "openapi-fetch";
 import * as v from "valibot";
-import { AuthServiceError, AuthzError } from "./errors.js";
+import { AuthError, AuthzError } from "./errors.js";
 import type { components, paths } from "./types.js";
 import type { AuthResult } from "./utils/wrap.js";
 
@@ -130,7 +130,10 @@ export type SchemaInput = {
     roles: ReadonlyArray<string>;
     permissions: { readonly [K: string]: ReadonlyArray<string> };
     role_inheritance?:
-      | ReadonlyArray<{ readonly superior: string; readonly inferior: string }>
+      | ReadonlyArray<{
+        readonly superior: string;
+        readonly inferior: string;
+      }>
       | null;
     hierarchy?: { parent_relation: string; parent_resource: string } | null;
   }>;
@@ -195,10 +198,7 @@ const ErrorBody = v.object({
   ),
 });
 
-function parseError(
-  error: unknown,
-  response: Response,
-): AuthResult<never> {
+function parseError(error: unknown, response: Response): AuthResult<never> {
   const parsed = v.safeParse(ErrorBody, error);
   const body = parsed.success ? parsed.output : {};
   const code = body.error?.code;
@@ -213,7 +213,7 @@ function parseError(
   ) {
     const authzCode: AuthzError["code"] = code === "token_invalid"
       ? "session_invalid"
-      : code as AuthzError["code"];
+      : (code as AuthzError["code"]);
     return {
       data: undefined,
       error: new AuthzError(
@@ -228,7 +228,7 @@ function parseError(
   }
   return {
     data: undefined,
-    error: new AuthServiceError(
+    error: new AuthError(
       code ?? "unknown_error",
       message,
       response.status,

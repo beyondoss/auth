@@ -205,8 +205,8 @@ describe("orgs — members", () => {
     expect(error).toBeUndefined();
 
     const { data: updated } = await ownerClient.orgs.members.list(orgId);
-    const after = updated!.members.find((m) =>
-      m.userId === inviteeAuth.user.id
+    const after = updated!.members.find(
+      (m) => m.userId === inviteeAuth.user.id,
     )!;
     expect(after.role).toBe("admin");
   });
@@ -231,7 +231,7 @@ describe("orgs — members", () => {
     )!;
 
     // member_id is the user's ID
-    const { error } = await ownerClient.orgs.members.remove(
+    const { error } = await ownerClient.orgs.members.delete(
       orgId,
       inviteeMember.userId,
     );
@@ -330,13 +330,14 @@ describe("orgs — invitations (inviter)", () => {
 
     // Resend via raw client — not yet in the typed SDK
     const raw = publicClient();
-    const { data: resent, error, response } = await raw.POST(
-      "/v1/orgs/{id}/invitations/{inv_id}/resends",
-      {
-        params: { path: { id: orgId, inv_id: invId } },
-        headers: { Authorization: `Bearer ${auth.session.token}` },
-      },
-    );
+    const {
+      data: resent,
+      error,
+      response,
+    } = await raw.POST("/v1/orgs/{id}/invitations/{inv_id}/resends", {
+      params: { path: { id: orgId, inv_id: invId } },
+      headers: { Authorization: `Bearer ${auth.session.token}` },
+    });
     expect(error).toBeUndefined();
     expect(response.status).toBe(201);
     expect(resent?.token).toBeDefined();

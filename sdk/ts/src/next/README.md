@@ -6,20 +6,15 @@ Protect routes, read the current user, and proxy the auth service — all from N
 
 ```ts
 // lib/auth.server.ts
-import { createAdminClient, createSessionVerifier } from "@beyond.dev/auth";
+import { createSessionVerifier } from "@beyond.dev/auth";
 import { createServerHelpers } from "@beyond.dev/auth/next";
 
 const AUTH_URL = process.env.AUTH_URL!;
 const verifier = createSessionVerifier({ baseUrl: AUTH_URL });
-const client = createAdminClient({ baseUrl: AUTH_URL });
 
-export const { getSession, getMe, proxy } = createServerHelpers(
-  verifier,
-  client,
-  {
-    authServiceUrl: AUTH_URL,
-  },
-);
+export const { getSession, getMe, proxy } = createServerHelpers(verifier, {
+  authServiceUrl: AUTH_URL,
+});
 ```
 
 ```ts
@@ -51,7 +46,8 @@ export default createAuthMiddleware(verifier, {
 ## `createServerHelpers`
 
 ```ts
-createServerHelpers(verifier, client, opts): { getSession, getMe, proxy }
+createServerHelpers(verifier, url): { getSession, getMe }
+createServerHelpers(verifier, opts): { getSession, getMe, proxy }
 ```
 
 Returns per-request session and profile helpers, memoized via React `cache()` so each is called at most once per server request regardless of how many components use it.

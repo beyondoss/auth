@@ -11,7 +11,7 @@ export function getBaseUrl(): string {
   return url;
 }
 
-export function getAdminSecret(): string {
+export function getAdminToken(): string {
   const secret = process.env["BEYOND_AUTH_ADMIN_SECRET"];
   if (!secret) {
     throw new Error(
@@ -30,7 +30,7 @@ export function publicClient(): Client<paths> {
 export function adminClient(): Client<paths> {
   return createFetchClient<paths>({
     baseUrl: getBaseUrl(),
-    headers: { Authorization: `Bearer ${getAdminSecret()}` },
+    headers: { Authorization: `Bearer ${getAdminToken()}` },
   });
 }
 

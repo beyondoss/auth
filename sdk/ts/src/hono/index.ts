@@ -1,5 +1,5 @@
 import type { Context, MiddlewareHandler } from "hono";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 import { getSessionToken } from "../server/cookie.js";
 import {
   matchesPublicPath,
@@ -72,9 +72,7 @@ export function createAuthMiddleware(
 
     const result = await verifier.verify(token);
     if (result.error) {
-      if (
-        result.error instanceof AuthServiceError && result.error.status >= 500
-      ) {
+      if (result.error instanceof AuthError && result.error.status >= 500) {
         throw result.error;
       }
       return onUnauthorized(c);
@@ -126,10 +124,13 @@ export function createProxy(
     const targetPath = pathname.slice(mountPrefix.length - 1) || "/";
 
     if (targetPath.startsWith("/v1/admin/") || targetPath === "/v1/admin") {
-      return c.json({
-        code: "forbidden",
-        message: "Admin routes are not accessible via the browser proxy.",
-      }, 403);
+      return c.json(
+        {
+          code: "forbidden",
+          message: "Admin routes are not accessible via the browser proxy.",
+        },
+        403,
+      );
     }
 
     const token = getSessionToken(c.req.raw);
@@ -143,9 +144,7 @@ export function createProxy(
     // Buffer the body to avoid stream lifecycle issues with Node.js keep-alive
     // connections — forwarding ReadableStream directly can leave the underlying
     // IncomingMessage undrained, corrupting subsequent requests on the same socket.
-    const body = c.req.raw.body
-      ? Buffer.from(await c.req.arrayBuffer())
-      : null;
+    const body = c.req.raw.body ? Buffer.from(await c.req.arrayBuffer()) : null;
 
     return proxyRequest(
       c.req.method,

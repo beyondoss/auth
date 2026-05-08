@@ -2,9 +2,15 @@ use axum::{Json, extract::State};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{email, error::AuthError, http::AppState, one_time_token, tokens::TokenPrefix};
+use crate::{
+    email,
+    error::AuthError,
+    http::AppState,
+    one_time_token,
+    tokens::{Token, TokenPrefix},
+};
 
-const TTL_SECONDS: i32 = 3600; // 1 hour
+const TTL_SECONDS: i32 = 900; // 15 minutes (OWASP maximum)
 
 /// Request to issue a password-reset token for a user.
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -29,8 +35,9 @@ pub struct CreateResponse {
 /// Issue a password-reset token for the given email address. The caller is responsible
 /// for delivering the token to the user. The token is exchanged — along with a new password
 /// — via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all
-/// existing sessions. Expires in 1 hour. Returns 404 if no account exists or the account
-/// has no password identity.
+/// existing sessions. Expires in 15 minutes. Always returns 200 — when no matching account
+/// or password identity exists, a syntactically-valid but unstored token is returned so that
+/// callers cannot distinguish registered from unregistered addresses.
 #[utoipa::path(
     post,
     path = "/v1/password-resets",
@@ -39,7 +46,6 @@ pub struct CreateResponse {
     request_body = CreateRequest,
     responses(
         (status = 200, body = CreateResponse),
-        (status = 404, description = "No account with that email or no password identity", body = crate::error::ErrorResponse),
     )
 )]
 pub async fn create(
@@ -47,6 +53,19 @@ pub async fn create(
     Json(req): Json<CreateRequest>,
 ) -> Result<Json<CreateResponse>, AuthError> {
     let normalized = email::normalize(&req.email);
+
+    // Always return 200 regardless of whether the account exists, to prevent
+    // email enumeration. When there's no matching account or no password identity,
+    // we return a syntactically-valid but unstored token; the exchange attempt
+    // will fail with TokenInvalid, indistinguishable from an already-used token.
+    let synthetic = || {
+        let fake = Token::new(TokenPrefix::PasswordReset);
+        let expires_at = Utc::now() + chrono::Duration::seconds(i64::from(TTL_SECONDS));
+        Json(CreateResponse {
+            token: fake.to_string(),
+            expires_at,
+        })
+    };
 
     let user_id = sqlx::query_scalar!(
         "SELECT u.id FROM auth.users u
@@ -56,8 +75,11 @@ pub async fn create(
     )
     .fetch_optional(&state.pool)
     .await
-    .map_err(AuthError::from)?
-    .ok_or(AuthError::NotFound)?;
+    .map_err(AuthError::from)?;
+
+    let Some(user_id) = user_id else {
+        return Ok(synthetic());
+    };
 
     // Only users with a password identity can reset their password.
     let has_password = sqlx::query_scalar!(
@@ -69,7 +91,7 @@ pub async fn create(
     .map_err(AuthError::from)?;
 
     if has_password.is_none() {
-        return Err(AuthError::NotFound);
+        return Ok(synthetic());
     }
 
     let created = one_time_token::create(

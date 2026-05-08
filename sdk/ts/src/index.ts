@@ -34,6 +34,7 @@ export {
 export {
   type AdminClient,
   type AdminClientOptions,
+  type AdminUser,
   type AuthClient,
   type AuthClientOptions,
   type components,
@@ -44,11 +45,7 @@ export {
   type Org,
   type paths,
 } from "./client.js";
-export {
-  AuthServiceError,
-  AuthzError,
-  JwtVerificationError,
-} from "./errors.js";
+export { AuthError, AuthzError, JwtVerificationError } from "./errors.js";
 export {
   type AuthFlowClient,
   type AuthFlowClientOptions,

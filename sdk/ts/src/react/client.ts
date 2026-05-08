@@ -8,8 +8,8 @@ import createFetchClient, {
 } from "openapi-fetch";
 import type { HttpMethod, PathsWithMethod } from "openapi-typescript-helpers";
 import React from "react";
-import type { ConditionalExcept, RequiredKeysOf, Simplify } from "type-fest";
-import type { Camelize } from "../utils/camelize.js";
+import type { ConditionalExcept, Simplify } from "type-fest";
+import { type Camelize, camelize, snakenize } from "../utils/camelize.js";
 
 export function createClient<Paths extends {}>(
   options: ClientOptions<Paths> = {},
@@ -36,9 +36,14 @@ export function createClient<Paths extends {}>(
     ...defaultRequestInit?.(),
   });
 
-  function createKey(opt: { path: string; input?: Record<string, any> }) {
+  function createKey(
+    opt: {
+      path: `GET ${LoadablePaths<Paths>}`;
+      input?: Record<string, unknown>;
+    },
+  ) {
     return encodeKey(
-      options.extendCacheKey ? options.extendCacheKey(opt as any) : opt,
+      options.extendCacheKey ? options.extendCacheKey(opt) : opt,
     );
   }
 
@@ -76,25 +81,30 @@ export function createClient<Paths extends {}>(
   }
 
   async function fetch_<
-    Path extends Extract<keyof Paths, string>,
-    Method extends Paths[Path] extends Record<string, any>
-      ? Uppercase<Extract<RequiredKeysOf<Paths[Path]>, HttpMethod>>
-      : never,
+    Method extends Uppercase<HttpMethod>,
+    Path extends Extract<PathsWithMethod<Paths, Lowercase<Method>>, string>,
   >(
-    path: Path,
-    requestInit: Omit<RequestInit, "method" | "body"> & {
-      method: Method;
-    } & Input<Paths, Path, Lowercase<Method>>,
+    methodPath: `${Method} ${Path}`,
+    requestInit?:
+      & Omit<RequestInit, "method" | "body">
+      & Input<Paths, Path, Lowercase<Method>>,
   ): Promise<Output<Paths, Path, Lowercase<Method>>> {
-    // @ts-expect-error: it's ok
-    const { input: i = {}, ...init } = requestInit;
-    const { body, ...input } = i;
-    // @ts-expect-error: it is fine
-    const res = await client[requestInit.method.toUpperCase()](path, {
+    const spaceIdx = methodPath.indexOf(" ");
+    const method = methodPath.slice(0, spaceIdx) as Method;
+    const path = methodPath.slice(spaceIdx + 1);
+    const { input: i, ...init } = (requestInit ?? {}) as typeof requestInit & {
+      input?: { body?: unknown } & Record<string, unknown>;
+    };
+    const { body, ...input } = i ?? {};
+    const snakenizedBody = body != null && typeof body === "object"
+      ? snakenize(body as Record<string, unknown>)
+      : body;
+    // @ts-expect-error: dynamic HTTP method dispatch on openapi-fetch client
+    const res = await client[method](path, {
       ...defaultRequestInit?.(),
       ...init,
       params: input,
-      body,
+      body: snakenizedBody,
     });
 
     if (debug) {
@@ -106,7 +116,7 @@ export function createClient<Paths extends {}>(
 
   async function load<Path extends LoadablePaths<Paths>>(
     options: LoadOptions<Paths, Path>,
-  ): Promise<LoadResult<CachedResponse<Paths, Path>>> {
+  ): Promise<CachedResponse<Paths, Path>> {
     const {
       path,
       staleTime = defaultStaleTime,
@@ -114,7 +124,10 @@ export function createClient<Paths extends {}>(
       shouldRetry = defaultShouldRetry,
       signal = null,
     } = options;
-    const cacheKey = createKey({ path, input: (options as any).input });
+    const optInput = (options as { input?: Record<string, unknown> }).input;
+    const cacheKey = createKey(
+      optInput !== undefined ? { path, input: optInput } : { path },
+    );
     const cached = cache.get(cacheKey);
 
     if (
@@ -133,7 +146,7 @@ export function createClient<Paths extends {}>(
       }
 
       await cached.promise;
-      return cached as LoadResult<CachedResponse<Paths, Path>>;
+      return cached;
     }
 
     if (cached) {
@@ -141,7 +154,6 @@ export function createClient<Paths extends {}>(
       cached.createdAt = Date.now();
     }
 
-    // @ts-expect-error: it's ok
     const nextCached: CachedResponse<Paths, Path> = cached
       ? { ...cached }
       : {
@@ -149,21 +161,29 @@ export function createClient<Paths extends {}>(
         error: undefined,
         response: undefined,
         status: "fetching",
+        promise: Promise.resolve(),
         createdAt: Date.now(),
       };
 
     cache.set(cacheKey, nextCached);
-    // @ts-expect-error: it's ok
     nextCached.promise = retry<
       Data<Paths, Path, "get">,
-      ErrorData<Paths, Path, "get">
+      ErrorResponse<ErrorData<Paths, Path, "get">>
     >(
-      // @ts-expect-error: it's ok
       async () => {
+        // Strips "GET " prefix; cast narrows string to the specific path union type
+        const getPath = path.replace(/^GET /, "") as PathsWithMethod<
+          Paths,
+          "get"
+        >;
+        // init params can't be statically verified against the generic path union
         const res = await client.GET(
-          // @ts-expect-error: it's ok
-          path.replace(/^GET /, ""),
-          { ...defaultRequestInit?.(), signal, params: (options as any).input },
+          getPath,
+          {
+            ...defaultRequestInit?.(),
+            signal,
+            params: (options as { input?: Record<string, unknown> }).input,
+          } as any,
         );
 
         if (debug) {
@@ -172,13 +192,15 @@ export function createClient<Paths extends {}>(
 
         if (res.error) {
           throw new ErrorResponse<ErrorData<Paths, Path, "get">>(
-            // @ts-expect-error: it's fine
-            res.error,
+            res.error as ErrorData<Paths, Path, "get">,
             res.response,
           );
         }
 
-        return { data: res.data, response: res.response };
+        return {
+          data: res.data as Data<Paths, Path, "get">,
+          response: res.response!,
+        };
       },
       retries,
       async (error, retryCount) => {
@@ -193,7 +215,7 @@ export function createClient<Paths extends {}>(
       },
     ).then(
       (res) => {
-        nextCached.data = res.data;
+        nextCached.data = camelize(res.data);
         nextCached.status = "success";
         nextCached.error = undefined;
         nextCached.response = res.response;
@@ -205,7 +227,7 @@ export function createClient<Paths extends {}>(
         if (error instanceof DOMException && error.name === "AbortError") {
           const existing = cache.get(cacheKey);
           if (existing && existing.data !== undefined) {
-            return existing as LoadResult<CachedResponse<Paths, Path>>;
+            return existing;
           }
           throw error;
         }
@@ -224,9 +246,7 @@ export function createClient<Paths extends {}>(
     );
 
     await nextCached.promise;
-    return nextCached as unknown as Promise<
-      LoadResult<CachedResponse<Paths, Path>>
-    >;
+    return nextCached;
   }
 
   /**
@@ -235,7 +255,7 @@ export function createClient<Paths extends {}>(
    */
   function seed<Path extends LoadablePaths<Paths>>(
     path: `GET ${Path}`,
-    data: Data<Paths, Path, "get">,
+    data: Camelize<Data<Paths, Path, "get">>,
   ): void {
     const cacheKey = createKey({ path });
     if (cache.get(cacheKey)?.status === "success") return;
@@ -245,9 +265,9 @@ export function createClient<Paths extends {}>(
       response: undefined,
       status: "success",
       createdAt: Date.now(),
-      promise: Promise.resolve(data) as any,
+      promise: Promise.resolve(data),
     };
-    cache.set(cacheKey, entry as any);
+    cache.set(cacheKey, entry);
   }
 
   function useLoader<
@@ -265,10 +285,12 @@ export function createClient<Paths extends {}>(
       refetchOnReconnect = true,
       refetchInterval,
     } = options;
-    const cacheKey = createKey({
-      path: options.path,
-      input: (options as any).input,
-    });
+    const optInput = (options as { input?: Record<string, unknown> }).input;
+    const cacheKey = createKey(
+      optInput !== undefined
+        ? { path: options.path, input: optInput }
+        : { path: options.path },
+    );
     const didMount = React.useRef(false);
     const intervalTime = disabled
       ? undefined
@@ -405,7 +427,7 @@ export function createClient<Paths extends {}>(
         invalidate,
         refetch() {
           invalidate();
-          return load({ path: options.path, input: (options as any).input });
+          return load(options as LoadOptions<Paths, Path>);
         },
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -432,83 +454,80 @@ export function createClient<Paths extends {}>(
       "idle" | "fetching" | "success" | "error"
     >("idle");
 
-    const [method, path] = options.path.split(" ");
-    const latestOptions = React.useRef({ ...options, method, path });
+    const latestOptions = React.useRef(options);
+    const currentRef = React.useRef<Promise<unknown>>(undefined);
 
     React.useEffect(() => {
-      if (
-        path !== latestOptions.current.path
-        || method !== latestOptions.current.method
-      ) {
+      if (options.path !== latestOptions.current.path) {
         setStatus("idle");
       }
+      latestOptions.current = options;
+    });
 
-      latestOptions.current = {
-        ...options,
-        method,
-        path,
-      };
-    }, [path, method, options]);
-
-    const [send] = React.useState(() => {
-      let current: Promise<any> | undefined;
-
-      return async (
-        input: any,
+    const send = React.useCallback(
+      async (
+        input: Input<Paths, Path, Lowercase<Method>> extends { input: infer I }
+          ? I
+          : void,
         requestInit?: Omit<RequestInit, "method" | "body">,
-      ) => {
+      ): Promise<Camelize<Data<Paths, Path, Lowercase<Method>>>> => {
         setStatus("fetching");
-        const { path, method, onError, onSuccess } = latestOptions.current;
-        // @ts-expect-error: it's fine
-        const promise = (current = fetch_(path, {
-          input,
-          method,
+        const { onError, onSuccess } = latestOptions.current;
+        const fullInput = (
+          input !== undefined ? { input } : {}
+        ) as Input<Paths, Path, Lowercase<Method>>;
+        const promise = (currentRef.current = fetch_(options.path, {
           ...requestInit,
+          ...fullInput,
         }));
 
         try {
           const res = await promise;
 
           if (res.error) {
-            throw new ErrorResponse(res.error, res.response);
+            throw new ErrorResponse<ErrorData<Paths, Path, Lowercase<Method>>>(
+              res.error as ErrorData<Paths, Path, Lowercase<Method>>,
+              res.response,
+            );
           }
 
-          if (
-            current === promise
-            && latestOptions.current.path === path
-            && latestOptions.current.method === method
-          ) {
+          if (currentRef.current === promise) {
             setStatus("success");
           }
 
+          const camelized = camelize(
+            res.data as Data<Paths, Path, Lowercase<Method>>,
+          ) as Camelize<Data<Paths, Path, Lowercase<Method>>>;
           Promise.all([
-            onEachSuccess?.(res.data as any),
-            onSuccess?.(res.data as any, res.response),
+            onEachSuccess?.(camelized),
+            onSuccess?.(camelized, res.response),
           ]).catch(() => {});
 
-          return res.data;
+          return camelized;
         } catch (err) {
-          if (current === promise) {
+          if (currentRef.current === promise) {
             setStatus("error");
           }
 
           if (err instanceof ErrorResponse) {
+            const typedErr = err as ErrorResponse<
+              ErrorData<Paths, Path, Lowercase<Method>>
+            >;
             Promise.all([
-              onEachError?.(err as any),
-              onError?.(err.data, err.response!),
+              onEachError?.(typedErr),
+              onError?.(typedErr.data, typedErr.response!),
             ]).catch(() => {});
-            throw err;
+            throw typedErr;
           }
 
           throw err;
         }
-      };
-    });
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [],
+    );
 
-    // @ts-expect-error: it's fine
-    return React.useMemo(() => {
-      return { status, send };
-    }, [status, send]);
+    return React.useMemo(() => ({ status, send }), [status, send]);
   }
 
   function invalidate<Path extends LoadablePaths<Paths>>(
@@ -682,7 +701,7 @@ async function retry<T, E extends ErrorResponse<any>>(
       }
 
       retryCount++;
-      if ((await shouldRetry(error as any, retryCount)) === false) {
+      if ((await shouldRetry(error as E, retryCount)) === false) {
         throw error;
       }
     }
@@ -720,8 +739,10 @@ export type ClientOptions<Paths extends {}> = {
   ) => void;
   extendCacheKey?: (options: {
     path: `GET ${LoadablePaths<Paths>}`;
-    input?: Record<string, any>;
-  }) => { path: string; input?: Record<string, any> } & { [key: string]: any };
+    input?: Record<string, unknown>;
+  }) => { path: string; input?: Record<string, unknown> } & {
+    [key: string]: unknown;
+  };
 };
 
 type ResponseUnion<Paths extends {}, Method extends HttpMethod> = {
@@ -736,21 +757,23 @@ export type CachedResponse<
   Paths extends {},
   Path extends Extract<keyof Paths, string>,
 > = {
-  data: Camelize<Data<Paths, Path, "get">>;
+  data: Camelize<Data<Paths, Path, "get">> | undefined;
   error: ErrorData<Paths, Path, "get"> | undefined;
   response: Response | undefined;
   status: FetchStatus;
-  promise: Promise<Camelize<Data<Paths, Path, "get">>>;
+  promise: Promise<unknown>;
   createdAt: number;
 };
 
 type FetchStatus = "fetching" | "refetching" | "success" | "error";
 
+type ErrorEnvelope = { error?: { message?: string } };
+
 export class ErrorResponse<T extends ErrorData<any, any, any>> extends Error {
   data: T;
   response: Response | undefined;
   constructor(data: T, response?: Response) {
-    super((data as any)?.error?.message ?? "API error");
+    super((data as ErrorEnvelope)?.error?.message ?? "API error");
     this.name = "ErrorResponse";
     this.data = data;
     this.response = response;
@@ -763,7 +786,7 @@ function encodeKey({
   ...other
 }: {
   path: string;
-  input?: Record<string, any>;
+  input?: Record<string, unknown>;
 }) {
   return JSON.stringify({
     path,
@@ -772,15 +795,15 @@ function encodeKey({
   });
 }
 
-function removeEmptyKeys(obj: Record<string, any>) {
-  const next: Record<string, any> = {};
+function removeEmptyKeys(obj: Record<string, unknown>) {
+  const next: Record<string, unknown> = {};
 
   for (const key in obj) {
     if (
       obj[key] === undefined
       || (typeof obj[key] === "object"
         && obj[key] !== null
-        && !Object.keys(obj[key]).length)
+        && !Object.keys(obj[key] as object).length)
     ) {
       continue;
     }
@@ -791,31 +814,31 @@ function removeEmptyKeys(obj: Record<string, any>) {
   return next;
 }
 
-function sortObject(obj: Record<string, any>): unknown {
+function sortObject(obj: Record<string, unknown>): unknown {
   if (typeof obj !== "object" || obj === null) {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    const s = new Array(obj.length);
+    const s = new Array<unknown>(obj.length);
     for (let i = 0; i < obj.length; i++) {
-      s[i] = sortObject(obj[i]);
+      s[i] = sortObject(obj[i] as Record<string, unknown>);
     }
     return s;
   }
 
-  const sorted: Record<string, any> = {};
+  const sorted: Record<string, unknown> = {};
   const keys = Object.keys(obj).sort();
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]!;
-    sorted[key] = sortObject(obj[key] as Record<string, any>);
+    sorted[key] = sortObject(obj[key] as Record<string, unknown>);
   }
 
   return sorted;
 }
 
-function logResponse(res: any) {
-  const response = res.response as Response;
+function logResponse(res: { data?: unknown; response: Response }) {
+  const { response } = res;
   console.log(`📮 %c${response.status} ${response.url}`, "color: #999");
   console.log("Headers\n", Object.fromEntries(response.headers.entries()));
   console.log("Body\n", res.data);
@@ -877,7 +900,7 @@ export type UseLoaderResult<
     })
   & {
     invalidate(): void;
-    refetch(): Promise<LoadResult<CachedResponse<Paths, Path>>>;
+    refetch(): Promise<CachedResponse<Paths, Path>>;
   };
 
 export type UseInlineLoaderOptions<
@@ -934,7 +957,7 @@ export type UseInlineLoaderResult<
     })
   & {
     invalidate(): void;
-    refetch(): Promise<Camelize<Data<Paths, Path, "get">>>;
+    refetch(): Promise<CachedResponse<Paths, Path>>;
   };
 
 export type UseActionOptions<
@@ -983,7 +1006,7 @@ export type Input<
   } ? Paths[Path][Method] extends { requestBody?: never } ? {}
     : {
       input: Simplify<{
-        body: RequestBodyOption<Paths[Path][Method]>["body"];
+        body: Camelize<RequestBodyOption<Paths[Path][Method]>["body"]>;
       }>;
     }
   : Paths[Path][Method] extends { requestBody?: never } ? {
@@ -997,7 +1020,7 @@ export type Input<
       ConditionalExcept<
         Pick<Paths[Path][Method]["parameters"], "query" | "path">,
         undefined
-      > & { body: RequestBodyOption<Paths[Path][Method]>["body"] }
+      > & { body: Camelize<RequestBodyOption<Paths[Path][Method]>["body"]> }
     >;
   }
   : {};

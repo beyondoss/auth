@@ -1,4 +1,4 @@
-import createFetchClient, { type Client } from "openapi-fetch";
+import createFetchClient from "openapi-fetch";
 import {
   addEmail,
   createEmailVerification,
@@ -38,8 +38,10 @@ export type { components, operations } from "./types.js";
 export type Org = Camelize<components["schemas"]["OrgResponse"]>;
 export type Invitation = Camelize<components["schemas"]["InvitationResponse"]>;
 
-/** The typed HTTP client returned by {@link createAdminClient}. */
-export type AdminClient = Client<paths, `${string}/${string}`>;
+export type AdminUser = Camelize<components["schemas"]["AdminUserResponse"]>;
+
+/** The semantic admin client returned by {@link createAdminClient}. */
+export type AdminClient = ReturnType<typeof createAdminClient>;
 
 export interface AuthRequestEvent {
   command: string;
@@ -54,6 +56,8 @@ export interface AuthResponseEvent {
 export interface AdminClientOptions {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
   url: string;
+  /** Admin secret. Sent as `Authorization: Bearer <secret>` on every request. */
+  token: string;
   /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
   fetch?: typeof globalThis.fetch;
   /** Per-request timeout in milliseconds. */
@@ -67,32 +71,32 @@ export interface AdminClientOptions {
 }
 
 /**
- * Creates a fully-typed HTTP client for the Beyond Auth REST API.
+ * Creates a semantic admin client for the Beyond Auth service.
  *
- * Built on `openapi-fetch` — every path, method, request body, query
- * parameter, and response type is inferred directly from the generated
- * OpenAPI spec. There are no hand-rolled interfaces to drift out of sync.
+ * Bakes the admin secret into every request as `Authorization: Bearer <secret>`.
+ * All methods are namespaced by resource and emit dot-namespaced `command`
+ * strings in `onRequest`/`onResponse` hooks — consistent with the rest of the
+ * Beyond SDK family.
  *
- * @param opts - Client configuration.
- * @returns A typed `openapi-fetch` client bound to the auth service paths.
+ * @param opts - Client configuration including the admin secret.
  *
  * @example
  * ```ts
- * const client = createAdminClient({ url: 'http://auth:8080' })
- *
- * const { data, error } = await client.POST('/v1/users', {
- *   body: { email: 'hi@example.com', password: 'secret' },
+ * const admin = createAdminClient({
+ *   url: 'http://auth:8080',
+ *   secret: process.env.AUTH_ADMIN_SECRET!,
  * })
  *
- * const { data: me } = await client.GET('/v1/users/me', {
- *   headers: { Authorization: `Bearer ${token}` },
- * })
+ * const { data: user } = await admin.users.getByEmail('alice@example.com')
+ * const { data: config } = await admin.config.get()
+ * const { data: session } = await admin.users.impersonate(userId)
  * ```
  */
-export function createAdminClient(opts: AdminClientOptions): AdminClient {
+export function createAdminClient(opts: AdminClientOptions) {
   const { onRequest, onResponse } = opts;
   const raw = createFetchClient<paths>({
     baseUrl: opts.url.replace(/\/+$/, ""),
+    headers: { Authorization: `Bearer ${opts.token}` },
     fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
 
@@ -127,14 +131,87 @@ export function createAdminClient(opts: AdminClientOptions): AdminClient {
     }) as F;
   }
 
-  const { GET, POST, PUT, PATCH, DELETE } = raw;
   return {
-    ...raw,
-    GET: cmd("GET", GET),
-    POST: cmd("POST", POST),
-    PUT: cmd("PUT", PUT),
-    PATCH: cmd("PATCH", PATCH),
-    DELETE: cmd("DELETE", DELETE),
+    users: {
+      create: cmd(
+        "users.create",
+        (body: components["schemas"]["SignupRequest"]) =>
+          wrap(raw.POST("/v1/users", { body })),
+      ),
+
+      getByEmail: cmd(
+        "users.getByEmail",
+        (email: string) =>
+          wrap(raw.GET("/v1/admin/users", { params: { query: { email } } })),
+      ),
+
+      getById: cmd(
+        "users.getById",
+        (id: string) =>
+          wrap(raw.GET("/v1/admin/users/{id}", { params: { path: { id } } })),
+      ),
+
+      revokeSessions: cmd("users.revokeSessions", (id: string) =>
+        wrap(
+          raw.DELETE("/v1/admin/users/{id}/sessions", {
+            params: { path: { id } },
+          }),
+        )),
+
+      impersonate: cmd("users.impersonate", (userId: string) =>
+        wrap(
+          raw.POST("/v1/admin/impersonations", {
+            body: { user_id: userId },
+          }),
+        )),
+    },
+
+    config: {
+      get: cmd("config.get", () => wrap(raw.GET("/v1/admin/config", {}))),
+
+      update: cmd(
+        "config.update",
+        (body: Camelize<components["schemas"]["UpdateConfigRequest"]>) =>
+          wrap(
+            raw.PATCH("/v1/admin/config", {
+              body: snakenize(
+                body as Record<string, unknown>,
+              ) as components["schemas"]["UpdateConfigRequest"],
+            }),
+          ),
+      ),
+    },
+
+    oauthProviders: {
+      get: cmd(
+        "oauthProviders.get",
+        () => wrap(raw.GET("/v1/admin/oauth-providers", {})),
+      ),
+
+      set: cmd(
+        "oauthProviders.set",
+        (body: components["schemas"]["AdminOAuthRequest"]) =>
+          wrap(raw.PUT("/v1/admin/oauth-providers", { body })),
+      ),
+    },
+
+    authz: {
+      listSubjects: cmd(
+        "authz.listSubjects",
+        (params: { objectType: string; objectId: string; relation: string }) =>
+          wrap(
+            raw.GET("/v1/admin/authz/subjects", {
+              params: {
+                query: {
+                  object_type: params.objectType,
+                  object_id: params.objectId,
+                  relation: params.relation,
+                },
+              },
+            }),
+          ),
+      ),
+    },
   };
 }
 
@@ -207,15 +284,7 @@ export function createAuthClient<OrgRole extends string = string>(
     }) as F;
   }
 
-  const { GET, POST, PUT, PATCH, DELETE } = raw;
-
   return {
-    GET,
-    POST,
-    PUT,
-    PATCH,
-    DELETE,
-
     identities: {
       list: cmd("identities.list", () => wrap(raw.GET("/v1/identities", {}))),
 
@@ -334,7 +403,7 @@ export function createAuthClient<OrgRole extends string = string>(
             ),
         ),
 
-        remove: cmd(
+        delete: cmd(
           "orgs.members.remove",
           (orgId: string, memberId: string) =>
             wrap(
@@ -359,10 +428,7 @@ export function createAuthClient<OrgRole extends string = string>(
 
         list: cmd(
           "orgs.invitations.list",
-          async (
-            orgId: string,
-            opts?: { cursor?: string; limit?: number },
-          ) => {
+          async (orgId: string, opts?: { cursor?: string; limit?: number }) => {
             const result = await wrap(
               raw.GET("/v1/orgs/{id}/invitations", {
                 params: {

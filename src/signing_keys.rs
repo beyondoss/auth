@@ -131,7 +131,9 @@ async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -
     // Advisory lock scoped to this key's UUID so only one replica re-encrypts at a time.
     // The lock is released automatically when the connection returns to the pool.
     // Non-macro: system function call, execute-only.
-    let lock_key = i64::from_ne_bytes(key.id.as_bytes()[..8].try_into().unwrap());
+    let lock_key = i64::from_ne_bytes(
+        <[u8; 8]>::try_from(&key.id.as_bytes()[..8]).expect("UUID is always 16 bytes"),
+    );
     sqlx::query("SELECT pg_advisory_lock($1)")
         .bind(lock_key)
         .execute(pool)

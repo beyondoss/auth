@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { AuthServiceError } from "../errors.js";
+import { AuthError } from "../errors.js";
 import { getSessionTokenFromNodeHeaders } from "../server/cookie.js";
 import {
   matchesPublicPath,
@@ -78,10 +78,7 @@ export function createAuthPlugin(
 
       const result = await verifier.verify(token);
       if (result.error) {
-        if (
-          result.error instanceof AuthServiceError
-          && result.error.status >= 500
-        ) {
+        if (result.error instanceof AuthError && result.error.status >= 500) {
           throw result.error;
         }
         return onUnauthorized(request, reply);

@@ -288,17 +288,24 @@ await authz.putSchema({
 ```ts
 import { createAdminClient, createAuthClient } from "@beyond.dev/auth";
 
-// Admin operations — create once at startup
-const admin = createAdminClient({ baseUrl: "http://auth:8080" });
+// Admin operations — create once at startup with your admin secret
+const admin = createAdminClient({
+  url: "http://auth:8080",
+  secret: process.env.AUTH_ADMIN_SECRET!,
+});
+
+const { data: user } = await admin.users.getByEmail("alice@example.com");
+const { data: config } = await admin.config.get();
+const { data: session } = await admin.users.impersonate(userId);
 
 // User-scoped operations — create per request with the user's session token
 const client = createAuthClient({
-  baseUrl: "http://auth:8080",
-  token: sessionToken, // each user gets their own client instance
+  url: "http://auth:8080",
+  token: sessionToken,
 });
 
-const orgs = await client.orgs.list();
-const me = await client.me.get();
+const { data: orgs } = await client.orgs.list();
+const { data: me } = await client.me.get();
 ```
 
 Both are fully typed wrappers over the auth service REST API.
@@ -323,7 +330,7 @@ export const middleware = createAuthMiddleware(verifier, {
 import { createServerHelpers } from "@beyond.dev/auth/next";
 import { cookies } from "next/headers";
 
-const { getSession, getMe } = createServerHelpers(verifier, adminClient);
+const { getSession, getMe } = createServerHelpers(verifier, "http://auth:8080");
 
 export default async function Page() {
   const me = await getMe(await cookies());
@@ -347,7 +354,7 @@ response.cookies.set(clearCookieAttrs());
 
 | Class                  | When                                              |
 | ---------------------- | ------------------------------------------------- |
-| `AuthServiceError`     | Auth service returned an error response           |
+| `AuthError`            | Auth service returned an error response           |
 | `AuthzError`           | Authorization check denied or authz service error |
 | `JwtVerificationError` | JWT invalid, expired, or JWKS fetch failed        |
 

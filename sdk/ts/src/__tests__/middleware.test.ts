@@ -1,10 +1,6 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AuthServiceError,
-  AuthzError,
-  JwtVerificationError,
-} from "../errors.js";
+import { AuthError, AuthzError, JwtVerificationError } from "../errors.js";
 import { createAuthMiddleware } from "../next/middleware.js";
 
 vi.mock("next/server", () => ({
@@ -103,18 +99,18 @@ describe("path matching", () => {
 // ── Error dispatch ────────────────────────────────────────────────────────────
 
 describe("error dispatch", () => {
-  it("re-throws AuthServiceError with status >= 500", async () => {
-    const err = new AuthServiceError("internal_error", "oops", 500);
+  it("re-throws AuthError with status >= 500", async () => {
+    const err = new AuthError("internal_error", "oops", 500);
     const m = createAuthMiddleware({
       verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
     });
-    await expect(
-      m(makeRequest("/dashboard", { token: "tok" })),
-    ).rejects.toBe(err);
+    await expect(m(makeRequest("/dashboard", { token: "tok" }))).rejects.toBe(
+      err,
+    );
   });
 
-  it("redirects on AuthServiceError with status < 500", async () => {
-    const err = new AuthServiceError("not_found", "nope", 404);
+  it("redirects on AuthError with status < 500", async () => {
+    const err = new AuthError("not_found", "nope", 404);
     const m = createAuthMiddleware({
       verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
     });
