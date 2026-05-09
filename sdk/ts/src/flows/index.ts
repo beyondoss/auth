@@ -1,4 +1,5 @@
 import createFetchClient from "openapi-fetch";
+import { env } from "std-env";
 import type { paths } from "../types.js";
 import { buildFetch } from "../utils/fetch.js";
 import { requestMagicLink } from "./magic-link.js";
@@ -27,8 +28,11 @@ export type { TokenResponse } from "./token.js";
 
 /** Options for {@link createAuthFlowClient}. */
 export interface AuthFlowClientOptions {
-  /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  url: string;
+  /**
+   * Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically.
+   * Defaults to the `BEYOND_AUTH_URL` environment variable when omitted.
+   */
+  url?: string;
   /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
   fetch?: typeof globalThis.fetch;
   /** Per-request timeout in milliseconds. */
@@ -77,7 +81,7 @@ export interface AuthFlowClient {
  *
  * @example
  * ```ts
- * const flows = createAuthFlowClient({ baseUrl: process.env.AUTH_URL! })
+ * const flows = createAuthFlowClient({ baseUrl: process.env.BEYOND_AUTH_URL! })
  *
  * // Sign up
  * const { session } = await flows.signUp({ email, password })
@@ -104,9 +108,15 @@ export interface AuthFlowClient {
  * await flows.signOut(sessionToken)
  * ```
  */
-export function createAuthFlowClient(opts: AuthFlowClientOptions) {
+export function createAuthFlowClient(opts: AuthFlowClientOptions = {}) {
+  const url = opts.url ?? env["BEYOND_AUTH_URL"];
+  if (!url) {
+    throw new Error(
+      "BEYOND_AUTH_URL is required (pass `url` or set the BEYOND_AUTH_URL env var)",
+    );
+  }
   const client = createFetchClient<paths>({
-    baseUrl: opts.url.replace(/\/+$/, ""),
+    baseUrl: url.replace(/\/+$/, ""),
     fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
 

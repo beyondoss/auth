@@ -32,7 +32,7 @@
  * ```ts
  * const authz = createAuthzClient({
  \* url: 'http://auth:8080',
- *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ *   adminSecret: process.env.BEYOND_AUTH_ADMIN_SECRET!,
  *   schema: {
  *     version: 1,
  *     resources: [{
@@ -272,7 +272,7 @@ export interface AuthzClientOptions<S extends SchemaInput = AuthzSchema> {
    * ```ts
    * const authz = createAuthzClient({
    \* url: 'http://auth:8080',
-   *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+   *   adminSecret: process.env.BEYOND_AUTH_ADMIN_SECRET!,
    *   schema: {
    *     version: 1,
    *     resources: [{
@@ -603,8 +603,8 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
  * @example
  * ```ts
  * const authz = createAuthzClient({
- \* url: process.env.AUTH_URL!,
- *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ \* url: process.env.BEYOND_AUTH_URL!,
+ *   adminSecret: process.env.BEYOND_AUTH_ADMIN_SECRET!,
  *   schema: defineSchema({
  *     version: 1,
  *     resources: [{
@@ -671,16 +671,16 @@ export function defineSchema<const S extends SchemaDefinition>(
  * @example Without schema (all strings)
  * ```ts
  * const authz = createAuthzClient({
- \* url: process.env.AUTH_URL!,
- *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ \* url: process.env.BEYOND_AUTH_URL!,
+ *   adminSecret: process.env.BEYOND_AUTH_ADMIN_SECRET!,
  * })
  * ```
  *
  * @example With schema (strictly typed)
  * ```ts
  * const authz = createAuthzClient({
- \* url: process.env.AUTH_URL!,
- *   adminSecret: process.env.AUTH_ADMIN_SECRET!,
+ \* url: process.env.BEYOND_AUTH_URL!,
+ *   adminSecret: process.env.BEYOND_AUTH_ADMIN_SECRET!,
  *   schema: {
  *     version: 1,
  *     resources: [{

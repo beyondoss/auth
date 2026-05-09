@@ -1,4 +1,5 @@
 import createFetchClient from "openapi-fetch";
+import { env } from "std-env";
 import {
   addEmail,
   createEmailVerification,
@@ -54,10 +55,16 @@ export interface AuthResponseEvent {
 
 /** Options for {@link createAdminClient}. */
 export interface AdminClientOptions {
-  /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  url: string;
-  /** Admin secret. Sent as `Authorization: Bearer <secret>` on every request. */
-  token: string;
+  /**
+   * Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically.
+   * Defaults to the `BEYOND_AUTH_URL` environment variable when omitted.
+   */
+  url?: string;
+  /**
+   * Admin secret. Sent as `Authorization: Bearer <secret>` on every request.
+   * Defaults to the `BEYOND_AUTH_ADMIN_SECRET` environment variable when omitted.
+   */
+  token?: string;
   /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
   fetch?: typeof globalThis.fetch;
   /** Per-request timeout in milliseconds. */
@@ -84,7 +91,7 @@ export interface AdminClientOptions {
  * ```ts
  * const admin = createAdminClient({
  *   url: 'http://auth:8080',
- *   secret: process.env.AUTH_ADMIN_SECRET!,
+ *   secret: process.env.BEYOND_AUTH_ADMIN_SECRET!,
  * })
  *
  * const { data: user } = await admin.users.getByEmail('alice@example.com')
@@ -92,11 +99,23 @@ export interface AdminClientOptions {
  * const { data: session } = await admin.users.impersonate(userId)
  * ```
  */
-export function createAdminClient(opts: AdminClientOptions) {
+export function createAdminClient(opts: AdminClientOptions = {}) {
+  const url = opts.url ?? env["BEYOND_AUTH_URL"];
+  if (!url) {
+    throw new Error(
+      "BEYOND_AUTH_URL is required (pass `url` or set the BEYOND_AUTH_URL env var)",
+    );
+  }
+  const token = opts.token ?? env["BEYOND_AUTH_ADMIN_SECRET"];
+  if (!token) {
+    throw new Error(
+      "BEYOND_AUTH_ADMIN_SECRET is required (pass `token` or set the BEYOND_AUTH_ADMIN_SECRET env var)",
+    );
+  }
   const { onRequest, onResponse } = opts;
   const raw = createFetchClient<paths>({
-    baseUrl: opts.url.replace(/\/+$/, ""),
-    headers: { Authorization: `Bearer ${opts.token}` },
+    baseUrl: url.replace(/\/+$/, ""),
+    headers: { Authorization: `Bearer ${token}` },
     fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });
 
@@ -217,8 +236,11 @@ export function createAdminClient(opts: AdminClientOptions) {
 
 /** Options for {@link createAuthClient}. */
 export interface AuthClientOptions {
-  /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  url: string;
+  /**
+   * Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically.
+   * Defaults to the `BEYOND_AUTH_URL` environment variable when omitted.
+   */
+  url?: string;
   /** Session bearer token for authenticated requests. */
   token: string;
   /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
@@ -262,9 +284,15 @@ type InvitationBody<OrgRole extends string> =
 export function createAuthClient<OrgRole extends string = string>(
   opts: AuthClientOptions,
 ) {
+  const url = opts.url ?? env["BEYOND_AUTH_URL"];
+  if (!url) {
+    throw new Error(
+      "BEYOND_AUTH_URL is required (pass `url` or set the BEYOND_AUTH_URL env var)",
+    );
+  }
   const { onRequest, onResponse } = opts;
   const raw = createFetchClient<paths>({
-    baseUrl: opts.url.replace(/\/+$/, ""),
+    baseUrl: url.replace(/\/+$/, ""),
     headers: { Authorization: `Bearer ${opts.token}` },
     fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
   });

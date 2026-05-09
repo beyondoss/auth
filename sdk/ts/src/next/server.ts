@@ -62,7 +62,7 @@ export interface ServerHelpersOptions extends ProxyOptions {
  * import { createSessionVerifier } from '@beyond.dev/auth'
  * import { createServerHelpers } from '@beyond.dev/auth/next'
  *
- * const AUTH_URL = process.env.AUTH_URL!
+ * const AUTH_URL = process.env.BEYOND_AUTH_URL!
  * const verifier = createSessionVerifier({ baseUrl: AUTH_URL })
  *
  * // Without proxy:

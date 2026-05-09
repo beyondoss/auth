@@ -46,7 +46,7 @@ export interface AuthMiddlewareOptions {
  * type Env = { Variables: { auth: SessionContext } }
  * const app = new Hono<Env>()
  *
- * const verifier = createSessionVerifier({ url: process.env.AUTH_URL! })
+ * const verifier = createSessionVerifier({ url: process.env.BEYOND_AUTH_URL! })
  * app.use('/protected/*', createAuthMiddleware(verifier))
  * ```
  */

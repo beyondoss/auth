@@ -1,3 +1,33 @@
+import { createAdminClient, type AdminClient } from "./client.js";
+import { createAuthFlowClient, type AuthFlowClient } from "./flows/index.js";
+
+let _admin: AdminClient | undefined;
+let _auth: AuthFlowClient | undefined;
+
+/**
+ * Default admin client configured from environment variables.
+ * Reads `BEYOND_AUTH_URL` (required) and `BEYOND_AUTH_ADMIN_SECRET` (required).
+ * Initialized lazily on first method call.
+ */
+export const admin: AdminClient = new Proxy({} as AdminClient, {
+  get(_, prop) {
+    _admin ??= createAdminClient();
+    return (_admin as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
+
+/**
+ * Default auth flow client configured from environment variables.
+ * Reads `BEYOND_AUTH_URL` (required). Covers sign-up, sign-in, passkeys, magic links, etc.
+ * Initialized lazily on first method call.
+ */
+export const auth: AuthFlowClient = new Proxy({} as AuthFlowClient, {
+  get(_, prop) {
+    _auth ??= createAuthFlowClient();
+    return (_auth as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
+
 export { type Email, type OttTokenResponse } from "./account/emails.js";
 export { type ApiKey, type ApiKeyWithSecret } from "./account/keys.js";
 export { type Profile, type UpdateMeRequest } from "./account/me.js";

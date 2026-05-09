@@ -49,7 +49,7 @@ export interface AuthMiddlewareOptions {
  * ```ts
  * import { createAuthMiddleware } from '@beyond.dev/auth/express'
  *
- * const verifier = createSessionVerifier({ url: process.env.AUTH_URL! })
+ * const verifier = createSessionVerifier({ url: process.env.BEYOND_AUTH_URL! })
  * app.use('/protected', createAuthMiddleware(verifier))
  * ```
  */

@@ -49,7 +49,7 @@ export interface AuthPluginOptions {
  * ```ts
  * import { createAuthPlugin } from '@beyond.dev/auth/fastify'
  *
- * const verifier = createSessionVerifier({ url: process.env.AUTH_URL! })
+ * const verifier = createSessionVerifier({ url: process.env.BEYOND_AUTH_URL! })
  * await app.register(createAuthPlugin(verifier), { prefix: '/protected' })
  * ```
  */
