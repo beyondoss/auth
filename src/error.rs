@@ -13,6 +13,11 @@ use utoipa::ToSchema;
 #[derive(Clone)]
 pub struct AuthErrorCode(pub &'static str);
 
+/// Response extension inserted when a request fails due to database pool exhaustion.
+/// Consumed by the metrics middleware to increment `db_pool_acquire_timeouts_total`.
+#[derive(Clone)]
+pub struct DbPoolTimeout;
+
 /// Wire-format error body returned on all non-2xx responses.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ErrorBody {
@@ -139,6 +144,9 @@ pub enum AuthError {
     #[error("unknown permission: {permission}")]
     AuthzUnknownPermission { permission: String },
 
+    #[error("service temporarily unavailable")]
+    PoolTimedOut,
+
     /// `message` is emitted verbatim in structured error logs — do not include PII.
     #[error("internal error: {message}")]
     Internal {
@@ -209,6 +217,7 @@ impl AuthError {
 impl From<sqlx::Error> for AuthError {
     fn from(e: sqlx::Error) -> Self {
         match &e {
+            sqlx::Error::PoolTimedOut => Self::PoolTimedOut,
             sqlx::Error::Database(db) if db.constraint().is_some() => {
                 let constraint = db.constraint().map(str::to_owned);
                 Self::Db {
@@ -228,6 +237,11 @@ impl From<sqlx::Error> for AuthError {
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, code, message) = match &self {
+            AuthError::PoolTimedOut => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "service_unavailable",
+                "service temporarily unavailable".to_string(),
+            ),
             AuthError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
             AuthError::OrgNotFound => (StatusCode::NOT_FOUND, "org_not_found", self.to_string()),
             AuthError::NotMember => (StatusCode::FORBIDDEN, "not_member", self.to_string()),
@@ -331,6 +345,9 @@ impl IntoResponse for AuthError {
         if status == StatusCode::INTERNAL_SERVER_ERROR {
             tracing::error!(error = %self, "internal error");
         }
+        if matches!(self, AuthError::PoolTimedOut) {
+            tracing::error!("database pool exhausted: acquire timeout");
+        }
 
         let hint = self.hint();
         let body = match hint {
@@ -339,6 +356,9 @@ impl IntoResponse for AuthError {
         };
         let mut response = (status, Json(body)).into_response();
         response.extensions_mut().insert(AuthErrorCode(code));
+        if matches!(self, AuthError::PoolTimedOut) {
+            response.extensions_mut().insert(DbPoolTimeout);
+        }
         response
     }
 }

@@ -138,7 +138,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         enabled: cfg.otlp_enabled,
         otlp_endpoint: cfg.otlp_endpoint.clone(),
         service_name: "beyond-auth".into(),
-        sample_rate: 1.0,
+        sample_rate: cfg.otlp_sample_rate,
     };
 
     // Hold the guard for the lifetime of serve() — dropped on shutdown.

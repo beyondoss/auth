@@ -130,6 +130,8 @@ define_metrics! {
             => "Idle connections in the pool",
         gauge db_pool_active("db_pool_active")
             => "Active (checked-out) connections in the pool",
+        counter db_pool_acquire_timeouts_total("db_pool_acquire_timeouts_total")
+            => "Total database pool acquire timeout errors (pool exhausted)",
 
         // Authz cache effectiveness.
         counter authz_cache_hits_total("authz_cache_hits_total")

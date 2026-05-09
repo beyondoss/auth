@@ -24,6 +24,11 @@ pub struct ServeConfig {
     #[arg(long, env = "OTLP_ENDPOINT", default_value = "http://localhost:4317")]
     pub otlp_endpoint: String,
 
+    /// OTLP trace sample rate (0.0 = never, 1.0 = always, 0.1 = 10%).
+    /// Only effective when OTLP_ENABLED=true.
+    #[arg(long, env = "OTLP_SAMPLE_RATE", default_value_t = 0.1)]
+    pub otlp_sample_rate: f64,
+
     /// Base64url-encoded 32-byte key used to AES-256-GCM encrypt signing key material at rest.
     #[arg(long, env = "SIGNING_KEY_ENCRYPTION_KEY")]
     pub signing_key_encryption_key: Option<String>,
@@ -82,6 +87,7 @@ impl std::fmt::Debug for ServeConfig {
             .field("log_level", &self.log_level)
             .field("otlp_enabled", &self.otlp_enabled)
             .field("otlp_endpoint", &self.otlp_endpoint)
+            .field("otlp_sample_rate", &self.otlp_sample_rate)
             .field("signing_key_encryption_key", &"[redacted]")
             .field(
                 "signing_key_encryption_key_old",

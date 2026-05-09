@@ -116,14 +116,9 @@ struct OtelMakeSpan;
 
 impl<B> MakeSpan<B> for OtelMakeSpan {
     fn make_span(&mut self, request: &axum::http::Request<B>) -> tracing::Span {
-        let traceparent = request
-            .headers()
-            .get("traceparent")
-            .and_then(|v| v.to_str().ok());
-
         // Attach the caller's OTel context for the duration of span creation.
         // tracing-opentelemetry reads it in on_new_span and links the new span as a child.
-        let ctx = crate::telemetry::extract_trace_context(traceparent);
+        let ctx = crate::telemetry::extract_trace_context(request.headers());
         let _guard = ctx.attach();
 
         let method = request.method().as_str();
@@ -131,7 +126,7 @@ impl<B> MakeSpan<B> for OtelMakeSpan {
         let version = format!("{:?}", request.version());
 
         tracing::info_span!(
-            "http_request",
+            "http.request",
             otel.kind = "server",
             http.method = method,
             http.target = %uri,
@@ -210,6 +205,14 @@ async fn record_metrics(State(state): State<AppState>, req: Request, next: Next)
             .auth_errors_total
             .with_label_values(&[code.0])
             .inc();
+    }
+
+    if response
+        .extensions()
+        .get::<crate::error::DbPoolTimeout>()
+        .is_some()
+    {
+        state.metrics.db_pool_acquire_timeouts_total.inc();
     }
 
     response
