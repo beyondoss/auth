@@ -169,7 +169,7 @@ async fn list_orgs_paginates() {
 
     let page2 = TestClient::new()
         .bearer(&auth.session.token)
-        .get(&format!("/v1/orgs?limit=2&after={cursor}"))
+        .get(&format!("/v1/orgs?limit=2&cursor={cursor}"))
         .await
         .assert_status(200)
         .json::<OrgsResponse>();
@@ -407,7 +407,7 @@ async fn list_members_paginates() {
     let page2 = TestClient::new()
         .bearer(&owner.session.token)
         .get(&format!(
-            "/v1/orgs/{}/members?limit=2&after={cursor}",
+            "/v1/orgs/{}/members?limit=2&cursor={cursor}",
             org.id
         ))
         .await
@@ -699,7 +699,7 @@ async fn list_invitations_paginates() {
     let page2 = TestClient::new()
         .bearer(&auth.session.token)
         .get(&format!(
-            "/v1/orgs/{}/invitations?limit=2&after={cursor}",
+            "/v1/orgs/{}/invitations?limit=2&cursor={cursor}",
             org.id
         ))
         .await

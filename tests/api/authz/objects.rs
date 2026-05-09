@@ -146,8 +146,8 @@ async fn lookup_pagination_limit_and_cursor() {
     let res = list_objects(&token, None, "read", "document", "&limit=2").await;
     assert_eq!(res.object_ids.len(), 2);
     assert!(
-        res.next_page.is_some(),
-        "next_page must be set when results are truncated"
+        res.next_cursor.is_some(),
+        "next_cursor must be set when results are truncated"
     );
 }
 
@@ -165,21 +165,21 @@ async fn lookup_cursor_page_two() {
 
     let page1 = list_objects(&token, None, "read", "document", "&limit=2").await;
     assert_eq!(page1.object_ids.len(), 2);
-    let cursor = page1.next_page.expect("page 1 must have a cursor");
+    let cursor = page1.next_cursor.expect("page 1 must have a cursor");
 
     let page2 = list_objects(
         &token,
         None,
         "read",
         "document",
-        &format!("&limit=2&after={cursor}"),
+        &format!("&limit=2&cursor={cursor}"),
     )
     .await;
     assert!(
         !page2.object_ids.is_empty(),
         "page 2 must contain remaining items"
     );
-    assert!(page2.next_page.is_none(), "no further pages after page 2");
+    assert!(page2.next_cursor.is_none(), "no further pages after page 2");
 
     let all: std::collections::HashSet<_> = page1
         .object_ids

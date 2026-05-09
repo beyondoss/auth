@@ -1,4 +1,4 @@
-# authz_extension
+# beyond-auth-extension
 
 Evaluate transitive permissions inside PostgreSQL. Replaces N×depth round-trips with `depth+1` queries via BFS over the `auth.authz_relations` graph.
 

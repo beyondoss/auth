@@ -62,7 +62,7 @@ CREATE FUNCTION auth.authz_check(
     object_id   text
 ) RETURNS boolean
     LANGUAGE c STABLE STRICT
-    AS 'authz_extension', 'authz_check_single_wrapper';
+    AS 'beyond_auth_extension', 'authz_check_single_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check(text, text, text, text) IS
 'Ask: does subject_id hold relation on (object_type, object_id)?
@@ -79,7 +79,7 @@ CREATE FUNCTION auth.authz_check(
     object_id   text
 ) RETURNS boolean
     LANGUAGE c STABLE STRICT
-    AS 'authz_extension', 'authz_check_array_wrapper';
+    AS 'beyond_auth_extension', 'authz_check_array_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check(text, text[], text, text) IS
 'Ask: does subject_id hold any of the given relations on (object_type, object_id)?
@@ -190,7 +190,7 @@ CREATE FUNCTION auth.authz_check_path_batch(
     object_ids           text[]
 ) RETURNS boolean[]
     LANGUAGE c STABLE STRICT
-    AS 'authz_extension', 'authz_check_path_batch_wrapper';
+    AS 'beyond_auth_extension', 'authz_check_path_batch_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check_path_batch(text[], text[], text[], text[], text[]) IS
 'Parallel hierarchy batch check.
@@ -213,7 +213,7 @@ CREATE FUNCTION auth.authz_check_multi(
     object_id          text
 ) RETURNS boolean
     LANGUAGE c STABLE STRICT
-    AS 'authz_extension', 'authz_check_multi_wrapper';
+    AS 'beyond_auth_extension', 'authz_check_multi_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check_multi(text, text[], text[], text[], text[], text) IS
 'Ask: does subject_id hold any of direct_relations on (object_type_path[1], object_id),
@@ -240,7 +240,7 @@ CREATE FUNCTION auth.authz_check_batch(
     object_ids   text[]
 ) RETURNS boolean[]
     LANGUAGE c STABLE STRICT
-    AS 'authz_extension', 'authz_check_batch_wrapper';
+    AS 'beyond_auth_extension', 'authz_check_batch_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check_batch(text[], text[], text[], text[]) IS
 'Bulk permission check — sequential. Accepts N parallel arrays (subject_ids,
@@ -256,7 +256,7 @@ CREATE FUNCTION auth.authz_check_parallel_batch(
     object_ids   text[]
 ) RETURNS boolean[]
     LANGUAGE c STABLE STRICT
-    AS 'authz_extension', 'authz_check_parallel_batch_wrapper';
+    AS 'beyond_auth_extension', 'authz_check_parallel_batch_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check_parallel_batch(text[], text[], text[], text[]) IS
 'Bulk permission check — parallel. The preferred function for checking many

@@ -87,11 +87,11 @@ Response (JSON)
 **Error paths:**
 
 ```
-Token absent        ──► 401 Unauthorized
+Token absent         ──► 401 Unauthorized
 Token invalid/expired──► 401 Unauthorized
 Token valid, wrong role (admin endpoint) ──► 403 Forbidden
-DB unavailable      ──► 503 (pool timeout) or 500
-Handler panic       ──► 500 (caught by CatchPanicLayer)
+DB unavailable       ──► 503 (pool timeout) or 500
+Handler panic        ──► 500 (caught by CatchPanicLayer)
 ```
 
 ### JWT Issuance (opt-in)
@@ -116,7 +116,8 @@ sign: base64url(header).base64url(claims) ──Ed25519──► signature
 ### Authorization Check
 
 ```
-GET /v1/authz/decisions?object=doc:1&permission=write&subject=user:42
+GET  /v1/authz/decisions?object=doc:1&permission=write&subject=user:42   (single)
+POST /v1/authz/checks    { checks: [{object, permission, subject}, ...] } (batch)
   │
   ▼
 require_auth
@@ -140,6 +141,38 @@ authz::cache lookup (LRU, 100k entries, 30 min TTL, version-tagged)
         │
         ▼
       result cached ──► allow/deny
+
+Batch (POST /v1/authz/checks): each check runs the same path independently;
+results are collected and returned as an array in input order.
+```
+
+### OAuth Flow
+
+```
+GET /v1/oauth/{provider}?redirect_uri=...&code_challenge=...
+  │
+  ▼
+PKCE verifier stored in state token (signed HS256, 10 min TTL)
+  │
+  ▼
+redirect to provider ──► user authenticates
+  │
+  ▼
+GET /v1/oauth/{provider}/callback?code=...&state=...   (Apple: POST)
+  │
+  ├── state valid, PKCE matches ──► exchange code ──► fetch profile
+  │                                                         │
+  │                                          ┌── identity exists? ──┐
+  │                                          │ yes                  │ no
+  │                                          ▼                      ▼
+  │                                    link to user            create user
+  │                                          │                 + identity
+  │                                          └──────┬──────────┘
+  │                                                 ▼
+  │                                          create session
+  │                                          HTML response (postMessage to opener)
+  │
+  └── state invalid / PKCE mismatch ──► 400
 ```
 
 ## Concepts & Terminology
@@ -217,7 +250,11 @@ Old keys are kept in `auth.signing_keys` with `status='inactive'` and served at 
 
 `src/authz/cache.rs` wraps results in an LRU keyed by `(subject, resource_type, resource_id, permission, schema_version)`. Writes to `auth.authz_relations` increment a version counter; stale cache entries miss on the version tag and fall through to the extension.
 
-The PostgreSQL extension (`authz_extension/`) runs BFS inside the database process: one indexed EXISTS for direct grants, additional passes for subject-set chains. See `authz_extension/ARCHITECTURE.md` for the extension's own internals.
+The PostgreSQL extension (`beyond-auth-extension/`) runs BFS inside the database process: one indexed EXISTS for direct grants, additional passes for subject-set chains. See `beyond-auth-extension/ARCHITECTURE.md` for the extension's own internals.
+
+### Background Tasks
+
+`src/token_gc.rs` runs a periodic background task that DELETEs rows with `expires_at < now()` from `auth.tokens` and `auth.one_time_tokens`. Expired rows are always rejected at validation time via the `expires_at > now()` guard, so GC is a hygiene concern, not a security one. If the process crashes, the GC resumes on restart with no data loss.
 
 ## State Machines
 
@@ -230,6 +267,12 @@ The PostgreSQL extension (`authz_extension/`) runs BFS inside the database proce
                                │
                          verify token ──► email verified
 ```
+
+| From   | Event                         | To                | What Actually Happens                                                                         |
+| ------ | ----------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
+| —      | `POST /v1/users`              | active            | `auth.users` + personal `auth.orgs` + `auth.emails` rows inserted; verification token emitted |
+| active | email verification token used | active (verified) | `emails.verified_at` stamped; user row unchanged                                              |
+| active | `DELETE /v1/admin/users/{id}` | deleted           | `users.deleted_at` stamped; existing sessions remain valid until their own `expires_at`       |
 
 ### MFA Step-Up (TOTP)
 
@@ -247,6 +290,13 @@ step_up_token issued (5 min TTL)
   └── token expires ──► 401 TokenExpired
 ```
 
+| From            | Event                         | To              | What Actually Happens                                                                                |
+| --------------- | ----------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| —               | password valid, TOTP enrolled | step-up pending | `impersonate_*` one-time token inserted (5 min TTL); no session created; `200 OK` with step-up token |
+| step-up pending | valid TOTP code               | authenticated   | Token consumed via DELETE…RETURNING; `auth.tokens` + `auth.sessions` inserted; `AuthResponse 201`    |
+| step-up pending | invalid TOTP code             | step-up pending | 401; one-time token not consumed; client retries with correct code                                   |
+| step-up pending | 5-min TTL reached             | expired         | Token GC DELETEs the row; next attempt returns 401 TokenExpired                                      |
+
 ### Session
 
 ```
@@ -254,8 +304,27 @@ created ──► active (last_used_at updated on each request, debounced 1 min)
                │
                ├── expires_at reached ──► invalid (token GC deletes async)
                ├── DELETE /v1/sessions/{id} ──► deleted immediately
+               ├── DELETE /v1/sessions ──► all user sessions deleted immediately
                └── idle_timeout exceeded ──► invalid (checked at validation time)
 ```
+
+| From   | Event                      | To      | What Actually Happens                                                                      |
+| ------ | -------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| —      | login success              | active  | `auth.tokens` + `auth.sessions` rows inserted                                              |
+| active | authenticated request      | active  | `last_used_at` updated in CTE UPDATE (skipped if updated < 1 min ago)                      |
+| active | `expires_at` reached       | invalid | Token GC DELETEs the row asynchronously; validation rejects via `expires_at > now()` guard |
+| active | idle timeout exceeded      | invalid | `sessions::validate()` computes `now() - last_used_at > idle_timeout_seconds`; returns 401 |
+| active | `DELETE /v1/sessions/{id}` | deleted | Token row removed immediately; subsequent requests with this token return 401              |
+| active | `DELETE /v1/sessions`      | deleted | All user session token rows removed in a single DELETE                                     |
+
+### Refresh Token
+
+| From    | Event                      | To             | What Actually Happens                                                         |
+| ------- | -------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| —       | session created (SDK flow) | active         | `rt_*` token issued; assigned to a new `family_id`                            |
+| active  | presented for rotation     | rotated        | Old token consumed; new `rt_*` token in same `family_id` issued; `200 OK`     |
+| rotated | old token presented again  | family revoked | All tokens in the family deleted; 401; user must re-authenticate from scratch |
+| active  | `expires_at` reached       | expired        | Token GC DELETEs; validation rejects via `expires_at > now()` guard           |
 
 ### Signing Key
 
@@ -268,34 +337,23 @@ generating ──insert ON CONFLICT DO NOTHING──► active
                                              inactive  (served in JWKS until old JWTs expire)
 ```
 
+| From     | Event                              | To         | What Actually Happens                                                                                              |
+| -------- | ---------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| —        | startup, no active key             | active     | Ed25519 keypair generated; AES-256-GCM encrypted with KEK (AAD = key ID); inserted with `ON CONFLICT DO NOTHING`   |
+| —        | startup, active key exists         | active     | Decrypted with current KEK; if that fails, retried with `_OLD` KEKs; success triggers re-encryption and row update |
+| active   | admin initiates rotation           | inactive   | New key generated and activated; old marked `status='inactive'`; both served in JWKS                               |
+| inactive | all JWTs signed by this key expire | (prunable) | Served in JWKS until operators choose to delete; no automatic removal                                              |
+
 ### OAuth Flow
 
-```
-GET /v1/oauth/{provider}?redirect_uri=...&code_challenge=...
-  │
-  ▼
-PKCE verifier stored in state token (signed HS256, 10 min TTL)
-  │
-  ▼
-redirect to provider ──► user authenticates
-  │
-  ▼
-GET /v1/oauth/{provider}/callback?code=...&state=...
-  │
-  ├── state valid, PKCE matches ──► exchange code ──► fetch profile
-  │                                                         │
-  │                                          ┌── identity exists? ──┐
-  │                                          │ yes                  │ no
-  │                                          ▼                      ▼
-  │                                    link to user            create user
-  │                                          │                 + identity
-  │                                          └──────┬──────────┘
-  │                                                 ▼
-  │                                          create session
-  │                                          HTML response (postMessage to opener)
-  │
-  └── state invalid / PKCE mismatch ──► 400
-```
+| From         | Event                                              | To            | What Actually Happens                                                                |
+| ------------ | -------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| —            | `GET /v1/oauth/{provider}`                         | state issued  | PKCE verifier stored in HS256-signed state token (10 min TTL); redirect to provider  |
+| state issued | provider callback received                         | validating    | `state` HMAC verified; PKCE verifier extracted                                       |
+| validating   | PKCE matches, identity exists                      | authenticated | Code exchanged; profile fetched; existing identity looked up; session created; `201` |
+| validating   | PKCE matches, email match, `oauth_email_link=true` | authenticated | OAuth identity linked to existing user by email; session created; `201`              |
+| validating   | PKCE matches, no identity                          | authenticated | New user + personal org + identity created; session created; `201`                   |
+| validating   | state invalid / PKCE mismatch                      | rejected      | 400; no session created; no side effects                                             |
 
 ## Why It Behaves This Way
 
@@ -337,7 +395,7 @@ Per-token revocation only catches the attacker if the legitimate client rotates 
 - OAuth state token HMAC (HS256) and PKCE code verifier
 - WebAuthn credential signature and challenge binding
 - TOTP code window (±1 step, 30-second intervals)
-- Admin secret on `/v1/admin/*` endpoints
+- Admin secret on `/v1/admin/*` endpoints (constant-time comparison via `subtle`)
 
 **What passes through unchecked:**
 
@@ -360,7 +418,7 @@ This service is deployed inside a private network behind the operator's own prox
 | `ADDRESS`                        | `0.0.0.0:8080`           | HTTP bind address                                                                                |
 | `SIGNING_KEY_ENCRYPTION_KEY`     | —                        | Base64url-encoded 32-byte AES-256-GCM KEK; wraps Ed25519 private keys at rest                    |
 | `SIGNING_KEY_ENCRYPTION_KEY_OLD` | (empty)                  | Comma-separated old KEKs; decryption fallback during rotation, triggers re-encryption on success |
-| `ADMIN_SECRET`                   | —                        | Bearer token that gates `/v1/admin/*` routes                                                     |
+| `ADMIN_SECRET`                   | —                        | Bearer token that gates `/v1/admin/*` routes; compared in constant time                          |
 | `WEBAUTHN_RP_ID`                 | —                        | Relying party domain (e.g., `example.com`); must match the origin                                |
 | `WEBAUTHN_RP_ORIGIN`             | —                        | Relying party origin (e.g., `https://example.com`)                                               |
 | `PUBLIC_URL`                     | derived from Host header | Base URL prepended to OAuth callback paths                                                       |
@@ -368,8 +426,11 @@ This service is deployed inside a private network behind the operator's own prox
 | `LOG_LEVEL`                      | `info`                   | Tracing filter: `debug`, `info`, `warn`, `error`                                                 |
 | `OTLP_ENABLED`                   | `false`                  | Enables OpenTelemetry OTLP export                                                                |
 | `OTLP_ENDPOINT`                  | `http://localhost:4317`  | OTLP collector gRPC endpoint                                                                     |
+| `OTLP_SAMPLE_RATE`               | `1.0`                    | Fraction of traces sampled (0.0–1.0)                                                             |
+| `DATABASE_POOL_SIZE`             | `16`                     | Max concurrent Postgres connections; excess requests queue until a connection is free            |
 | `AUTHZ_CACHE_SIZE`               | `100_000`                | Max entries in the in-process authz LRU cache                                                    |
 | `AUTHZ_CACHE_TTL_SECS`           | `1800`                   | Per-entry TTL before a cache miss re-queries the extension                                       |
+| `MMDS_ENDPOINT`                  | (unset)                  | Firecracker Metadata Service URL; when set, secrets are fetched from MMDS at startup             |
 
 **Runtime configuration (stored in `auth.app_config`, writable via `PATCH /v1/admin/config`):**
 
@@ -383,6 +444,47 @@ This service is deployed inside a private network behind the operator's own prox
 | `issuer_url`                   | null         | JWT `iss` claim                                                                             |
 | `jwt_audience`                 | null         | JWT `aud` claim                                                                             |
 | `oauth_email_link`             | false        | When true, OAuth login with a known email links the identity instead of creating a new user |
+
+## Source Files
+
+| File                      | What It Does                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/main.rs`             | Jemalloc allocator + Tokio runtime entry point; delegates to `cli::run()`                  |
+| `src/cli.rs`              | Three subcommands: `serve`, `migrate`, `generate-openapi`                                  |
+| `src/http.rs`             | Axum server setup; applies middleware tower layers; OpenTelemetry integration              |
+| `src/routes/mod.rs`       | OpenAPI spec generation + Axum router split into public / authenticated / admin segments   |
+| `src/middleware/auth.rs`  | Token extraction, prefix dispatch, SHA-256 validation, `AuthContext` injection             |
+| `src/middleware/admin.rs` | Constant-time `ADMIN_SECRET` comparison for `/v1/admin/*` routes                           |
+| `src/sessions.rs`         | Single-CTE session validation with `last_used_at` debounce                                 |
+| `src/tokens.rs`           | Token format parsing (`<prefix>_<uuid>_<secret_b64url>`); SHA-256 hashing                  |
+| `src/users.rs`            | User CRUD; soft-delete via `deleted_at`                                                    |
+| `src/identities.rs`       | Auth method bindings; Argon2id password storage and verification                           |
+| `src/emails.rs`           | Email management; CITEXT lookup; verification token flow                                   |
+| `src/passwords.rs`        | Argon2id hashing (OWASP 2024 params); common-password list baked into binary at build time |
+| `src/crypto.rs`           | AES-256-GCM encryption/decryption for signing key material                                 |
+| `src/signing_keys.rs`     | Ed25519 keypair lifecycle; startup load/generate; KEK rotation re-encryption               |
+| `src/jwt.rs`              | JWT issuance (Ed25519); claims building; feature-gated by `jwt_enabled` config             |
+| `src/refresh_tokens.rs`   | Refresh token rotation; family-based replay detection                                      |
+| `src/one_time_token.rs`   | Magic links, password resets, email verification; atomic DELETE…RETURNING consume          |
+| `src/oauth/mod.rs`        | Provider abstraction: GitHub, Google, Apple, Microsoft, generic OIDC                       |
+| `src/oauth/pkce.rs`       | PKCE code challenge/verifier for public OAuth clients                                      |
+| `src/oauth/state.rs`      | HS256-signed state token (10 min TTL) carrying PKCE verifier                               |
+| `src/mfa/totp.rs`         | TOTP enrollment/verification (±1 step, 30 s intervals)                                     |
+| `src/mfa/passkeys.rs`     | WebAuthn passkey registration and authentication via `webauthn-rs`                         |
+| `src/mfa/step_up.rs`      | MFA step-up: issues `impersonate_*` one-time token after password verify                   |
+| `src/orgs.rs`             | Organization management; personal + team orgs; membership                                  |
+| `src/invitations.rs`      | Org invitation accept/decline endpoints                                                    |
+| `src/keys.rs`             | Named API keys (long-lived `key_*` tokens)                                                 |
+| `src/authz/schema.rs`     | Authorization schema compilation; resource/permission → `Vec<AuthzCheckCall>`              |
+| `src/authz/cache.rs`      | LRU cache (100k entries, 30 min TTL, version-tagged) for authz check results               |
+| `src/authz/engine.rs`     | Authz check execution; dispatches SingleHop/MultiHop calls to the PostgreSQL extension     |
+| `src/app_config.rs`       | Singleton config row; JWT/session TTLs; encrypted OAuth provider config                    |
+| `src/error.rs`            | `AuthError` enum; HTTP status mapping; `ErrorResponse` wire format                         |
+| `src/config.rs`           | CLI argument parsing: `ADDRESS`, `DATABASE_URL`, all env vars                              |
+| `src/db.rs`               | PostgreSQL connection pool setup; migration runner                                         |
+| `src/token_gc.rs`         | Background task; periodically DELETEs rows with `expires_at < now()`                       |
+| `src/telemetry.rs`        | Tracing setup; OpenTelemetry OTLP export; structured spans                                 |
+| `src/metrics.rs`          | Prometheus metrics: HTTP, auth errors, DB pool stats, authz cache hit/miss                 |
 
 ## Failure Modes
 

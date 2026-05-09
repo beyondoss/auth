@@ -181,14 +181,14 @@ async fn main() -> Result<()> {
 // pkglibdir inside postgres:18 (`pg_config --pkglibdir`)
 const CONTAINER_LIBDIR: &str = "/usr/lib/postgresql/18/lib";
 
-/// Find a pre-built Linux `.so` for the authz_extension across common cross-compilation targets.
+/// Find a pre-built Linux `.so` for the beyond-auth-extension across common cross-compilation targets.
 /// Returns the first path that exists, or None if none are present.
 fn find_extension_so() -> Option<PathBuf> {
     let candidates: &[&str] = &[
         // ARM64 Linux GNU (M-series Mac → postgres:18 on ARM)
-        "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
+        "target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
         // x86_64 Linux GNU (Intel Mac → postgres:18 on x86)
-        "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
+        "target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
     ];
     candidates.iter().map(PathBuf::from).find(|p| p.exists())
 }
@@ -206,7 +206,7 @@ async fn run_set(
         eprintln!("[bench] found extension library: {}", p.display());
     } else {
         eprintln!(
-            "[bench] no pre-built Linux authz_extension .so found; \
+            "[bench] no pre-built Linux beyond-auth-extension .so found; \
              migration 0006 will fall back to PL/pgSQL (baseline run). \
              Run `mise run extension:build:linux` then re-run for the treatment."
         );
@@ -223,7 +223,7 @@ async fn run_set(
     ]);
     let pg = match so_path.as_deref() {
         Some(p) => pg.with_copy_to(
-            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/authz_extension.so"))
+            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth_extension.so"))
                 .with_mode(0o755),
             Path::new(p),
         ),

@@ -67,16 +67,16 @@ jobs:
           PGRX_PG_CONFIG_PATH: /usr/lib/postgresql/${{ matrix.pg }}/bin/pg_config
         run: |
           cargo build --release --no-default-features --features pg${{ matrix.pg }} \
-            -p authz_extension
+            -p beyond-auth-extension
       - name: package
         run: |
           VERSION=${GITHUB_REF_NAME#server/v}
-          tar -czf authz_extension-v${VERSION}-pg${{ matrix.pg }}-linux-${{ matrix.arch }}.tar.gz \
-            -C target/release libauthz_extension.so
+          tar -czf beyond-auth-extension-v${VERSION}-pg${{ matrix.pg }}-linux-${{ matrix.arch }}.tar.gz \
+            -C target/release libbeyond_auth_extension.so
       - uses: actions/upload-artifact@v7
         with:
           name: extension-pg${{ matrix.pg }}-${{ matrix.arch }}
-          path: authz_extension-*.tar.gz
+          path: beyond-auth-extension-*.tar.gz
   release:
     needs: [build-binary, build-extension]
     runs-on: ubuntu-latest
@@ -93,4 +93,4 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             beyond-auth-*.tar.gz \
-            authz_extension-*.tar.gz
+            beyond-auth-extension-*.tar.gz

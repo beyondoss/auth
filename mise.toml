@@ -19,7 +19,7 @@ dir = "sdk/ts"
 depends = ["generate:types"]
 
 [tasks."check:rs"]
-run = "cargo clippy --workspace --exclude authz_extension -- -D warnings"
+run = "cargo clippy --workspace --exclude beyond-auth-extension -- -D warnings"
 
 [tasks."check:ts"]
 run = "npm run typecheck"
@@ -46,7 +46,7 @@ run = "cargo run --package xtask"
 run = "cargo test --lib"
 
 [tasks."test:integration:rs"]
-run = "cargo test --test api"
+run = "cargo test --test api --features test-server"
 
 [tasks."test:integration:ts"]
 run = "npm test"
@@ -76,14 +76,14 @@ run = "cargo run --release -p bench -- run-all --profile full"
 [tasks."bench:cold"]
 run = "cargo run --release -p bench -- run-all --profile quick --shared-buffers 32MB --output bench/out/report_cold.md"
 
-# Build the authz_extension shared library for the local OS (host PostgreSQL must be installed).
+# Build the beyond-auth-extension shared library for the local OS (host PostgreSQL must be installed).
 # Used by developers on Linux or when the host PG matches the target container.
 [tasks."extension:build"]
-run = "PGRX_PG_CONFIG_PATH=/opt/homebrew/opt/postgresql@17/bin/pg_config RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup' cargo build --release -p authz_extension --features pg17"
+run = "PGRX_PG_CONFIG_PATH=/opt/homebrew/opt/postgresql@17/bin/pg_config RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup' cargo build --release -p beyond-auth-extension --features pg17"
 
-# Build the authz_extension .so for linux/arm64 (postgres:18 on Apple Silicon).
+# Build the beyond-auth-extension .so for linux/arm64 (postgres:18 on Apple Silicon).
 # Runs inside the postgres:18 Docker image (has pg_config + dev headers) to produce a native ARM64 ELF.
-# Output: target/aarch64-unknown-linux-gnu/release/libauthz_extension.so
+# Output: target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so
 # Required before running `mise run bench` or `mise run sqlx:prepare` with extension enabled.
 [tasks."extension:build:linux:arm64"]
 run = """
@@ -95,16 +95,16 @@ docker run --rm --platform linux/arm64 \
     apt-get install -y -qq curl pkg-config libssl-dev build-essential libclang-dev clang postgresql-server-dev-18 2>/dev/null &&
     curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.92 --profile minimal --quiet 2>&1 | tail -2 &&
     . "$HOME/.cargo/env" &&
-    PGRX_PG_CONFIG_PATH=/usr/bin/pg_config cargo build --release --no-default-features --features pg18 -p authz_extension --manifest-path /src/authz_extension/Cargo.toml --target-dir /src/target 2>&1 &&
+    PGRX_PG_CONFIG_PATH=/usr/bin/pg_config cargo build --release --no-default-features --features pg18 -p beyond-auth-extension --manifest-path /src/beyond-auth-extension/Cargo.toml --target-dir /src/target 2>&1 &&
     mkdir -p /src/target/aarch64-unknown-linux-gnu/release &&
-    cp /src/target/release/libauthz_extension.so /src/target/aarch64-unknown-linux-gnu/release/libauthz_extension.so &&
-    echo "Built: /src/target/aarch64-unknown-linux-gnu/release/libauthz_extension.so"
+    cp /src/target/release/libbeyond_auth_extension.so /src/target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so &&
+    echo "Built: /src/target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so"
   '
 """
 
 # Cross-compile for linux/amd64 (postgres:18 on Intel).
 [tasks."extension:build:linux:amd64"]
-run = "cross build --release --target x86_64-unknown-linux-gnu -p authz_extension --features pg18"
+run = "cross build --release --target x86_64-unknown-linux-gnu -p beyond-auth-extension --features pg18"
 
 # Save a baseline bench report (no extension) and a treatment report (with extension), then diff.
 [tasks."bench:compare"]

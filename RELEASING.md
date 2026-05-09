@@ -11,7 +11,7 @@ The server binary and Postgres extension share a tag because they're tightly cou
 
 ## Releasing the server and extension
 
-1. Bump the version in `Cargo.toml` (root package) and `authz_extension/Cargo.toml`
+1. Bump the version in `Cargo.toml` (root package) and `beyond-auth-extension/Cargo.toml`
 2. Commit and push to `main`
 3. Tag and push:
    ```sh
@@ -22,10 +22,10 @@ This triggers `.github/workflows/release-server.yml`, which builds 6 artifacts a
 
 - `beyond-auth-v{VERSION}-linux-amd64.tar.gz`
 - `beyond-auth-v{VERSION}-linux-arm64.tar.gz`
-- `authz_extension-v{VERSION}-pg17-linux-amd64.tar.gz`
-- `authz_extension-v{VERSION}-pg17-linux-arm64.tar.gz`
-- `authz_extension-v{VERSION}-pg18-linux-amd64.tar.gz`
-- `authz_extension-v{VERSION}-pg18-linux-arm64.tar.gz`
+- `beyond-auth-extension-v{VERSION}-pg17-linux-amd64.tar.gz`
+- `beyond-auth-extension-v{VERSION}-pg17-linux-arm64.tar.gz`
+- `beyond-auth-extension-v{VERSION}-pg18-linux-amd64.tar.gz`
+- `beyond-auth-extension-v{VERSION}-pg18-linux-arm64.tar.gz`
 
 ## Releasing the SDK
 

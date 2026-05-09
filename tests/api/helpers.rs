@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use testcontainers::CopyTargetOptions;
@@ -76,7 +76,7 @@ pub fn test_env() -> &'static TestEnv {
                 .expect("failed to build integration test runtime");
 
             rt.block_on(async move {
-                // Mount the pre-built authz_extension .so into the container so the
+                // Mount the pre-built beyond-auth-extension .so into the container so the
                 // migration's LANGUAGE C function declarations can resolve the library.
                 // The .so is built by `mise run extension:build:linux` (ARM64) or
                 // `extension:build:linux:x86` (x86_64) and lives under target/.
@@ -89,32 +89,22 @@ pub fn test_env() -> &'static TestEnv {
                 };
 
                 let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-                let so_path = [
-                    &format!("target/{cross_so_prefix}/release/libauthz_extension.so"),
-                    "target/release/libauthz_extension.so",
-                ]
-                .iter()
-                .map(|p| manifest_dir.join(p))
-                .find(|p| p.exists());
+                let so_path = find_or_build_extension_so(manifest_dir, cross_so_prefix);
 
                 let pg = Postgres::default()
                     .with_tag("18")
                     .with_platform(linux_platform);
-                let container = match so_path {
-                    Some(path) => pg
-                        .with_copy_to(
-                            CopyTargetOptions::new("/usr/lib/postgresql/18/lib/authz_extension.so")
-                                .with_mode(0o755),
-                            path,
+                let container = pg
+                    .with_copy_to(
+                        CopyTargetOptions::new(
+                            "/usr/lib/postgresql/18/lib/beyond_auth_extension.so",
                         )
-                        .start()
-                        .await
-                        .expect("failed to start postgres testcontainer"),
-                    None => pg
-                        .start()
-                        .await
-                        .expect("failed to start postgres testcontainer"),
-                };
+                        .with_mode(0o755),
+                        so_path,
+                    )
+                    .start()
+                    .await
+                    .expect("failed to start postgres testcontainer");
 
                 let port = container
                     .get_host_port_ipv4(5432)
@@ -449,4 +439,34 @@ pub fn totp_now(secret_b32: &str) -> String {
         .expect("valid TOTP config")
         .generate_current()
         .expect("system time available")
+}
+
+fn find_or_build_extension_so(manifest_dir: &Path, cross_so_prefix: &str) -> PathBuf {
+    let candidates = [
+        manifest_dir.join(format!(
+            "target/{cross_so_prefix}/release/libbeyond_auth_extension.so"
+        )),
+        manifest_dir.join("target/release/libbeyond_auth_extension.so"),
+    ];
+    if let Some(p) = candidates.iter().find(|p| p.exists()) {
+        return p.clone();
+    }
+    let task = if cfg!(target_arch = "aarch64") {
+        "extension:build:linux:arm64"
+    } else {
+        "extension:build:linux:amd64"
+    };
+    eprintln!("[test] beyond-auth-extension .so not found — building via `mise run {task}`...");
+    let status = std::process::Command::new("mise")
+        .args(["run", task])
+        .status()
+        .unwrap_or_else(|e| panic!("failed to invoke mise: {e}"));
+    assert!(
+        status.success(),
+        "`mise run {task}` failed — is Docker running?"
+    );
+    candidates
+        .into_iter()
+        .find(|p| p.exists())
+        .expect("build succeeded but .so still not found")
 }

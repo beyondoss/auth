@@ -1,5 +1,6 @@
 import React from "react";
 import type { AuthResponse, SignUpRequest } from "../flows/sign-up.js";
+import { snakenize } from "../utils/camelize.js";
 import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
 import type { ErrorData } from "./client.js";
@@ -27,7 +28,9 @@ export function useSignUp(): UseSignUpResult {
     ): Promise<AuthResponse & { redirectTo?: string }> => {
       setError(null);
       try {
-        const data = await action.send({ body: req });
+        const data = await action.send({
+          body: snakenize(req as Record<string, unknown>) as never,
+        });
         const redirectTo = getRedirectParam();
         return redirectTo ? { ...data, redirectTo } : data;
       } catch (err) {

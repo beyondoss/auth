@@ -1,5 +1,5 @@
 comment = 'Rust BFS authz_check for beyond-auth'
 default_version = '0.1.0'
-module_pathname = '$libdir/authz_extension'
+module_pathname = '$libdir/beyond_auth_extension'
 relocatable = false
 superuser = false

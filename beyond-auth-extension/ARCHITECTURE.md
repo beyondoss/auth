@@ -1,4 +1,4 @@
-# authz_extension Architecture
+# beyond-auth-extension Architecture
 
 A PostgreSQL extension (PGRX/Rust) that takes authorization tuples as input and answers "does subject X hold relation Y on object Z?" by performing breadth-first search through group-membership (subject-set) relationships stored in `auth.authz_relations`. Compiles to a `.so` shared library loaded directly into the PostgreSQL process.
 
@@ -35,6 +35,76 @@ PostgreSQL (in-process)
   └──────────────────────────────────────────────────────────────── bool result
 ```
 
+### Hierarchy path batch
+
+```
+Application
+  │
+  │  SELECT auth.authz_check_path_batch(
+  │      subject_ids, object_ids,
+  │      relation_prefix, object_type_path, terminal_relations)
+  ▼
+PostgreSQL (in-process)
+  │
+  ├── Hop 0..P-1 (intermediate hops, one query each)
+  │   SELECT idx, r.subject_id AS next_obj_id
+  │   FROM unnest(active_obj_ids) AS f(idx, obj_id)
+  │   JOIN auth.authz_relations r ON
+  │       r.object_type = object_type_path[k]
+  │       r.object_id = f.obj_id
+  │       r.relation = relation_prefix[k]
+  │       r.subject_set_type IS NULL   ← direct rows only, no BFS expansion
+  │   Checks with no row → Some(false), removed from active set
+  │
+  ├── Terminal hop (one query)
+  │   SELECT idx
+  │   FROM unnest(active_obj_ids) AS f(idx, obj_id, target_sid)
+  │   JOIN auth.authz_relations r ON
+  │       r.object_type = object_type_path[P]
+  │       r.object_id = f.obj_id
+  │       r.relation = ANY(terminal_relations)
+  │       r.subject_set_type IS NULL
+  │       r.subject_id = f.target_sid
+  │   Matched checks → Some(true); unmatched → Some(false)
+  │
+  └── Vec<bool> (N results, ordered)
+```
+
+### Combined direct + hierarchy (`authz_check_multi`)
+
+```
+Application
+  │
+  │  SELECT auth.authz_check_multi(
+  │      subject_id, direct_relations, relation_prefix,
+  │      object_type_path, terminal_relations, object_id)
+  ▼
+PostgreSQL (in-process)
+  │
+  ├── BFS check on object_type_path[0] with direct_relations
+  │   (same BFS kernel as single check above)
+  │       match → true
+  │       no match → continue
+  │
+  ├── Hierarchy walk (one query per hop in relation_prefix)
+  │   For each k:
+  │       SELECT subject_id (parent object id)
+  │       WHERE object_type = object_type_path[k]
+  │         AND object_id = current_id
+  │         AND relation = relation_prefix[k]
+  │         AND subject_set_type IS NULL
+  │       no row → false
+  │       got row → update current_id, then check terminal:
+  │           SELECT EXISTS (... subject_id = subject_id
+  │                         AND relation = ANY(terminal_relations))
+  │           match → true
+  │           no match → continue walking
+  │
+  └── bool result
+```
+
+Error paths (all variants): any `spi::Error` propagates via `pgrx::error!`, raising a PostgreSQL `ERROR` that aborts the transaction and returns an `Err` to the caller via sqlx.
+
 ### Parallel batch (recommended for N > 1)
 
 ```
@@ -63,8 +133,6 @@ PostgreSQL (in-process)
   │
   └── Vec<bool> (N results, ordered)
 ```
-
-Error paths: any `spi::Error` calls `pgrx::error!`, which raises a PostgreSQL `ERROR`, aborts the transaction, and returns an error to the application via sqlx.
 
 ## Concepts & Terminology
 
@@ -212,6 +280,46 @@ auth.authz_relations (PARTITION BY LIST (object_type))
 - `authz_relations_key` — unique on `(object_type, object_id, relation, subject_set_type, subject_id, subject_set_relation)` — covers direct-grant EXISTS queries
 - `authz_relations_subject_lookup_idx` — `(subject_id, object_type, relation)` — supports reverse lookups
 - `authz_relations_subject_set_idx` — partial on `(subject_set_type, subject_id, subject_set_relation) WHERE subject_set_type IS NOT NULL` — covers BFS expansion queries
+
+## Configuration
+
+### Build-time
+
+```toml
+# Cargo.toml [features]
+pg17 = ["pgrx/pg17"] # opt-in — targets PostgreSQL 17
+pg18 = ["pgrx/pg18"] # default — targets PostgreSQL 18
+```
+
+The feature flag controls which PGRX type system is compiled in. Build with `--features pg17 --no-default-features` to target PostgreSQL 17.
+
+### Runtime
+
+| Setting                | Where Controlled                                                                   | Effect                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Extension presence     | `engine.rs:probe_parallel_batch()` at startup                                      | Queries `pg_proc` for `auth.authz_check_parallel_batch`; falls back to pure-SQL path if absent, logs INFO warning |
+| Object type partitions | SQL DDL: `ALTER TABLE auth.authz_relations ADD PARTITION …`                        | Missing partition → queries fall to DEFAULT partition, return false silently                                      |
+| Result cache size      | `AuthzCache::new(100_000, 50_000, Duration::from_secs(1800))` in application layer | 30-minute TTL; 100k max entries; eviction threshold at 50k                                                        |
+
+## Integration
+
+The host binary (`beyond-auth`) calls into the extension through `authz/engine.rs`, which wraps each PostgreSQL function in a typed sqlx query. The schema compiler (`authz/schema.rs`) decides _which_ function to call per (resource, permission) pair at request time.
+
+```
+POST /v1/authz/checks
+  │
+  ├─ bearer token → subject_id (routes/authz.rs)
+  ├─ compiled schema → Vec<AuthzCheckCall>  (authz/schema.rs)
+  │     SingleHop  → parallel_batch_check  (authz_check_parallel_batch)
+  │     MultiHop   → path_batch_check      (authz_check_path_batch)
+  │     Direct+Hierarchy → multi check     (authz_check_multi)
+  │     No extension → batch_check_standalone (pure-SQL fallback)
+  └─ results cached in AuthzCache, returned as ChecksResponse
+```
+
+**Fallback chain:** If `probe_parallel_batch()` returns false at startup, all checks route through `batch_check_standalone()`, which calls the pure-SQL `auth.authz_check` and `auth.authz_check_path` functions (implemented as recursive CTEs in the migration). Behavior is identical; throughput is lower.
+
+**Schema compilation:** Role inheritance is resolved once at startup (transitive closure of `role_inheritance` edges). The resulting role lists are baked into the SQL call sites — no per-request schema traversal.
 
 ## Failure Modes
 

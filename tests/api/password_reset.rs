@@ -25,14 +25,18 @@ async fn request_password_reset_returns_token() {
 }
 
 #[tokio::test]
-async fn request_password_reset_unknown_email_returns_404() {
-    TestClient::new()
+async fn request_password_reset_unknown_email_returns_synthetic_token() {
+    // Returns 200 with a syntactically-valid synthetic token to prevent email enumeration.
+    let resp = TestClient::new()
         .post(
             "/v1/password-resets",
             &serde_json::json!({ "email": unique_email() }),
         )
         .await
-        .assert_status(404);
+        .assert_status(200)
+        .json::<PasswordResetResponse>();
+
+    assert!(resp.token.starts_with("pwr_"));
 }
 
 #[tokio::test]

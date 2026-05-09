@@ -27,7 +27,7 @@ async fn gc_removes_expired_one_time_tokens() {
     .await
     .unwrap();
 
-    beyond_auth::token_gc::run_once(&gc_pool().await).await;
+    beyond_auth::token_gc::run_once(&gc_pool().await, &beyond_auth::metrics::Metrics::new()).await;
 
     let exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM auth.one_time_tokens WHERE id = $1)")
@@ -56,7 +56,7 @@ async fn gc_preserves_unexpired_one_time_tokens() {
     .await
     .unwrap();
 
-    beyond_auth::token_gc::run_once(&gc_pool().await).await;
+    beyond_auth::token_gc::run_once(&gc_pool().await, &beyond_auth::metrics::Metrics::new()).await;
 
     let exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM auth.one_time_tokens WHERE id = $1)")
@@ -86,7 +86,7 @@ async fn gc_removes_old_session_tokens_and_cascades_to_sessions() {
     .await
     .unwrap();
 
-    beyond_auth::token_gc::run_once(&gc_pool().await).await;
+    beyond_auth::token_gc::run_once(&gc_pool().await, &beyond_auth::metrics::Metrics::new()).await;
 
     let session_exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM auth.sessions WHERE id = $1)")
@@ -117,7 +117,7 @@ async fn gc_preserves_recently_expired_session_tokens() {
     .await
     .unwrap();
 
-    beyond_auth::token_gc::run_once(&gc_pool().await).await;
+    beyond_auth::token_gc::run_once(&gc_pool().await, &beyond_auth::metrics::Metrics::new()).await;
 
     let session_exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM auth.sessions WHERE id = $1)")

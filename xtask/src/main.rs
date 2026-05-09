@@ -12,26 +12,16 @@ const CONTAINER_LIBDIR: &str = "/usr/lib/postgresql/18/lib";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let so_path = find_extension_so();
-    if let Some(ref p) = so_path {
-        eprintln!("[xtask] found extension library: {}", p.display());
-    } else {
-        eprintln!(
-            "[xtask] no pre-built Linux authz_extension .so found; \
-             migration 0006 will fall back to PL/pgSQL. \
-             Run `mise run extension:build:linux` to build it."
-        );
-    }
+    let so_path = find_extension_so()
+        .unwrap_or_else(|| build_extension_so().expect("failed to build beyond-auth-extension"));
+    eprintln!("[xtask] using extension library: {}", so_path.display());
 
     let pg = Postgres::default().with_tag("18");
-    let pg = match so_path.as_deref() {
-        Some(p) => pg.with_copy_to(
-            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/authz_extension.so"))
-                .with_mode(0o755),
-            Path::new(p),
-        ),
-        None => pg,
-    };
+    let pg = pg.with_copy_to(
+        CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth_extension.so"))
+            .with_mode(0o755),
+        Path::new(&so_path),
+    );
 
     let container = pg
         .start()
@@ -56,7 +46,15 @@ async fn main() -> anyhow::Result<()> {
     pool.close().await;
 
     let status = Command::new("cargo")
-        .args(["sqlx", "prepare", "--workspace", "--", "--tests"])
+        .args([
+            "sqlx",
+            "prepare",
+            "--workspace",
+            "--",
+            "--tests",
+            "--features",
+            "test-server",
+        ])
         .env("DATABASE_URL", &url)
         .status()
         .context("failed to run cargo sqlx prepare")?;
@@ -68,14 +66,29 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Find a pre-built Linux `.so` for the authz_extension across common cross-compilation targets.
-/// Returns the first path that exists, or None if none are present.
 fn find_extension_so() -> Option<PathBuf> {
     let candidates: &[&str] = &[
-        // ARM64 Linux GNU (M-series Mac → postgres:18 on ARM)
-        "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
-        // x86_64 Linux GNU (Intel Mac → postgres:18 on x86)
-        "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
+        "target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
+        "target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
     ];
     candidates.iter().map(PathBuf::from).find(|p| p.exists())
+}
+
+/// Build the Linux extension .so via Docker (the same command as `mise run extension:build:linux:*`).
+/// Returns the path to the built .so on success.
+fn build_extension_so() -> anyhow::Result<PathBuf> {
+    let task = if cfg!(target_arch = "aarch64") {
+        "extension:build:linux:arm64"
+    } else {
+        "extension:build:linux:amd64"
+    };
+    eprintln!("[xtask] beyond-auth-extension .so not found — building via `mise run {task}`...");
+    let status = Command::new("mise")
+        .args(["run", task])
+        .status()
+        .context("failed to invoke mise")?;
+    if !status.success() {
+        anyhow::bail!("`mise run {task}` failed — is Docker running?");
+    }
+    find_extension_so().context("build succeeded but .so still not found")
 }

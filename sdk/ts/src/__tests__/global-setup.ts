@@ -1,9 +1,10 @@
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
+import { arch } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,7 +31,7 @@ async function waitForHealthy(url: string, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${url}/healthz`);
+      const res = await fetch(`${url}/readyz`);
       if (res.ok) return;
     } catch {
       // not ready yet
@@ -53,23 +54,27 @@ export async function setup(): Promise<void> {
     );
   }
 
-  // Mirror the Rust harness: mount the authz_extension .so if it's been built,
-  // so migration 4's C function declarations can resolve the library.
+  // Mount the beyond-auth-extension .so — build it automatically if not present.
   const repoRoot = resolve(__dirname, "../../../..");
-  const soPath = [
-    "target/aarch64-unknown-linux-gnu/release/libauthz_extension.so",
-    "target/x86_64-unknown-linux-gnu/release/libauthz_extension.so",
-    "target/release/libauthz_extension.so",
-  ]
-    .map((p) => resolve(repoRoot, p))
-    .find(existsSync);
+  const soCandidates = [
+    "target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
+    "target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
+    "target/release/libbeyond_auth_extension.so",
+  ].map((p) => resolve(repoRoot, p));
 
+  let soPath = soCandidates.find(existsSync);
   if (!soPath) {
-    throw new Error(
-      "authz_extension .so not found. Build it first:\n"
-        + "  mise run extension:build:linux      # linux/arm64 (Apple Silicon)\n"
-        + "  mise run extension:build:linux:x86  # linux/x86_64",
+    const task = arch() === "arm64"
+      ? "extension:build:linux:arm64"
+      : "extension:build:linux:amd64";
+    console.log(
+      `[global-setup] beyond-auth-extension .so not found — building via \`mise run ${task}\`...`,
     );
+    execSync(`mise run ${task}`, { stdio: "inherit", cwd: repoRoot });
+    soPath = soCandidates.find(existsSync);
+    if (!soPath) {
+      throw new Error("extension build succeeded but .so still not found");
+    }
   }
 
   let builder = new PostgreSqlContainer("postgres:18")
@@ -79,7 +84,7 @@ export async function setup(): Promise<void> {
     .withCopyFilesToContainer([
       {
         source: soPath,
-        target: "/usr/lib/postgresql/18/lib/authz_extension.so",
+        target: "/usr/lib/postgresql/18/lib/beyond_auth_extension.so",
         mode: 0o755,
       },
     ]);

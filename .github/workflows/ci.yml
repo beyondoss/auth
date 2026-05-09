@@ -40,10 +40,10 @@ jobs:
           POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           PGRX_PG_CONFIG_PATH=/usr/lib/postgresql/18/bin/pg_config \
-            cargo build --release --no-default-features --features pg18 -p authz_extension
+            cargo build --release --no-default-features --features pg18 -p beyond-auth-extension
           PGLIB=$(docker exec "$POSTGRES_CONTAINER" pg_config --pkglibdir)
-          docker cp target/release/libauthz_extension.so \
-            "${POSTGRES_CONTAINER}:${PGLIB}/authz_extension.so"
+          docker cp target/release/libbeyond_auth_extension.so \
+            "${POSTGRES_CONTAINER}:${PGLIB}/beyond_auth_extension.so"
       - name: migrate
         run: mise run migrate
       - name: check:fmt

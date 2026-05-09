@@ -1,5 +1,5 @@
 [package]
-name = "authz_extension"
+name = "beyond-auth-extension"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [features]
-default = []
+default = ["pg18"]
 pg17 = ["pgrx/pg17"]
 pg18 = ["pgrx/pg18"]
 

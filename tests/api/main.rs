@@ -1,6 +1,6 @@
 mod admin;
 mod authz;
-mod authz_extension;
+mod beyond_auth_extension;
 mod emails;
 mod healthz;
 mod helpers;

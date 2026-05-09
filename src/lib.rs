@@ -12,7 +12,7 @@ mod identities;
 mod invitations;
 mod jwt;
 mod keys;
-mod metrics;
+pub mod metrics;
 mod mfa;
 mod middleware;
 mod mmds;

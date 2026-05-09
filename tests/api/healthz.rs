@@ -3,7 +3,7 @@ use crate::helpers::TestClient;
 #[tokio::test]
 async fn healthz_returns_ok() {
     let body: serde_json::Value = TestClient::new()
-        .get("/healthz")
+        .get("/readyz")
         .await
         .assert_status(200)
         .json();
