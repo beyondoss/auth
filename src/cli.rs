@@ -217,7 +217,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         signing_key: Arc::new(loaded_key),
         app_config: Arc::new(RwLock::new(app_config)),
         authz_schema: Arc::new(RwLock::new(compiled_authz)),
-        metrics: crate::metrics::Metrics::new(),
+        metrics: Arc::new(crate::metrics::Metrics::new()),
         admin_secret: http::AdminSecret::new(secrets.admin_secret),
         http_client,
         oauth: Arc::new(RwLock::new(oauth)),

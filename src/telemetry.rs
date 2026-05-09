@@ -61,7 +61,7 @@ pub fn init(
 
     let filter = env_filter(default_filter);
 
-    let fmt_layer = if is_development() {
+    let fmt_layer = if is_pretty() {
         tracing_subscriber::fmt::layer()
             .event_format(WithTraceContext(format::Format::default()))
             .boxed()
@@ -81,7 +81,7 @@ pub fn init(
 /// Minimal init for CLI subcommands that don't need OTLP.
 pub fn init_simple(default_filter: &str) {
     let filter = env_filter(default_filter);
-    if is_development() {
+    if is_pretty() {
         Registry::default()
             .with(filter)
             .with(tracing_subscriber::fmt::layer())
@@ -177,8 +177,9 @@ fn env_filter(default_filter: &str) -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_filter))
 }
 
-fn is_development() -> bool {
+fn is_pretty() -> bool {
     std::env::var("ENVIRONMENT").is_ok_and(|e| e == "development")
+        || std::env::var("RUST_LOG_FORMAT").is_ok_and(|f| f == "pretty")
 }
 
 /// Prepends the OTel trace_id to each log line in dev format.
