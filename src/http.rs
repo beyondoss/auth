@@ -195,11 +195,11 @@ async fn record_metrics(State(state): State<AppState>, req: Request, next: Next)
     let response = next.run(req).await;
     state.metrics.http_connections_active.dec();
 
-    let status = response.status().as_u16().to_string();
+    let status = response.status().as_u16();
     state
         .metrics
         .http_requests_total
-        .with_label_values(&[&method, &path, &status])
+        .with_label_values(&[&method, &path, &status.to_string()])
         .inc();
     timer.observe(start.elapsed().as_secs_f64());
 
@@ -219,32 +219,18 @@ async fn record_metrics(State(state): State<AppState>, req: Request, next: Next)
         state.metrics.db_pool_acquire_timeouts_total.inc();
     }
 
-    response
-}
-
-async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
-    // Pool gauges — set fresh at each scrape so values are never stale.
     let size = state.pool.size() as usize;
     let idle = state.pool.num_idle();
     state.metrics.db_pool_size.set(size as f64);
     state.metrics.db_pool_idle.set(idle as f64);
     state.metrics.db_pool_active.set((size - idle) as f64);
 
-    // Active sessions — count non-expired session tokens.
-    if let Ok(count) = sqlx::query_scalar!(
-        "SELECT COUNT(*) FROM auth.sessions s
-         INNER JOIN auth.tokens t ON t.id = s.token_id
-         WHERE t.expires_at > now()"
-    )
-    .fetch_one(&state.pool)
-    .await
-    {
-        state
-            .metrics
-            .active_sessions_total
-            .set(count.unwrap_or(0) as f64);
-    }
+    tracing::Span::current().record("http.status_code", status);
 
+    response
+}
+
+async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     // Authz cache counters — sync deltas from the atomics in AuthzCache.
     let cc = state.authz_cache.counters();
     let prev_hits = state
@@ -287,6 +273,25 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         state.metrics.encode(),
     )
         .into_response()
+}
+
+/// Background task that refreshes the `auth_active_sessions_total` gauge every 60 s.
+/// Running this as a task keeps the DB query off the scrape hot path.
+pub async fn active_sessions_gauge(pool: sqlx::PgPool, metrics: Arc<Metrics>) {
+    let mut interval = tokio::time::interval(Duration::from_secs(60));
+    loop {
+        interval.tick().await;
+        if let Ok(Some(n)) = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM auth.sessions s
+         INNER JOIN auth.tokens t ON t.id = s.token_id
+         WHERE t.expires_at > now()"
+        )
+        .fetch_one(&pool)
+        .await
+        {
+            metrics.active_sessions_total.set(n as f64);
+        }
+    }
 }
 
 async fn shutdown_signal() {

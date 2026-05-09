@@ -231,10 +231,16 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
     };
 
     let gc_handle = tokio::spawn(token_gc::run(state.pool.clone(), state.metrics.clone()));
+    let sessions_handle = tokio::spawn(http::active_sessions_gauge(
+        state.pool.clone(),
+        state.metrics.clone(),
+    ));
 
     let result = http::serve(&cfg.address, state).await;
     gc_handle.abort();
+    sessions_handle.abort();
     let _ = gc_handle.await; // JoinError here means cancelled (expected) or panicked (already exiting)
+    let _ = sessions_handle.await;
     result
 }
 
