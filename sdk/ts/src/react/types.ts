@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-  "/healthz": {
+  "/livez": {
     parameters: {
       query?: never;
       header?: never;
@@ -12,10 +12,31 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Health check. Performs a lightweight database ping. Returns 200 when healthy,
-     *     503 when the database is unreachable.
+     * Liveness probe. Returns 200 as long as the process can accept connections.
+     *     Does not check dependencies — use `/readyz` for that.
      */
-    get: operations["healthz"];
+    get: operations["livez"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/readyz": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Readiness probe. Performs a lightweight database ping.
+     *     Returns 503 when the database is unreachable — the orchestrator will
+     *     stop routing traffic until this returns 200.
+     */
+    get: operations["readyz"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1419,9 +1440,8 @@ export interface components {
     GoogleRedacted: {
       clientId: string;
     };
-    /** @description Health check response. */
-    HealthzResponse: {
-      /** @description `"ok"` when healthy, `"degraded"` when the database is unreachable. */
+    HealthResponse: {
+      /** @description `"ok"` or `"degraded"`. */
       status: string;
       /** @description Service version from `CARGO_PKG_VERSION`. */
       version: string;
@@ -1898,7 +1918,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  healthz: {
+  livez: {
     parameters: {
       query?: never;
       header?: never;
@@ -1912,7 +1932,26 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["HealthzResponse"];
+          "application/json": components["schemas"]["HealthResponse"];
+        };
+      };
+    };
+  };
+  readyz: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HealthResponse"];
         };
       };
       503: {
@@ -1920,7 +1959,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["HealthzResponse"];
+          "application/json": components["schemas"]["HealthResponse"];
         };
       };
     };
