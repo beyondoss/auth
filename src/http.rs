@@ -116,22 +116,23 @@ struct OtelMakeSpan;
 
 impl<B> MakeSpan<B> for OtelMakeSpan {
     fn make_span(&mut self, request: &axum::http::Request<B>) -> tracing::Span {
-        // Attach the caller's OTel context for the duration of span creation.
-        // tracing-opentelemetry reads it in on_new_span and links the new span as a child.
-        let ctx = crate::telemetry::extract_trace_context(request.headers());
-        let _guard = ctx.attach();
+        use tracing_opentelemetry::OpenTelemetrySpanExt as _;
 
         let method = request.method().as_str();
         let uri = request.uri();
         let version = format!("{:?}", request.version());
 
-        tracing::info_span!(
+        let span = tracing::info_span!(
             "http.request",
             otel.kind = "server",
             http.method = method,
             http.target = %uri,
             http.flavor = version,
-        )
+            http.route = tracing::field::Empty,
+            http.status_code = tracing::field::Empty,
+        );
+        let _ = span.set_parent(crate::telemetry::extract_trace_context(request.headers()));
+        span
     }
 }
 
@@ -177,12 +178,14 @@ fn router(state: AppState) -> Router {
 }
 
 async fn record_metrics(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    state.metrics.http_connections_active.inc();
     let method = req.method().as_str().to_string();
     let path = req
         .extensions()
         .get::<MatchedPath>()
         .map(|m| m.as_str().to_string())
-        .unwrap_or_else(|| req.uri().path().to_string());
+        .unwrap_or_else(|| "<unmatched>".to_string());
+    tracing::Span::current().record("http.route", &path);
     let timer = state
         .metrics
         .http_request_duration_seconds
@@ -190,6 +193,7 @@ async fn record_metrics(State(state): State<AppState>, req: Request, next: Next)
     let start = Instant::now();
 
     let response = next.run(req).await;
+    state.metrics.http_connections_active.dec();
 
     let status = response.status().as_u16().to_string();
     state
