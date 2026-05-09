@@ -112,7 +112,12 @@ pub async fn add_password(
         return Err(AuthError::Conflict);
     }
 
+    let start = std::time::Instant::now();
     let hash = passwords::hash(&req.password)?;
+    state
+        .metrics
+        .password_hash_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
     let subject = ctx.email.email.clone();
     let normalized = crate::email::normalize(&subject);
 
@@ -169,10 +174,21 @@ pub async fn update(
         return Err(AuthError::NotFound);
     };
 
-    if !passwords::verify(&req.current_password, &current_hash)? {
+    let start = std::time::Instant::now();
+    let verified = passwords::verify(&req.current_password, &current_hash)?;
+    state
+        .metrics
+        .password_hash_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
+    if !verified {
         return Err(AuthError::InvalidCredentials);
     }
+    let start = std::time::Instant::now();
     let new_hash = passwords::hash(&req.new_password)?;
+    state
+        .metrics
+        .password_hash_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
 
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;
 

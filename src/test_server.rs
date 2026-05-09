@@ -43,7 +43,8 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         .execute(&pool)
         .await?;
     let enc_key = LocalKeyEncryptor::from_base64(ENC_KEY, &[])?;
-    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
+    let metrics = Metrics::new();
+    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key, &metrics).await?;
     let jwks = signing_keys::render_jwks(std::slice::from_ref(&loaded_key));
     let app_config = app_config::load(&pool).await?;
     let compiled_authz = app_config::compile_authz_schema(&app_config).ok().flatten();
@@ -65,7 +66,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         signing_key: Arc::new(loaded_key),
         app_config: Arc::new(RwLock::new(app_config)),
         authz_schema: Arc::new(RwLock::new(compiled_authz)),
-        metrics: Metrics::new(),
+        metrics: Arc::new(metrics),
         admin_secret: crate::http::AdminSecret::new(ADMIN_SECRET.to_string()),
         http_client,
         oauth: Arc::new(RwLock::new(OAuthProviders::default())),
@@ -76,6 +77,7 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         authz_cache,
         partition_cache: Arc::new(quick_cache::sync::Cache::new(1024)),
         parallel_batch_available,
+        cache_sync: Arc::new(crate::http::CacheSyncState::new()),
     };
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;

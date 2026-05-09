@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::{
     authz::{
@@ -329,12 +330,27 @@ pub async fn check_permission(
             permission: Arc::from(params.permission.as_str()),
         };
         if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
+            state
+                .metrics
+                .authz_checks_total
+                .with_label_values(&[if allowed { "allowed" } else { "denied" }])
+                .inc();
             return Ok(Json(CheckResponse { allowed }));
         }
+        let start = Instant::now();
         let allowed =
             engine::check_standalone(&state.pool, &explicit_user, &params.resource_id, &or_chain)
                 .await?;
+        state
+            .metrics
+            .authz_check_duration_seconds
+            .observe(start.elapsed().as_secs_f64());
         state.authz_cache.insert_check(cache_key, allowed);
+        state
+            .metrics
+            .authz_checks_total
+            .with_label_values(&[if allowed { "allowed" } else { "denied" }])
+            .inc();
         return Ok(Json(CheckResponse { allowed }));
     }
 
@@ -358,11 +374,17 @@ pub async fn check_permission(
             permission: Arc::from(params.permission.as_str()),
         };
         if let Some(allowed) = state.authz_cache.get_check(&cache_key) {
+            state
+                .metrics
+                .authz_checks_total
+                .with_label_values(&[if allowed { "allowed" } else { "denied" }])
+                .inc();
             return Ok(Json(CheckResponse { allowed }));
         }
         // Session cached but check missed — standalone check (1 DB call).
         let standalone_chain =
             resolve_or_chain(schema, &params.resource_type, &params.permission, false)?;
+        let start = Instant::now();
         let allowed = engine::check_standalone(
             &state.pool,
             &subject_id,
@@ -370,13 +392,23 @@ pub async fn check_permission(
             &standalone_chain,
         )
         .await?;
+        state
+            .metrics
+            .authz_check_duration_seconds
+            .observe(start.elapsed().as_secs_f64());
         state.authz_cache.insert_check(cache_key, allowed);
+        state
+            .metrics
+            .authz_checks_total
+            .with_label_values(&[if allowed { "allowed" } else { "denied" }])
+            .inc();
         return Ok(Json(CheckResponse { allowed }));
     }
 
     // Full miss: bundled session-validate + authz check in one DB round-trip.
     let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
-    let (subject_id, allowed) = engine::check_with_session(
+    let start = Instant::now();
+    let result = engine::check_with_session(
         &state.pool,
         parsed.id,
         &parsed.secret_hash,
@@ -384,8 +416,27 @@ pub async fn check_permission(
         &or_chain,
         idle_timeout,
     )
-    .await?
-    .ok_or(AuthError::TokenInvalid)?;
+    .await?;
+    state
+        .metrics
+        .authz_check_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
+    let (subject_id, allowed) = match result {
+        Some(v) => v,
+        None => {
+            state
+                .metrics
+                .authz_checks_total
+                .with_label_values(&["invalid_token"])
+                .inc();
+            return Err(AuthError::TokenInvalid);
+        }
+    };
+    state
+        .metrics
+        .authz_checks_total
+        .with_label_values(&[if allowed { "allowed" } else { "denied" }])
+        .inc();
 
     let subject_id: Arc<str> = Arc::from(subject_id.as_str());
     state
@@ -513,6 +564,14 @@ pub async fn batch_check_permissions(
                 allowed,
             );
         }
+    }
+
+    for r in &results {
+        state
+            .metrics
+            .authz_checks_total
+            .with_label_values(&[if r.allowed { "allowed" } else { "denied" }])
+            .inc();
     }
 
     Ok(Json(BatchDecisionResponse { results }))
@@ -766,6 +825,14 @@ pub async fn post_checks(
                 allowed,
             );
         }
+    }
+
+    for r in &results {
+        state
+            .metrics
+            .authz_checks_total
+            .with_label_values(&[if r.allowed { "allowed" } else { "denied" }])
+            .inc();
     }
 
     Ok(Json(ChecksResponse { results }))

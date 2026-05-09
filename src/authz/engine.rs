@@ -193,6 +193,7 @@ pub async fn batch_relations(
 /// Uses the non-macro `sqlx::query_as` because the query shape is dynamic
 /// (the OR-chain length varies by permission/schema). This is the one justified
 /// exception to the type-safe macro rule.
+#[tracing::instrument(skip(pool, secret_hash, or_chain), fields(token_id = %token_id, object_id = %object_id), err)]
 pub async fn check_with_session(
     pool: &PgPool,
     token_id: Uuid,
@@ -248,6 +249,7 @@ pub async fn check_with_session(
 
 /// Validate a bearer token and return the subject user_id as a string for authz checks.
 /// Returns `None` if the token is invalid or expired.
+#[tracing::instrument(skip(pool, secret_hash), fields(token_id = %token_id), err)]
 pub async fn resolve_session(
     pool: &PgPool,
     token_id: Uuid,
@@ -312,6 +314,7 @@ pub async fn batch_check_standalone(
 
 /// Standalone check for an explicit subject (no session CTE). Two round-trips
 /// total when used after require_auth, but fine for admin/impersonation paths.
+#[tracing::instrument(skip(pool, or_chain), fields(subject_id = %subject_id, object_id = %object_id), err)]
 pub async fn check_standalone(
     pool: &PgPool,
     subject_id: &str,

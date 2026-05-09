@@ -40,10 +40,15 @@ pub async fn ensure_app_config(pool: &PgPool) -> Result<()> {
 ///
 /// If the existing key was encrypted with an old KEK or without AAD (legacy),
 /// it is immediately re-encrypted with the current key before returning.
-pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) -> Result<LoadedKey> {
+#[tracing::instrument(skip(pool, enc, metrics), err)]
+pub async fn load_or_create_active_key(
+    pool: &PgPool,
+    enc: &dyn KeyEncryptor,
+    metrics: &crate::metrics::Metrics,
+) -> Result<LoadedKey> {
     if let Some((key, needs_reencrypt)) = fetch_active_key(pool, enc).await? {
         if needs_reencrypt {
-            reencrypt_key(pool, enc, &key).await?;
+            reencrypt_key(pool, enc, &key, metrics).await?;
         }
         return Ok(key);
     }
@@ -75,6 +80,7 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
     match inserted_id {
         Some(id) => {
             tracing::info!(kid = %id, "generated and stored new signing key");
+            metrics.signing_key_rotations_total.inc();
             Ok(LoadedKey { id, signing_key })
         }
         None => {
@@ -82,7 +88,7 @@ pub async fn load_or_create_active_key(pool: &PgPool, enc: &dyn KeyEncryptor) ->
                 .await?
                 .context("active signing key disappeared after concurrent insert")?;
             if needs_reencrypt {
-                reencrypt_key(pool, enc, &key).await?;
+                reencrypt_key(pool, enc, &key, metrics).await?;
             }
             Ok(key)
         }
@@ -121,7 +127,12 @@ async fn fetch_active_key(
     )))
 }
 
-async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -> Result<()> {
+async fn reencrypt_key(
+    pool: &PgPool,
+    enc: &dyn KeyEncryptor,
+    key: &LoadedKey,
+    metrics: &crate::metrics::Metrics,
+) -> Result<()> {
     let pem = key
         .signing_key
         .to_pkcs8_pem(LineEnding::LF)
@@ -156,6 +167,7 @@ async fn reencrypt_key(pool: &PgPool, enc: &dyn KeyEncryptor, key: &LoadedKey) -
         .context("failed to release advisory lock")?;
 
     tracing::info!(kid = %key.id, "re-encrypted signing key with current KEK");
+    metrics.signing_key_reencryptions_total.inc();
     Ok(())
 }
 

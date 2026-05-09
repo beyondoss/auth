@@ -206,7 +206,12 @@ pub async fn signup(
     headers: HeaderMap,
     Json(req): Json<SignupRequest>,
 ) -> Result<(StatusCode, Json<AuthResponse>), AuthError> {
+    let start = std::time::Instant::now();
     let hash = passwords::hash(&req.password)?;
+    state
+        .metrics
+        .password_hash_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
     let normalized = email::normalize(&req.email);
 
     let org_id = Uuid::now_v7();

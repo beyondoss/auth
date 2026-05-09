@@ -3,6 +3,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+/// Snapshot of cache counters for metrics export.
+pub struct CacheCounters {
+    pub hits: u64,
+    pub misses: u64,
+    pub invalidations: u64,
+}
+
 use quick_cache::sync::Cache;
 use uuid::Uuid;
 
@@ -59,6 +66,9 @@ pub struct AuthzCache {
     obj_versions: VersionTable,
     subj_versions: VersionTable,
     max_age: Duration,
+    hits: AtomicU64,
+    misses: AtomicU64,
+    invalidations: AtomicU64,
 }
 
 impl AuthzCache {
@@ -69,6 +79,18 @@ impl AuthzCache {
             obj_versions: VersionTable::new(4096),
             subj_versions: VersionTable::new(4096),
             max_age,
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
+            invalidations: AtomicU64::new(0),
+        }
+    }
+
+    /// Returns cumulative hit/miss/invalidation counts since process start.
+    pub fn counters(&self) -> CacheCounters {
+        CacheCounters {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            invalidations: self.invalidations.load(Ordering::Relaxed),
         }
     }
 
@@ -85,8 +107,12 @@ impl AuthzCache {
     }
 
     pub fn get_check(&self, key: &CheckKey) -> Option<bool> {
-        let entry = self.checks.get(key)?;
+        let Some(entry) = self.checks.get(key) else {
+            self.misses.fetch_add(1, Ordering::Relaxed);
+            return None;
+        };
         if entry.computed_at.elapsed() > self.max_age {
+            self.misses.fetch_add(1, Ordering::Relaxed);
             return None;
         }
         let obj_ver = self
@@ -94,8 +120,10 @@ impl AuthzCache {
             .get(hash_one((&key.resource_type, &key.resource_id)));
         let subj_ver = self.subj_versions.get(hash_one(&key.subject_id));
         if entry.obj_ver != obj_ver || entry.subj_ver != subj_ver {
+            self.misses.fetch_add(1, Ordering::Relaxed);
             return None;
         }
+        self.hits.fetch_add(1, Ordering::Relaxed);
         Some(entry.allowed)
     }
 
@@ -125,5 +153,6 @@ impl AuthzCache {
     pub fn invalidate_for_write(&self, object_type: &str, object_id: &str, subject_id: &str) {
         self.obj_versions.bump(hash_one((object_type, object_id)));
         self.subj_versions.bump(hash_one(subject_id));
+        self.invalidations.fetch_add(1, Ordering::Relaxed);
     }
 }

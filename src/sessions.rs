@@ -78,6 +78,7 @@ pub fn request_context<'a>(headers: &'a HeaderMap) -> RequestContext<'a> {
 /// - joins user, primary org, and primary email
 ///
 /// Returns `None` for expired, missing, or wrong-secret tokens.
+#[tracing::instrument(skip(pool, secret_hash), fields(token_id = %token_id), err)]
 pub async fn validate(
     pool: &PgPool,
     token_id: Uuid,
@@ -172,6 +173,7 @@ pub async fn validate(
 /// Create a token + session atomically within an existing transaction.
 /// Uses the token's ID explicitly so the caller can format the bearer string
 /// before the transaction commits.
+#[tracing::instrument(skip(tx, token, ctx), fields(user_id = %user_id), err)]
 pub async fn create(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     token: &Token,

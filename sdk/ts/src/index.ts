@@ -1,5 +1,5 @@
-import { createAdminClient, type AdminClient } from "./client.js";
-import { createAuthFlowClient, type AuthFlowClient } from "./flows/index.js";
+import { type AdminClient, createAdminClient } from "./client.js";
+import { type AuthFlowClient, createAuthFlowClient } from "./flows/index.js";
 
 let _admin: AdminClient | undefined;
 let _auth: AuthFlowClient | undefined;

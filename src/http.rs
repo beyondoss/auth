@@ -21,7 +21,7 @@ use tower_http::{
     catch_panic::CatchPanicLayer,
     request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     timeout::TimeoutLayer,
-    trace::TraceLayer,
+    trace::{MakeSpan, TraceLayer},
 };
 use utoipa::OpenApi;
 use uuid::Uuid;
@@ -55,6 +55,24 @@ impl std::fmt::Debug for AdminSecret {
     }
 }
 
+/// Tracks the last cache counter values pushed to Prometheus, so metrics_handler
+/// can compute deltas without reading back from Prometheus (which uses f64).
+pub struct CacheSyncState {
+    pub hits: std::sync::atomic::AtomicU64,
+    pub misses: std::sync::atomic::AtomicU64,
+    pub invalidations: std::sync::atomic::AtomicU64,
+}
+
+impl CacheSyncState {
+    pub fn new() -> Self {
+        Self {
+            hits: std::sync::atomic::AtomicU64::new(0),
+            misses: std::sync::atomic::AtomicU64::new(0),
+            invalidations: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
@@ -77,6 +95,7 @@ pub struct AppState {
     pub authz_cache: Arc<AuthzCache>,
     pub partition_cache: Arc<Cache<String, ()>>,
     pub parallel_batch_available: bool,
+    pub cache_sync: Arc<CacheSyncState>,
 }
 
 #[derive(Clone)]
@@ -86,6 +105,38 @@ impl MakeRequestId for MakeRequestUuid {
     fn make_request_id<B>(&mut self, _: &axum::http::Request<B>) -> Option<RequestId> {
         let id = Uuid::new_v4().to_string().parse().ok()?;
         Some(RequestId::new(id))
+    }
+}
+
+/// Propagates the caller's W3C trace context (`traceparent`) into the request span.
+/// Without this, every request starts a fresh root trace — distributed traces from
+/// callers would never connect to spans generated inside this service.
+#[derive(Clone)]
+struct OtelMakeSpan;
+
+impl<B> MakeSpan<B> for OtelMakeSpan {
+    fn make_span(&mut self, request: &axum::http::Request<B>) -> tracing::Span {
+        let traceparent = request
+            .headers()
+            .get("traceparent")
+            .and_then(|v| v.to_str().ok());
+
+        // Attach the caller's OTel context for the duration of span creation.
+        // tracing-opentelemetry reads it in on_new_span and links the new span as a child.
+        let ctx = crate::telemetry::extract_trace_context(traceparent);
+        let _guard = ctx.attach();
+
+        let method = request.method().as_str();
+        let uri = request.uri();
+        let version = format!("{:?}", request.version());
+
+        tracing::info_span!(
+            "http_request",
+            otel.kind = "server",
+            http.method = method,
+            http.target = %uri,
+            http.flavor = version,
+        )
     }
 }
 
@@ -121,7 +172,7 @@ fn router(state: AppState) -> Router {
             ServiceBuilder::new()
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
                 .layer(PropagateRequestIdLayer::x_request_id())
-                .layer(TraceLayer::new_for_http())
+                .layer(TraceLayer::new_for_http().make_span_with(OtelMakeSpan))
                 .layer(TimeoutLayer::with_status_code(
                     axum::http::StatusCode::REQUEST_TIMEOUT,
                     Duration::from_secs(30),
@@ -153,13 +204,79 @@ async fn record_metrics(State(state): State<AppState>, req: Request, next: Next)
         .inc();
     timer.observe(start.elapsed().as_secs_f64());
 
+    if let Some(code) = response.extensions().get::<crate::error::AuthErrorCode>() {
+        state
+            .metrics
+            .auth_errors_total
+            .with_label_values(&[code.0])
+            .inc();
+    }
+
     response
 }
 
 async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
+    // Pool gauges — set fresh at each scrape so values are never stale.
+    let size = state.pool.size() as usize;
+    let idle = state.pool.num_idle();
+    state.metrics.db_pool_size.set(size as f64);
+    state.metrics.db_pool_idle.set(idle as f64);
+    state.metrics.db_pool_active.set((size - idle) as f64);
+
+    // Active sessions — count non-expired session tokens.
+    if let Ok(count) = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM auth.sessions s
+         INNER JOIN auth.tokens t ON t.id = s.token_id
+         WHERE t.expires_at > now()"
+    )
+    .fetch_one(&state.pool)
+    .await
+    {
+        state
+            .metrics
+            .active_sessions_total
+            .set(count.unwrap_or(0) as f64);
+    }
+
+    // Authz cache counters — sync deltas from the atomics in AuthzCache.
+    let cc = state.authz_cache.counters();
+    let prev_hits = state
+        .cache_sync
+        .hits
+        .swap(cc.hits, std::sync::atomic::Ordering::Relaxed);
+    let prev_misses = state
+        .cache_sync
+        .misses
+        .swap(cc.misses, std::sync::atomic::Ordering::Relaxed);
+    let prev_inv = state
+        .cache_sync
+        .invalidations
+        .swap(cc.invalidations, std::sync::atomic::Ordering::Relaxed);
+    if cc.hits > prev_hits {
+        state
+            .metrics
+            .authz_cache_hits_total
+            .inc_by((cc.hits - prev_hits) as f64);
+    }
+    if cc.misses > prev_misses {
+        state
+            .metrics
+            .authz_cache_misses_total
+            .inc_by((cc.misses - prev_misses) as f64);
+    }
+    if cc.invalidations > prev_inv {
+        state
+            .metrics
+            .authz_cache_invalidations_total
+            .inc_by((cc.invalidations - prev_inv) as f64);
+    }
+
     (
         axum::http::StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
         state.metrics.encode(),
     )
         .into_response()

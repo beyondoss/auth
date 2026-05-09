@@ -17,6 +17,7 @@ static COMMON_PASSWORDS_SET: LazyLock<HashSet<&'static str>> =
 
 /// Hash a password using Argon2id with OWASP 2024 recommended parameters.
 /// Returns an error if the password is too short or too common.
+#[tracing::instrument(skip(password), err)]
 pub fn hash(password: &str) -> Result<String, AuthError> {
     if password.len() < MIN_LENGTH {
         return Err(AuthError::PasswordTooShort);
@@ -38,6 +39,7 @@ pub fn hash(password: &str) -> Result<String, AuthError> {
 
 /// Verify a password against an argon2 PHC hash string.
 /// Returns `true` if it matches, `false` if it doesn't.
+#[tracing::instrument(skip(password, hash_str), err)]
 pub fn verify(password: &str, hash_str: &str) -> Result<bool, AuthError> {
     if password.len() > MAX_LENGTH {
         return Ok(false);

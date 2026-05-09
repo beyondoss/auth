@@ -191,7 +191,13 @@ async fn login_password(
         }
     };
 
-    if !passwords::verify(password, &hash_str)? {
+    let start = std::time::Instant::now();
+    let verified = passwords::verify(password, &hash_str)?;
+    state
+        .metrics
+        .password_hash_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
+    if !verified {
         return Err(AuthError::InvalidCredentials);
     }
 
@@ -268,7 +274,12 @@ async fn login_password_reset(
     let (user_id, _ctx) =
         one_time_token::consume(&state.pool, TokenPrefix::PasswordReset, raw_token).await?;
 
+    let start = std::time::Instant::now();
     let new_hash = passwords::hash(new_password)?;
+    state
+        .metrics
+        .password_hash_duration_seconds
+        .observe(start.elapsed().as_secs_f64());
     let (user, org, email) = sessions::load_user_context(&state.pool, user_id).await?;
 
     let mut tx = state.pool.begin().await.map_err(AuthError::from)?;

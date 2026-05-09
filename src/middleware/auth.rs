@@ -47,10 +47,14 @@ pub async fn require_auth(
 
         "session" | "impersonate" => {
             let idle_timeout = state.app_config.read().await.session_idle_timeout_seconds;
-            let mut ctx =
-                sessions::validate(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout)
-                    .await?
-                    .ok_or(AuthError::Unauthorized)?;
+            let start = std::time::Instant::now();
+            let result =
+                sessions::validate(&state.pool, parsed.id, &parsed.secret_hash, idle_timeout).await;
+            state
+                .metrics
+                .session_validation_duration_seconds
+                .observe(start.elapsed().as_secs_f64());
+            let mut ctx = result?.ok_or(AuthError::Unauthorized)?;
             ctx.is_impersonated = parsed.prefix == "impersonate";
             ctx
         }

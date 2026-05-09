@@ -51,7 +51,8 @@ impl utoipa::Modify for BearerAuth {
     ),
     modifiers(&BearerAuth),
     paths(
-        healthz::handler,
+        healthz::readyz_handler,
+        healthz::livez_handler,
         jwks::handler,
         users::delete_me,
         users::signup,
@@ -130,7 +131,7 @@ impl utoipa::Modify for BearerAuth {
 
     ),
     components(schemas(
-        healthz::HealthzResponse,
+        healthz::HealthResponse,
         jwks::JwkSet,
         jwks::Jwk,
         crate::error::ErrorResponse,
@@ -283,7 +284,8 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(authz::check_permission).post(authz::batch_check_permissions),
         )
         .route("/v1/authz/checks", post(authz::post_checks))
-        .route("/healthz", get(healthz::handler))
+        .route("/readyz", get(healthz::readyz_handler))
+        .route("/livez", get(healthz::livez_handler))
         .route("/v1/jwks.json", get(jwks::handler))
         .route("/v1/users", post(users::signup))
         .route("/v1/sessions", post(sessions::login))

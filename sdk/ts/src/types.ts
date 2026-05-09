@@ -4,4589 +4,4591 @@
  */
 
 export interface paths {
-    "/healthz": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health check. Performs a lightweight database ping. Returns 200 when healthy,
-         *     503 when the database is unreachable.
-         */
-        get: operations["healthz"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  "/healthz": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/authz/subjects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List all subjects who hold the given relation on an object.
-         *     Resolves subject sets recursively. Admin-only — use GET /v1/authz/subjects
-         *     for the permission-scoped view available to authenticated users.
-         */
-        get: operations["list_subjects_expand"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Health check. Performs a lightweight database ping. Returns 200 when healthy,
+     *     503 when the database is unreachable.
+     */
+    get: operations["healthz"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/authz/subjects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the current runtime configuration. */
-        get: operations["get_admin_config"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["patch"];
-        trace?: never;
+    /**
+     * List all subjects who hold the given relation on an object.
+     *     Resolves subject sets recursively. Admin-only — use GET /v1/authz/subjects
+     *     for the permission-scoped view available to authenticated users.
+     */
+    get: operations["list_subjects_expand"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/config": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/impersonations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create an impersonation session for any user. Returns a session token that behaves like
-         *     a normal session but carries an `impersonated` flag in issued JWTs. Use this for admin
-         *     support workflows — not for production automation.
-         */
-        post: operations["create_impersonation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get the current runtime configuration. */
+    get: operations["get_admin_config"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["patch"];
+    trace?: never;
+  };
+  "/v1/admin/impersonations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/oauth-providers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the current OAuth provider configuration. Secrets are redacted — only public
-         *     metadata (client_id, discovery URL, etc.) is returned.
-         */
-        get: operations["admin_get_oauth_providers"];
-        /**
-         * Replace the OAuth provider configuration. Secrets are encrypted at rest and never
-         *     returned in GET responses — only redacted metadata (client_id, etc.) is shown.
-         */
-        put: operations["admin_set_oauth_providers"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Create an impersonation session for any user. Returns a session token that behaves like
+     *     a normal session but carries an `impersonated` flag in issued JWTs. Use this for admin
+     *     support workflows — not for production automation.
+     */
+    post: operations["create_impersonation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/oauth-providers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Look up a user by primary email address. Returns 400 if the `email` query parameter
-         *     is omitted.
-         */
-        get: operations["admin_search_users"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get the current OAuth provider configuration. Secrets are redacted — only public
+     *     metadata (client_id, discovery URL, etc.) is returned.
+     */
+    get: operations["admin_get_oauth_providers"];
+    /**
+     * Replace the OAuth provider configuration. Secrets are encrypted at rest and never
+     *     returned in GET responses — only redacted metadata (client_id, etc.) is shown.
+     */
+    put: operations["admin_set_oauth_providers"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/users/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Look up a user by ID. */
-        get: operations["admin_get_user"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Look up a user by primary email address. Returns 400 if the `email` query parameter
+     *     is omitted.
+     */
+    get: operations["admin_search_users"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/users/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/admin/users/{id}/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Revoke all active sessions for a user. Idempotent — safe to call when the user
-         *     has no sessions.
-         */
-        delete: operations["admin_delete_user_sessions"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Look up a user by ID. */
+    get: operations["admin_get_user"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/admin/users/{id}/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/checks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Check multiple permissions in a single request. When the parallel-batch pgrx extension
-         *     is loaded, single-hop checks are expanded into atomic (subject, relation, object_type,
-         *     object_id) tuples and evaluated in one BFS issuing D+1 SQL queries — independent of N.
-         *     Multi-hop permissions and deployments without the extension fall back to UNNEST grouping
-         *     (same path as POST /v1/authz/decisions).
-         */
-        post: operations["post_checks"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Revoke all active sessions for a user. Idempotent — safe to call when the user
+     *     has no sessions.
+     */
+    delete: operations["admin_delete_user_sessions"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/checks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/decisions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check whether the current session user (or an explicit user) has a permission
-         *     on a resource. Uses a bundled session-validation + authz CTE for one DB round-trip
-         *     when checking the current session user.
-         */
-        get: operations["check_permission"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Check multiple permissions in a single request. When the parallel-batch pgrx extension
+     *     is loaded, single-hop checks are expanded into atomic (subject, relation, object_type,
+     *     object_id) tuples and evaluated in one BFS issuing D+1 SQL queries — independent of N.
+     *     Multi-hop permissions and deployments without the extension fall back to UNNEST grouping
+     *     (same path as POST /v1/authz/decisions).
+     */
+    post: operations["post_checks"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/objects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List all objects of the given type that the current user (or an explicit user)
-         *     can access via the resolved roles for a permission. Includes both direct role
-         *     assignments and access granted via parent hierarchy.
-         */
-        get: operations["list_objects"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Check whether the current session user (or an explicit user) has a permission
+     *     on a resource. Uses a bundled session-validation + authz CTE for one DB round-trip
+     *     when checking the current session user.
+     */
+    get: operations["check_permission"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/objects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/relations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Write a single relation tuple. Idempotent — duplicate writes are silently ignored. */
-        post: operations["write_relation"];
-        /** Delete a single relation tuple. */
-        delete: operations["delete_relation"];
-        options?: never;
-        head?: never;
-        /** Batch write and/or delete relation tuples in a single transaction. */
-        patch: operations["batch_relations"];
-        trace?: never;
+    /**
+     * List all objects of the given type that the current user (or an explicit user)
+     *     can access via the resolved roles for a permission. Includes both direct role
+     *     assignments and access granted via parent hierarchy.
+     */
+    get: operations["list_objects"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/relations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/schema": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the current authz schema. Returns null if authz is not enabled. */
-        get: operations["get_schema"];
-        /**
-         * Replace the authz schema. Validates and compiles before persisting.
-         *     Setting schema to a valid document enables authz; this is the only way to enable it.
-         */
-        put: operations["put_schema"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Write a single relation tuple. Idempotent — duplicate writes are silently ignored. */
+    post: operations["write_relation"];
+    /** Delete a single relation tuple. */
+    delete: operations["delete_relation"];
+    options?: never;
+    head?: never;
+    /** Batch write and/or delete relation tuples in a single transaction. */
+    patch: operations["batch_relations"];
+    trace?: never;
+  };
+  "/v1/authz/schema": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/subjects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List all subjects with a given permission on a resource. Resolves through the
-         *     schema's role hierarchy to return every subject who can exercise the permission.
-         *     Only direct role assignments are expanded; access via parent hierarchy is not
-         *     included (use GET /v1/authz/objects from the subject's perspective for that).
-         */
-        get: operations["list_subjects"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get the current authz schema. Returns null if authz is not enabled. */
+    get: operations["get_schema"];
+    /**
+     * Replace the authz schema. Validates and compiles before persisting.
+     *     Setting schema to a valid document enables authz; this is the only way to enable it.
+     */
+    put: operations["put_schema"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/subjects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/authz/traces": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Explain why a permission check returned its result. Runs expand on all direct
-         *     role relations and reports which subjects appear, letting you trace a grant or
-         *     denial. Note: access granted purely via parent hierarchy is not reflected here.
-         */
-        get: operations["why_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List all subjects with a given permission on a resource. Resolves through the
+     *     schema's role hierarchy to return every subject who can exercise the permission.
+     *     Only direct role assignments are expanded; access via parent hierarchy is not
+     *     included (use GET /v1/authz/objects from the subject's perspective for that).
+     */
+    get: operations["list_subjects"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/authz/traces": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/emails": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all email addresses associated with the authenticated user. */
-        get: operations["list_emails"];
-        put?: never;
-        /**
-         * Initiate a primary email address change. Returns a one-time token that the caller must
-         *     exchange via `POST /v1/sessions` with `grant_type=email_change`. The address is not
-         *     changed until the token is consumed. Returns 409 if the address is already registered.
-         */
-        post: operations["initiate_email_change"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Explain why a permission check returned its result. Runs expand on all direct
+     *     role relations and reports which subjects appear, letting you trace a grant or
+     *     denial. Note: access granted purely via parent hierarchy is not reflected here.
+     */
+    get: operations["why_check"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/emails": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/emails/verifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm email ownership using the token issued by `POST /v1/emails/{id}/verifications`.
-         *     Unauthenticated — the token itself identifies the user and email. Single-use; expires in 24 hours.
-         */
-        post: operations["confirm_email_verification"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List all email addresses associated with the authenticated user. */
+    get: operations["list_emails"];
+    put?: never;
+    /**
+     * Initiate a primary email address change. Returns a one-time token that the caller must
+     *     exchange via `POST /v1/sessions` with `grant_type=email_change`. The address is not
+     *     changed until the token is consumed. Returns 409 if the address is already registered.
+     */
+    post: operations["initiate_email_change"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/emails/verifications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/emails/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Promote a verified email address to primary. The address must belong to the authenticated
-         *     user and must already be verified. Returns 404 if not found or not yet verified.
-         */
-        put: operations["set_primary_email"];
-        post?: never;
-        /**
-         * Remove a non-primary email address. Returns 409 if the caller tries to delete their
-         *     primary address — use `PUT /v1/emails/{id}` to promote another address first.
-         */
-        delete: operations["remove_email"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Confirm email ownership using the token issued by `POST /v1/emails/{id}/verifications`.
+     *     Unauthenticated — the token itself identifies the user and email. Single-use; expires in 24 hours.
+     */
+    post: operations["confirm_email_verification"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/emails/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/emails/{id}/verifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Issue a verification token for an unverified email address. The caller is expected to
-         *     deliver this token to the user (e.g. via email) and have them confirm it via
-         *     `POST /v1/emails/verifications`. Returns 404 if the address doesn't exist or is already verified.
-         */
-        post: operations["create_email_verification"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /**
+     * Promote a verified email address to primary. The address must belong to the authenticated
+     *     user and must already be verified. Returns 404 if not found or not yet verified.
+     */
+    put: operations["set_primary_email"];
+    post?: never;
+    /**
+     * Remove a non-primary email address. Returns 409 if the caller tries to delete their
+     *     primary address — use `PUT /v1/emails/{id}` to promote another address first.
+     */
+    delete: operations["remove_email"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/emails/{id}/verifications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/identities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List all authentication methods (identities) attached to the authenticated user.
-         *     Each identity represents one way the user can log in: a password, or a linked OAuth provider.
-         */
-        get: operations["list_identities"];
-        put?: never;
-        /**
-         * Add a password identity to an account that has none. Useful when a user signed up via
-         *     OAuth and wants to enable password login. Returns 409 if a password identity already exists.
-         */
-        post: operations["add_password_identity"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Issue a verification token for an unverified email address. The caller is expected to
+     *     deliver this token to the user (e.g. via email) and have them confirm it via
+     *     `POST /v1/emails/verifications`. Returns 404 if the address doesn't exist or is already verified.
+     */
+    post: operations["create_email_verification"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/identities": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/identities/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Unlink an authentication method. Returns 409 if this is the last identity — at least
-         *     one must remain so the user can still log in.
-         */
-        delete: operations["unlink_identity"];
-        options?: never;
-        head?: never;
-        /**
-         * Change the password for a password identity. Requires the current password. On success,
-         *     all sessions except the current one are revoked.
-         */
-        patch: operations["update_identity"];
-        trace?: never;
+    /**
+     * List all authentication methods (identities) attached to the authenticated user.
+     *     Each identity represents one way the user can log in: a password, or a linked OAuth provider.
+     */
+    get: operations["list_identities"];
+    put?: never;
+    /**
+     * Add a password identity to an account that has none. Useful when a user signed up via
+     *     OAuth and wants to enable password login. Returns 409 if a password identity already exists.
+     */
+    post: operations["add_password_identity"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/identities/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/invitations/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Look up an invitation by ID and token. Unauthenticated — intended for pre-acceptance
-         *     display (show the org name and role before asking the user to log in). Returns 404 if
-         *     the invitation doesn't exist, is expired, or the token is wrong.
-         */
-        get: operations["get_invitation"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Unlink an authentication method. Returns 409 if this is the last identity — at least
+     *     one must remain so the user can still log in.
+     */
+    delete: operations["unlink_identity"];
+    options?: never;
+    head?: never;
+    /**
+     * Change the password for a password identity. Requires the current password. On success,
+     *     all sessions except the current one are revoked.
+     */
+    patch: operations["update_identity"];
+    trace?: never;
+  };
+  "/v1/invitations/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/invitations/{id}/acceptances": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Accept an invitation. The authenticated user is added to the org with the invitation's
-         *     role. The invitation token is consumed and cannot be reused. Returns 409 if already a member.
-         */
-        post: operations["accept_invitation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Look up an invitation by ID and token. Unauthenticated — intended for pre-acceptance
+     *     display (show the org name and role before asking the user to log in). Returns 404 if
+     *     the invitation doesn't exist, is expired, or the token is wrong.
+     */
+    get: operations["get_invitation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/{id}/acceptances": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/invitations/{id}/declinations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decline an invitation. The token is consumed and the invitation is removed.
-         *     Unauthenticated — the token in the query string is sufficient.
-         */
-        post: operations["decline_invitation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Accept an invitation. The authenticated user is added to the org with the invitation's
+     *     role. The invitation token is consumed and cannot be reused. Returns 409 if already a member.
+     */
+    post: operations["accept_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/{id}/declinations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/jwks.json": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The active JWT signing public keys in JWK Set format. Cached for 1 hour (`Cache-Control: public, max-age=3600`).
-         *     Use this endpoint to verify JWTs issued by `POST /v1/tokens`.
-         */
-        get: operations["jwks"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Decline an invitation. The token is consumed and the invitation is removed.
+     *     Unauthenticated — the token in the query string is sufficient.
+     */
+    post: operations["decline_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/jwks.json": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/keys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List all API keys for the authenticated user. Bearer token values are never returned
-         *     — only metadata (ID, name, created/used/expires timestamps).
-         */
-        get: operations["list_keys"];
-        put?: never;
-        /**
-         * Create an API key for the authenticated user. The full bearer token is returned in
-         *     `key` and is shown only once — store it immediately. Subsequent reads return only metadata.
-         */
-        post: operations["create_key"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * The active JWT signing public keys in JWK Set format. Cached for 1 hour (`Cache-Control: public, max-age=3600`).
+     *     Use this endpoint to verify JWTs issued by `POST /v1/tokens`.
+     */
+    get: operations["jwks"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/keys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/keys/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get metadata for a single API key. */
-        get: operations["get_key"];
-        put?: never;
-        post?: never;
-        /** Revoke an API key. The key is immediately invalid for authentication. */
-        delete: operations["delete_key"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List all API keys for the authenticated user. Bearer token values are never returned
+     *     — only metadata (ID, name, created/used/expires timestamps).
+     */
+    get: operations["list_keys"];
+    put?: never;
+    /**
+     * Create an API key for the authenticated user. The full bearer token is returned in
+     *     `key` and is shown only once — store it immediately. Subsequent reads return only metadata.
+     */
+    post: operations["create_key"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/keys/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/magic-links": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Issue a passwordless magic-link token for the given email address. The caller is
-         *     responsible for delivering the token to the user (e.g. via email). The token is
-         *     exchanged for a session via `POST /v1/sessions` with `grant_type=magic_link`.
-         *     Expires in 15 minutes. Returns 404 if no account exists for the address.
-         */
-        post: operations["create_magic_link"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get metadata for a single API key. */
+    get: operations["get_key"];
+    put?: never;
+    post?: never;
+    /** Revoke an API key. The key is immediately invalid for authentication. */
+    delete: operations["delete_key"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/magic-links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/oauth/apple/callback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Apple Sign-In callback. Apple uses a POST form submission instead of a GET redirect,
-         *     so this is a separate endpoint. Behavior is identical to `GET /v1/oauth/{provider}/callback`.
-         */
-        post: operations["apple_oauth_callback"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Issue a passwordless magic-link token for the given email address. The caller is
+     *     responsible for delivering the token to the user (e.g. via email). The token is
+     *     exchanged for a session via `POST /v1/sessions` with `grant_type=magic_link`.
+     *     Expires in 15 minutes. Returns 404 if no account exists for the address.
+     */
+    post: operations["create_magic_link"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/oauth/apple/callback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/oauth/{provider}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Start an OAuth authorization flow. Returns the provider's authorization URL.
-         *     If the caller includes a valid session Bearer token, the resulting identity will be
-         *     linked to that account instead of creating a new session.
-         */
-        get: operations["oauth_authorize"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Apple Sign-In callback. Apple uses a POST form submission instead of a GET redirect,
+     *     so this is a separate endpoint. Behavior is identical to `GET /v1/oauth/{provider}/callback`.
+     */
+    post: operations["apple_oauth_callback"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/oauth/{provider}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/oauth/{provider}/callback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * OAuth authorization callback. Exchanges the provider code for a profile, then either
-         *     creates a new session (login) or links the identity to the authenticated user (link flow).
-         *     When TOTP is enrolled, returns a step-up challenge instead of a session token.
-         *     Returns 409 if the OAuth identity is already claimed by a different user.
-         */
-        get: operations["oauth_callback"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Start an OAuth authorization flow. Returns the provider's authorization URL.
+     *     If the caller includes a valid session Bearer token, the resulting identity will be
+     *     linked to that account instead of creating a new session.
+     */
+    get: operations["oauth_authorize"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/oauth/{provider}/callback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all orgs the authenticated user is a member of, cursor-paginated. */
-        get: operations["list_orgs"];
-        put?: never;
-        /**
-         * Create a new organization. The authenticated user becomes the owner.
-         *     Returns 409 if the slug is already taken.
-         */
-        post: operations["create_org"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * OAuth authorization callback. Exchanges the provider code for a profile, then either
+     *     creates a new session (login) or links the identity to the authenticated user (link flow).
+     *     When TOTP is enrolled, returns a step-up challenge instead of a session token.
+     *     Returns 409 if the OAuth identity is already claimed by a different user.
+     */
+    get: operations["oauth_callback"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an org by ID. Returns 403 if the authenticated user is not a member. */
-        get: operations["get_org"];
-        put?: never;
-        post?: never;
-        /**
-         * Soft-delete an org. Requires owner role. Returns 409 if this is the user's personal org
-         *     (personal orgs are deleted via `DELETE /v1/users/me`).
-         */
-        delete: operations["delete_org"];
-        options?: never;
-        head?: never;
-        /** Update an org. Requires owner role. Only fields present in the body are changed. */
-        patch: operations["update_org"];
-        trace?: never;
+    /** List all orgs the authenticated user is a member of, cursor-paginated. */
+    get: operations["list_orgs"];
+    put?: never;
+    /**
+     * Create a new organization. The authenticated user becomes the owner.
+     *     Returns 409 if the slug is already taken.
+     */
+    post: operations["create_org"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs/{id}/invitations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List pending invitations for an org, cursor-paginated. Requires owner.
-         *     Tokens are not included in list responses — only in creation and resend responses.
-         */
-        get: operations["list_org_invitations"];
-        put?: never;
-        /**
-         * Create an invitation. Requires owner. The response includes a one-time `token` — deliver
-         *     it to the invitee so they can call `POST /v1/invitations/{id}/acceptances`. Returns 409
-         *     if a pending invitation already exists for the same email.
-         */
-        post: operations["create_invitation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get an org by ID. Returns 403 if the authenticated user is not a member. */
+    get: operations["get_org"];
+    put?: never;
+    post?: never;
+    /**
+     * Soft-delete an org. Requires owner role. Returns 409 if this is the user's personal org
+     *     (personal orgs are deleted via `DELETE /v1/users/me`).
+     */
+    delete: operations["delete_org"];
+    options?: never;
+    head?: never;
+    /** Update an org. Requires owner role. Only fields present in the body are changed. */
+    patch: operations["update_org"];
+    trace?: never;
+  };
+  "/v1/orgs/{id}/invitations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs/{id}/invitations/{inv_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke an invitation. The token is immediately invalidated. Requires owner. */
-        delete: operations["revoke_invitation"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List pending invitations for an org, cursor-paginated. Requires owner.
+     *     Tokens are not included in list responses — only in creation and resend responses.
+     */
+    get: operations["list_org_invitations"];
+    put?: never;
+    /**
+     * Create an invitation. Requires owner. The response includes a one-time `token` — deliver
+     *     it to the invitee so they can call `POST /v1/invitations/{id}/acceptances`. Returns 409
+     *     if a pending invitation already exists for the same email.
+     */
+    post: operations["create_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/invitations/{inv_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs/{id}/invitations/{inv_id}/resends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Re-issue an invitation token. Invalidates the previous token and returns a fresh one.
-         *     Use this when the original token expires or is lost. Requires owner.
-         */
-        post: operations["resend_invitation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revoke an invitation. The token is immediately invalidated. Requires owner. */
+    delete: operations["revoke_invitation"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/invitations/{inv_id}/resends": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs/{id}/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List members of an org, cursor-paginated. Requires membership. */
-        get: operations["list_org_members"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Re-issue an invitation token. Invalidates the previous token and returns a fresh one.
+     *     Use this when the original token expires or is lost. Requires owner.
+     */
+    post: operations["resend_invitation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/orgs/{id}/members/{member_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Remove a member from an org. A user can remove themselves with only membership; removing
-         *     another member requires owner. Returns 409 if removing would leave the org with no owners.
-         */
-        delete: operations["remove_org_member"];
-        options?: never;
-        head?: never;
-        /**
-         * Update a member's role. Requires owner. Returns 409 if the change would leave the org
-         *     with no owners.
-         */
-        patch: operations["update_org_member"];
-        trace?: never;
+    /** List members of an org, cursor-paginated. Requires membership. */
+    get: operations["list_org_members"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{id}/members/{member_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/passkey-authentications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Begin WebAuthn passkey authentication (discoverable credential flow). Returns `options`
-         *     for `navigator.credentials.get()` and a `state_token`. Complete authentication by
-         *     posting `state_token` + credential to `POST /v1/sessions` with `grant_type=passkey`.
-         *     Unauthenticated — no bearer token required.
-         */
-        post: operations["begin_passkey_authentication"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Remove a member from an org. A user can remove themselves with only membership; removing
+     *     another member requires owner. Returns 409 if removing would leave the org with no owners.
+     */
+    delete: operations["remove_org_member"];
+    options?: never;
+    head?: never;
+    /**
+     * Update a member's role. Requires owner. Returns 409 if the change would leave the org
+     *     with no owners.
+     */
+    patch: operations["update_org_member"];
+    trace?: never;
+  };
+  "/v1/passkey-authentications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/passkey-registrations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Begin WebAuthn passkey registration. Returns a `options` object to pass directly to
-         *     `navigator.credentials.create()` and a `state_token` to include in the subsequent
-         *     `POST /v1/passkeys` finish call. Two-step: begin here, finish with `POST /v1/passkeys`.
-         */
-        post: operations["begin_passkey_registration"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Begin WebAuthn passkey authentication (discoverable credential flow). Returns `options`
+     *     for `navigator.credentials.get()` and a `state_token`. Complete authentication by
+     *     posting `state_token` + credential to `POST /v1/sessions` with `grant_type=passkey`.
+     *     Unauthenticated — no bearer token required.
+     */
+    post: operations["begin_passkey_authentication"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/passkey-registrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/passkeys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all registered passkey credentials for the authenticated user. */
-        get: operations["list_passkeys"];
-        put?: never;
-        /**
-         * Complete passkey registration. Submit the `state_token` from `POST /v1/passkey-registrations`
-         *     and the `PublicKeyCredential` response from `navigator.credentials.create()`.
-         *     The registered credential can then be used to authenticate via `POST /v1/passkey-authentications`.
-         */
-        post: operations["create_passkey"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Begin WebAuthn passkey registration. Returns a `options` object to pass directly to
+     *     `navigator.credentials.create()` and a `state_token` to include in the subsequent
+     *     `POST /v1/passkeys` finish call. Two-step: begin here, finish with `POST /v1/passkeys`.
+     */
+    post: operations["begin_passkey_registration"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/passkeys": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/passkeys/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete a registered passkey credential. The credential can no longer be used to authenticate. */
-        delete: operations["delete_passkey"];
-        options?: never;
-        head?: never;
-        /** Update the nickname of a registered passkey credential. */
-        patch: operations["update_passkey"];
-        trace?: never;
+    /** List all registered passkey credentials for the authenticated user. */
+    get: operations["list_passkeys"];
+    put?: never;
+    /**
+     * Complete passkey registration. Submit the `state_token` from `POST /v1/passkey-registrations`
+     *     and the `PublicKeyCredential` response from `navigator.credentials.create()`.
+     *     The registered credential can then be used to authenticate via `POST /v1/passkey-authentications`.
+     */
+    post: operations["create_passkey"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/passkeys/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/password-resets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Issue a password-reset token for the given email address. The caller is responsible
-         *     for delivering the token to the user. The token is exchanged — along with a new password
-         *     — via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all
-         *     existing sessions. Expires in 15 minutes. Always returns 200 — when no matching account
-         *     or password identity exists, a syntactically-valid but unstored token is returned so that
-         *     callers cannot distinguish registered from unregistered addresses.
-         */
-        post: operations["create_password_reset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a registered passkey credential. The credential can no longer be used to authenticate. */
+    delete: operations["delete_passkey"];
+    options?: never;
+    head?: never;
+    /** Update the nickname of a registered passkey credential. */
+    patch: operations["update_passkey"];
+    trace?: never;
+  };
+  "/v1/password-resets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all active sessions for the authenticated user. The current session is included. */
-        get: operations["list_sessions"];
-        put?: never;
-        /**
-         * Authenticate and create a session. The `grant_type` field in the request body selects
-         *     the credential flow. On success, returns 201 with a session token. When the account has
-         *     TOTP enrolled and the grant type supports MFA, returns 200 with a `step_up_token` —
-         *     the caller must then re-POST with `grant_type=totp_step_up` to complete authentication.
-         */
-        post: operations["create_session"];
-        /**
-         * Revoke all sessions for the authenticated user. Use `except_current=true` to keep
-         *     the current session active (e.g. "sign out everywhere else").
-         */
-        delete: operations["delete_all_sessions"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Issue a password-reset token for the given email address. The caller is responsible
+     *     for delivering the token to the user. The token is exchanged — along with a new password
+     *     — via `POST /v1/sessions` with `grant_type=password_reset`, which also invalidates all
+     *     existing sessions. Expires in 15 minutes. Always returns 200 — when no matching account
+     *     or password identity exists, a syntactically-valid but unstored token is returned so that
+     *     callers cannot distinguish registered from unregistered addresses.
+     */
+    post: operations["create_password_reset"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/sessions/current": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Return details about the session that authenticated the current request. */
-        get: operations["get_current_session"];
-        put?: never;
-        post?: never;
-        /**
-         * Revoke the session that authenticated the current request. The bearer token becomes
-         *     immediately invalid. Idempotent — safe to call if the session is already gone.
-         */
-        delete: operations["revoke_current_session"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List all active sessions for the authenticated user. The current session is included. */
+    get: operations["list_sessions"];
+    put?: never;
+    /**
+     * Authenticate and create a session. The `grant_type` field in the request body selects
+     *     the credential flow. On success, returns 201 with a session token. When the account has
+     *     TOTP enrolled and the grant type supports MFA, returns 200 with a `step_up_token` —
+     *     the caller must then re-POST with `grant_type=totp_step_up` to complete authentication.
+     */
+    post: operations["create_session"];
+    /**
+     * Revoke all sessions for the authenticated user. Use `except_current=true` to keep
+     *     the current session active (e.g. "sign out everywhere else").
+     */
+    delete: operations["delete_all_sessions"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/current": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/sessions/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Revoke a specific session by ID. The caller can only revoke their own sessions;
-         *     attempting to revoke another user's session returns 404 (not 403) to prevent enumeration.
-         */
-        delete: operations["revoke_session"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Return details about the session that authenticated the current request. */
+    get: operations["get_current_session"];
+    put?: never;
+    post?: never;
+    /**
+     * Revoke the session that authenticated the current request. The bearer token becomes
+     *     immediately invalid. Idempotent — safe to call if the session is already gone.
+     */
+    delete: operations["revoke_current_session"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/tokens": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * POST /v1/tokens — issue a short-lived JWT access token.
-         * @description Accepts any valid bearer credential in `Authorization`:
-         *     - **Session token** (`session_…`) — issues JWT + a fresh refresh token.
-         *     - **Refresh token** (`rt_…`) — rotates the refresh token and issues a new JWT.
-         *     - **API key** (`key_…`) — issues JWT only (no refresh token).
-         *
-         *     Requires `jwt_enabled = true` in app_config; returns 400 otherwise.
-         *     An optional JSON body may carry `claims` — a flat object of key/value pairs
-         *     merged into the JWT payload after all reserved claims are set.
-         */
-        post: operations["issue"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Revoke a specific session by ID. The caller can only revoke their own sessions;
+     *     attempting to revoke another user's session returns 404 (not 403) to prevent enumeration.
+     */
+    delete: operations["revoke_session"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/tokens": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/totp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Begin TOTP enrollment. Returns the secret and a QR code data URL. Enrollment is not
-         *     active until confirmed via `POST /v1/totp/confirmations`. Calling this again before
-         *     confirming replaces the pending enrollment.
-         */
-        post: operations["begin_totp_enrollment"];
-        /**
-         * Disable TOTP for the authenticated user. Future logins will no longer require a step-up
-         *     challenge. All recovery codes are also invalidated.
-         */
-        delete: operations["disable_totp"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * POST /v1/tokens — issue a short-lived JWT access token.
+     * @description Accepts any valid bearer credential in `Authorization`:
+     *     - **Session token** (`session_…`) — issues JWT + a fresh refresh token.
+     *     - **Refresh token** (`rt_…`) — rotates the refresh token and issues a new JWT.
+     *     - **API key** (`key_…`) — issues JWT only (no refresh token).
+     *
+     *     Requires `jwt_enabled = true` in app_config; returns 400 otherwise.
+     *     An optional JSON body may carry `claims` — a flat object of key/value pairs
+     *     merged into the JWT payload after all reserved claims are set.
+     */
+    post: operations["issue"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/totp": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/totp/confirmations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm TOTP enrollment by verifying a live code from the authenticator app. After this
-         *     call, TOTP is active and future logins will require a step-up challenge.
-         */
-        post: operations["confirm_totp_enrollment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Begin TOTP enrollment. Returns the secret and a QR code data URL. Enrollment is not
+     *     active until confirmed via `POST /v1/totp/confirmations`. Calling this again before
+     *     confirming replaces the pending enrollment.
+     */
+    post: operations["begin_totp_enrollment"];
+    /**
+     * Disable TOTP for the authenticated user. Future logins will no longer require a step-up
+     *     challenge. All recovery codes are also invalidated.
+     */
+    delete: operations["disable_totp"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/totp/confirmations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/totp/recovery-codes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Regenerate TOTP recovery codes. Requires a valid TOTP code to prove the authenticator
-         *     app is still accessible. All existing recovery codes are invalidated and replaced.
-         */
-        post: operations["regenerate_totp_recovery_codes"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Confirm TOTP enrollment by verifying a live code from the authenticator app. After this
+     *     call, TOTP is active and future logins will require a step-up challenge.
+     */
+    post: operations["confirm_totp_enrollment"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/totp/recovery-codes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register a new user with email and password. Creates the user, a personal org, and
-         *     a session in a single transaction. Returns 409 if the email is already registered.
-         */
-        post: operations["create_user"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Regenerate TOTP recovery codes. Requires a valid TOTP code to prove the authenticator
+     *     app is still accessible. All existing recovery codes are invalidated and replaced.
+     */
+    post: operations["regenerate_totp_recovery_codes"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/users/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Return the authenticated user's profile, primary email, and personal org. */
-        get: operations["get_me"];
-        put?: never;
-        post?: never;
-        /**
-         * Soft-delete the authenticated user and their personal org. All active sessions are
-         *     invalidated immediately. This action is permanent — deleted accounts cannot be recovered.
-         */
-        delete: operations["delete_me"];
-        options?: never;
-        head?: never;
-        /** Update the authenticated user's profile. Only fields present in the request body are changed. */
-        patch: operations["update_me"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Register a new user with email and password. Creates the user, a personal org, and
+     *     a session in a single transaction. Returns 409 if the email is already registered.
+     */
+    post: operations["create_user"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/users/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    /** Return the authenticated user's profile, primary email, and personal org. */
+    get: operations["get_me"];
+    put?: never;
+    post?: never;
+    /**
+     * Soft-delete the authenticated user and their personal org. All active sessions are
+     *     invalidated immediately. This action is permanent — deleted accounts cannot be recovered.
+     */
+    delete: operations["delete_me"];
+    options?: never;
+    head?: never;
+    /** Update the authenticated user's profile. Only fields present in the request body are changed. */
+    patch: operations["update_me"];
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /**
-         * @description Request to add a password identity to an account that currently has none
-         *     (e.g. a user who signed up via OAuth and wants to add password login).
-         */
-        AddPasswordRequest: {
-            password: string;
-        };
-        /** @description Request to initiate a primary email address change. */
-        AddRequest: {
-            /** @description The new email address to switch to. Must not already be registered to any user. */
-            email: string;
-        };
-        AdminOAuthRequest: {
-            apple: Record<string, unknown> | null;
-            /** @description When true, OAuth identities are linked to existing accounts with the same email. */
-            email_link?: boolean | null;
-            github: Record<string, unknown> | null;
-            google: Record<string, unknown> | null;
-            microsoft: Record<string, unknown> | null;
-            oidc: Record<string, unknown>[] | null;
-        };
-        AdminOAuthResponse: {
-            apple?: null | components["schemas"]["AppleRedacted"];
-            email_link: boolean;
-            github?: null | components["schemas"]["GithubRedacted"];
-            google?: null | components["schemas"]["GoogleRedacted"];
-            microsoft?: null | components["schemas"]["MicrosoftRedacted"];
-            oidc?: components["schemas"]["OidcRedacted"][] | null;
-        };
-        /** @description Full user record returned to admin callers. */
-        AdminUserResponse: {
-            /** Format: date-time */
-            created_at: string;
-            /**
-             * Format: date-time
-             * @description Set when the user has been soft-deleted; null for active accounts.
-             */
-            deleted_at?: string | null;
-            email?: string | null;
-            /** Format: date-time */
-            email_verified_at?: string | null;
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            primary_email_id: string;
-            /** Format: uuid */
-            primary_org_id: string;
-        };
-        AppleCallbackForm: {
-            code: string;
-            state: string;
-            /** @description JSON-encoded user object Apple sends on first sign-in (name fields). */
-            user?: string | null;
-        };
-        AppleRedacted: {
-            client_id: string;
-            key_id: string;
-            team_id: string;
-        };
-        /**
-         * @description Returned on successful login or signup. Contains the new session alongside the user,
-         *     primary email, and personal org context.
-         */
-        AuthResponse: {
-            email: components["schemas"]["EmailBody"];
-            org: components["schemas"]["OrgBody"];
-            session: components["schemas"]["SessionBody"];
-            user: components["schemas"]["UserBody"];
-        };
-        AuthorizeResponse: {
-            /** @description Full OAuth authorization URL — navigate the browser here to start the flow. */
-            url: string;
-        };
-        AuthzSchema: {
-            resources: components["schemas"]["ResourceDef"][];
-            subject_types?: string[];
-            /** Format: int32 */
-            version: number;
-        };
-        BatchDecisionRequest: {
-            checks: components["schemas"]["DecisionCheck"][];
-        };
-        BatchDecisionResponse: {
-            /** @description Results in the same order as the input `checks`. */
-            results: components["schemas"]["CheckResult"][];
-        };
-        /** @description Batch of relation tuples to write and/or delete in a single transaction. */
-        BatchRequest: {
-            /** @description Relation tuples to delete. Missing deletes are silently ignored. */
-            deletes?: components["schemas"]["RelationRequest"][];
-            /** @description Relation tuples to create. Duplicate writes are silently ignored. */
-            writes?: components["schemas"]["RelationRequest"][];
-        };
-        /** @description Result counts from a batch relation operation. */
-        BatchResponse: {
-            /** Format: int64 */
-            deleted: number;
-            /** Format: int64 */
-            written: number;
-        };
-        BeginResponse: {
-            /** @description WebAuthn options object — pass directly to the browser's WebAuthn API. */
-            options: Record<string, unknown>;
-            /** @description Opaque state token; include in the corresponding finish request. */
-            state_token: string;
-        };
-        /** @description Session token returned after a successful OAuth login callback. */
-        CallbackResponse: {
-            /** Format: date-time */
-            expires_at: string;
-            /** @description Opaque session bearer token. Use as `Authorization: Bearer <token>`. */
-            token: string;
-        };
-        /** @description Result of a single permission check. */
-        CheckResponse: {
-            /** @description True if the subject has the requested permission on the resource. */
-            allowed: boolean;
-        };
-        /** @description Result of one item in a batch permission check, ordered to match the input. */
-        CheckResult: {
-            /** @description True if the subject has the requested permission on the resource. */
-            allowed: boolean;
-        };
-        ChecksItem: {
-            /** @description Permission name as defined in the authz schema. */
-            permission: string;
-            /** @description ID of the resource instance to check against. */
-            resource_id: string;
-            /** @description Resource type as defined in the authz schema. */
-            resource_type: string;
-            /** @description Explicit subject to check as. Defaults to the current session user. */
-            user?: string | null;
-        };
-        ChecksRequest: {
-            checks: components["schemas"]["ChecksItem"][];
-        };
-        ChecksResponse: {
-            /** @description Results in the same order as the input `checks`. */
-            results: components["schemas"]["CheckResult"][];
-        };
-        /** @description Current runtime configuration values. */
-        ConfigResponse: {
-            /** @description Whether `POST /v1/tokens` is enabled for JWT issuance. */
-            jwt_enabled: boolean;
-            /**
-             * Format: int32
-             * @description Seconds of inactivity before a session expires. Null means no idle timeout.
-             */
-            session_idle_timeout_seconds?: number | null;
-        };
-        /** @description Request body for TOTP confirmation and recovery-code regeneration. */
-        ConfirmRequest: {
-            /** @description Current 6-digit TOTP code from the authenticator app. */
-            code: string;
-        };
-        /** @description Token-based confirmation of email ownership. */
-        ConfirmVerificationRequest: {
-            /** @description The plaintext verification token from `POST /v1/emails/{id}/verifications`. */
-            token: string;
-        };
-        /** @description Returned when email verification succeeds. */
-        ConfirmVerificationResponse: {
-            /** Format: date-time */
-            verified_at: string;
-        };
-        /** @description Request to create an invitation to the org. */
-        CreateInvitationRequest: {
-            /**
-             * @description Email address to address the invitation to. Omit for an open link invitation
-             *     that any user can accept.
-             */
-            email?: string | null;
-            /** @description Role the invitee will receive on acceptance. */
-            role: string;
-        };
-        /** @description Request to create a new organization. */
-        CreateOrgRequest: {
-            metadata?: unknown;
-            name: string;
-            /** @description URL-safe identifier. Defaults to a slugified version of `name` if omitted. */
-            slug?: string | null;
-        };
-        CreateRequest: {
-            /**
-             * Format: date-time
-             * @description When the key expires. Defaults to 100 years from now (effectively never).
-             */
-            expires_at?: string | null;
-            name: string;
-        };
-        /** @description Returned only on creation — the `key` field is never shown again. */
-        CreateResponse: components["schemas"]["Key"] & {
-            /** @description The full bearer token. Store it now — it cannot be retrieved later. */
-            key: string;
-        };
-        CredentialRecord: {
-            /** Format: date-time */
-            created_at: string;
-            /** Format: uuid */
-            id: string;
-            /** Format: date-time */
-            last_used_at?: string | null;
-            nickname?: string | null;
-        };
-        /** @description Details of the session that authenticated the current request. */
-        CurrentSessionResponse: {
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-            /**
-             * Format: uuid
-             * @description Session ID.
-             */
-            id: string;
-            /** @description IP address recorded at session creation, if available. */
-            ip_address?: string | null;
-            /**
-             * Format: date-time
-             * @description Time the bearer token was last presented, updated on each authenticated request.
-             */
-            last_used_at?: string | null;
-            /**
-             * Format: uuid
-             * @description ID of the underlying bearer token used to authenticate this request.
-             */
-            token_id: string;
-            /** @description User-Agent recorded at session creation, if available. */
-            user_agent?: string | null;
-        };
-        DecisionCheck: {
-            permission: string;
-            resource_id: string;
-            resource_type: string;
-            /** @description Explicit subject to check as. Defaults to the current session user. */
-            user?: string | null;
-        };
-        /** @description Primary email address for the user. */
-        EmailBody: {
-            email: string;
-            /** Format: uuid */
-            id: string;
-            /**
-             * Format: date-time
-             * @description Null if the address has not been verified.
-             */
-            verified_at?: string | null;
-        };
-        /** @description An email address belonging to the authenticated user. */
-        EmailRecord: {
-            email: string;
-            /** Format: uuid */
-            id: string;
-            /** @description True for the address that appears in `AuthResponse.email` and receives system emails. */
-            is_primary: boolean;
-            /**
-             * Format: date-time
-             * @description Null if the address has not been verified yet.
-             */
-            verified_at?: string | null;
-        };
-        /**
-         * @description TOTP enrollment data returned when starting enrollment. Pass `provisioning_uri` or
-         *     `qr_data_url` to an authenticator app, then confirm enrollment with a live TOTP code.
-         */
-        EnrollmentResponse: {
-            /**
-             * Format: uuid
-             * @description Opaque factor identifier.
-             */
-            factor_id: string;
-            /** @description `otpauth://` URI for QR code generation or direct authenticator import. */
-            provisioning_uri: string;
-            /** @description Data URL (`data:image/png;base64,…`) of the provisioning QR code. */
-            qr_data_url: string;
-            /** @description Single-use recovery codes. Store these securely — they are shown only once. */
-            recovery_codes: string[];
-            /** @description Raw TOTP secret in base32 — for manual entry into an authenticator app. */
-            secret_b32: string;
-        };
-        /** @description Wire-format error body returned on all non-2xx responses. */
-        ErrorBody: {
-            /** @description Machine-readable error code, e.g. `"invalid_credentials"`. */
-            code: string;
-            /** @description Optional actionable guidance present on configuration-gate errors. */
-            hint?: string | null;
-            /** @description Human-readable description. */
-            message: string;
-        };
-        /** @description Top-level error envelope for all API error responses. */
-        ErrorResponse: {
-            error: components["schemas"]["ErrorBody"];
-        };
-        FinishRegistrationRequest: {
-            /** @description WebAuthn `PublicKeyCredential` response from the browser. */
-            credential: Record<string, unknown>;
-            nickname?: string | null;
-            state_token: string;
-        };
-        GithubRedacted: {
-            client_id: string;
-        };
-        GoogleRedacted: {
-            client_id: string;
-        };
-        /** @description Health check response. */
-        HealthzResponse: {
-            /** @description `"ok"` when healthy, `"degraded"` when the database is unreachable. */
-            status: string;
-            /** @description Service version from `CARGO_PKG_VERSION`. */
-            version: string;
-        };
-        HierarchyDef: {
-            /** @description The relation name on this resource that points to parent objects. */
-            parent_relation: string;
-            /** @description The resource type of the parent. */
-            parent_resource: string;
-        };
-        IdentitiesResponse: {
-            identities: components["schemas"]["IdentityItem"][];
-        };
-        IdentityItem: {
-            /** Format: date-time */
-            created_at: string;
-            /** @description Human-readable label: email address for password identities, provider slug for OAuth. */
-            display: string;
-            /** Format: uuid */
-            id: string;
-            provider: string;
-        };
-        ImpersonateRequest: {
-            /**
-             * Format: uuid
-             * @description The ID of the user to impersonate.
-             */
-            user_id: string;
-        };
-        /** @description An org invitation. On creation, `token` is populated — it is never returned again. */
-        InvitationResponse: {
-            /** Format: date-time */
-            created_at: string;
-            /** @description Email address the invitation is addressed to, if any. Null for open link invitations. */
-            email?: string | null;
-            /** Format: date-time */
-            expires_at: string;
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            org_id: string;
-            /** @description Role the invitee will receive on acceptance. */
-            role: string;
-            /** @description Plaintext token — only present on creation, never returned again. Deliver this to the invitee. */
-            token?: string | null;
-        };
-        /** @description Public view of an invitation, shown to the invitee before they accept or decline. */
-        InvitationViewResponse: {
-            /** Format: date-time */
-            expires_at: string;
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            org_id: string;
-            org_name: string;
-            /** @description The role the invitee will receive on acceptance. */
-            role: string;
-        };
-        /** @description Cursor-paginated list of pending org invitations. */
-        InvitationsResponse: {
-            invitations: components["schemas"]["InvitationResponse"][];
-            /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
-            next_cursor?: string | null;
-        };
-        IssueRequest: {
-            /**
-             * @description Arbitrary JSON object merged into the JWT payload.
-             *     Reserved keys (`sub`, `iss`, `aud`, `iat`, `nbf`, `exp`, `jti`,
-             *     `impersonated`) are always overwritten by the service and cannot be
-             *     supplied here.
-             */
-            claims?: Record<string, unknown> | null;
-        };
-        /** @description A single JSON Web Key (Ed25519 public key in JWK format). */
-        Jwk: {
-            /** @description Algorithm — always `"EdDSA"`. */
-            alg: string;
-            /** @description Curve — always `"Ed25519"`. */
-            crv: string;
-            /** @description Key ID matching the `kid` claim in issued JWTs. */
-            kid: string;
-            /** @description Key type — always `"OKP"` for Ed25519. */
-            kty: string;
-            /** @description Intended use — always `"sig"`. */
-            use: string;
-            /** @description Base64url-encoded public key bytes. */
-            x: string;
-        };
-        /** @description JSON Web Key Set — the public keys used to verify JWTs issued by this service. */
-        JwkSet: {
-            keys: components["schemas"]["Jwk"][];
-        };
-        Key: {
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-            /** Format: uuid */
-            id: string;
-            /** Format: date-time */
-            last_used_at?: string | null;
-            name: string;
-        };
-        KeysResponse: {
-            keys: components["schemas"]["Key"][];
-        };
-        /**
-         * @description Returned when an OAuth callback links a provider identity to an existing account
-         *     rather than creating a new session.
-         */
-        LinkCallbackResponse: {
-            linked: boolean;
-        };
-        /** @description Credential payload for session creation. The `grant_type` field discriminates the variant. */
-        LoginRequest: {
-            email: string;
-            /** @enum {string} */
-            grant_type: "password";
-            password: string;
-        } | {
-            /** @enum {string} */
-            grant_type: "magic_link";
-            /** @description The plaintext token from the magic-link response. */
-            token: string;
-        } | {
-            /** @enum {string} */
-            grant_type: "password_reset";
-            new_password: string;
-            /** @description The plaintext token from the password-reset response. */
-            token: string;
-        } | {
-            /** @enum {string} */
-            grant_type: "email_change";
-            /** @description The plaintext token from the email-change (`POST /v1/emails`) response. */
-            token: string;
-        } | {
-            /** @description Six-digit TOTP code from the authenticator app. */
-            code: string;
-            /** @enum {string} */
-            grant_type: "totp_step_up";
-            /** @description The `step_up_token` from the preceding 200 step-up response. */
-            step_up_token: string;
-        } | {
-            /** @description One of the recovery codes issued at TOTP enrollment or last regeneration. */
-            code: string;
-            /** @enum {string} */
-            grant_type: "totp_recovery";
-            /** @description The `step_up_token` from the preceding 200 step-up response. */
-            step_up_token: string;
-        } | {
-            /** @description WebAuthn `PublicKeyCredential` response from the browser's `navigator.credentials.get()`. */
-            credential: Record<string, unknown>;
-            /** @enum {string} */
-            grant_type: "passkey";
-            /** @description The `state_token` from the `POST /v1/passkey-authentications` response. */
-            state_token: string;
-        };
-        /** @description Request to issue a magic-link login token for a user. */
-        MagicLinkRequest: {
-            /** @description The user's primary email address. */
-            email: string;
-        };
-        /**
-         * @description Magic-link token response. Pass `token` to `POST /v1/sessions` with
-         *     `grant_type=magic_link` to authenticate.
-         */
-        MagicLinkResponse: {
-            /** Format: date-time */
-            expires_at: string;
-            /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=magic_link`. */
-            token: string;
-        };
-        /** @description Current authenticated user context. */
-        MeResponse: {
-            email: components["schemas"]["EmailBody"];
-            /** @description The user's personal org. Multi-org memberships are listed via `GET /v1/orgs`. */
-            org: components["schemas"]["OrgBody"];
-            user: components["schemas"]["UserBody"];
-        };
-        /** @description An org membership record. */
-        MemberResponse: {
-            /** Format: date-time */
-            joined_at: string;
-            /** @description Role within this org, e.g. `"owner"` or `"member"`. */
-            role: string;
-            /** Format: uuid */
-            user_id: string;
-        };
-        /** @description Cursor-paginated list of org members. */
-        MembersResponse: {
-            members: components["schemas"]["MemberResponse"][];
-            /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
-            next_cursor?: string | null;
-        };
-        MicrosoftRedacted: {
-            client_id: string;
-            org: string;
-        };
-        /** @description Cursor-paginated list of resource IDs the subject can access. */
-        ObjectsResponse: {
-            /** @description Opaque cursor — pass as `cursor` for the next page. Absent when there are no further pages. */
-            next_cursor?: string | null;
-            object_ids: string[];
-        };
-        OidcRedacted: {
-            client_id: string;
-            discovery_url: string;
-            id: string;
-            scopes: string[];
-        };
-        /** @description The user's personal org. */
-        OrgBody: {
-            /** Format: uuid */
-            id: string;
-            image_url?: string | null;
-            name: string;
-            /** @description URL-safe identifier, unique across all orgs. */
-            slug: string;
-        };
-        /** @description An organization the authenticated user is a member of. */
-        OrgResponse: {
-            /** Format: date-time */
-            created_at: string;
-            /** Format: uuid */
-            id: string;
-            image_url?: string | null;
-            /** @description Arbitrary JSON metadata. */
-            metadata: Record<string, unknown>;
-            name: string;
-            /** @description URL-safe identifier, unique across all orgs. */
-            slug: string;
-        };
-        /** @description Cursor-paginated list of orgs. */
-        OrgsResponse: {
-            /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
-            next_cursor?: string | null;
-            orgs: components["schemas"]["OrgResponse"][];
-        };
-        /** @description One-time token response for flows that require a follow-up session grant. */
-        OttTokenResponse: {
-            /** Format: date-time */
-            expires_at: string;
-            /** @description One-time token to use in the corresponding session grant. */
-            token: string;
-        };
-        /** @description Request to issue a password-reset token for a user. */
-        PasswordResetRequest: {
-            /** @description The user's primary email address. */
-            email: string;
-        };
-        /**
-         * @description Password-reset token response. Pass `token` to `POST /v1/sessions` with
-         *     `grant_type=password_reset` along with the new password to complete the reset.
-         */
-        PasswordResetResponse: {
-            /** Format: date-time */
-            expires_at: string;
-            /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=password_reset`. */
-            token: string;
-        };
-        /** @description Freshly generated TOTP recovery codes. */
-        RecoveryCodesResponse: {
-            /** @description New single-use recovery codes. All previous codes are immediately invalidated. */
-            recovery_codes: string[];
-        };
-        RegisteredCredential: {
-            /** Format: date-time */
-            created_at: string;
-            /** Format: uuid */
-            id: string;
-            nickname?: string | null;
-        };
-        /** @description The resource side of a relation tuple. */
-        RelationObject: {
-            /** @description Unique identifier for this resource instance. */
-            id: string;
-            /** @description Resource type as defined in the authz schema. */
-            type: string;
-        };
-        /** @description A relation tuple: `(object, relation, subject)`. */
-        RelationRequest: {
-            object: components["schemas"]["RelationObject"];
-            /** @description The relation name as defined in the authz schema (e.g. `"owner"`, `"member"`). */
-            relation: string;
-            subject: components["schemas"]["RelationSubject"];
-        };
-        /** @description The subject (actor) side of a relation tuple. */
-        RelationSubject: {
-            /** @description Subject ID — typically a user ID or another resource ID for subject sets. */
-            id: string;
-            /** @description For subject sets: the relation on the subject resource that grants membership. */
-            relation?: string | null;
-            /** @description For subject sets: the type of the subject resource. Omit for direct user subjects. */
-            type?: string | null;
-        };
-        ResourceDef: {
-            hierarchy?: null | components["schemas"]["HierarchyDef"];
-            name: string;
-            permissions: {
-                [key: string]: string[];
-            };
-            role_inheritance?: components["schemas"]["RoleInheritanceEntry"][];
-            roles: string[];
-        };
-        /**
-         * @description One entry in a resource's role inheritance list.
-         *     `superior` subsumes `inferior`: a subject holding `superior` implicitly holds `inferior`.
-         */
-        RoleInheritanceEntry: {
-            inferior: string;
-            superior: string;
-        };
-        /** @description Session credential returned on login or signup. */
-        SessionBody: {
-            /** Format: date-time */
-            expires_at: string;
-            /** Format: uuid */
-            id: string;
-            /** @description Opaque bearer token — store securely, transmit as `Authorization: Bearer <token>`. */
-            token: string;
-        };
-        SessionListItem: {
-            /** Format: date-time */
-            created_at: string;
-            /** @description Whether this is the caller's current session. */
-            current: boolean;
-            /** Format: date-time */
-            expires_at: string;
-            /** Format: uuid */
-            id: string;
-            ip_address?: string | null;
-            /** Format: date-time */
-            last_used_at?: string | null;
-            /** Format: uuid */
-            token_id: string;
-            user_agent?: string | null;
-        };
-        /** @description Paginated list of active sessions for the authenticated user. */
-        SessionsResponse: {
-            sessions: components["schemas"]["SessionListItem"][];
-        };
-        /** @description Registration request. Creates a user, a personal org, and a session in one call. */
-        SignupRequest: {
-            /** @description Display name for the user's personal org. Defaults to the local part of the email. */
-            display_name?: string | null;
-            email: string;
-            password: string;
-        };
-        /**
-         * @description MFA method required to complete authentication.
-         * @enum {string}
-         */
-        StepUpKind: "totp";
-        /** @description Returned when the user has TOTP enrolled — caller must complete the step-up flow. */
-        StepUpResponse: {
-            /** @description The MFA method required to complete authentication. */
-            step_up_required: components["schemas"]["StepUpKind"];
-            /** @description Short-lived signed token to present when completing the step-up. */
-            step_up_token: string;
-        };
-        /** @description A subject (actor) with the relation through which they hold access. */
-        Subject: {
-            /** @description Subject ID. */
-            id: string;
-            /** @description The direct relation through which this subject was found. */
-            relation: string;
-        };
-        /** @description Subjects who hold the queried relation or permission on a resource. */
-        SubjectsResponse: {
-            subjects: components["schemas"]["Subject"][];
-        };
-        TokenResponse: {
-            access_token: string;
-            /**
-             * Format: int32
-             * @description Access token lifetime in seconds.
-             */
-            expires_in: number;
-            /**
-             * @description Rotate-on-use refresh token. Present when authenticated via a session or
-             *     a prior refresh token; absent for API-key auth.
-             */
-            refresh_token?: string | null;
-            token_type: string;
-        };
-        /** @description Trace result explaining why a permission check returned its outcome. */
-        TraceResponse: {
-            /** @description Whether the specified user has the permission on the resource. */
-            allowed: boolean;
-            /** @description All subjects found during expansion — check if `user` appears here to understand the grant. */
-            subjects: components["schemas"]["Subject"][];
-        };
-        /**
-         * @description Partial config update. Only fields explicitly set are updated.
-         *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
-         *     Partial config update. Only fields present in the body are changed.
-         *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
-         */
-        UpdateConfigRequest: {
-            /** @description When true, `POST /v1/tokens` issues JWT access tokens. */
-            jwt_enabled?: boolean | null;
-            /**
-             * Format: int32
-             * @description Seconds of inactivity before a session is considered expired.
-             *     Omit to leave unchanged. Send `null` to disable (no idle timeout).
-             * @example 3600
-             */
-            session_idle_timeout_seconds?: number | null;
-        };
-        /** @description Request to rename a registered passkey credential. */
-        UpdateCredentialRequest: {
-            /** @description Human-readable label shown in credential lists. */
-            nickname: string;
-        };
-        /**
-         * @description Request to change the password for an existing password identity.
-         *     Requires the current password as proof of possession.
-         */
-        UpdateIdentityRequest: {
-            /** @description The existing password — must be correct or the request is rejected with 401. */
-            current_password: string;
-            new_password: string;
-        };
-        /**
-         * @description Partial update for the user's personal org. All fields are optional; omitted fields
-         *     are left unchanged.
-         */
-        UpdateMeRequest: {
-            image_url?: string | null;
-            /** @description Arbitrary JSON merged into the org's metadata field (full replacement, not merge). */
-            metadata?: unknown;
-            /** @description Display name for the user and their personal org. */
-            name?: string | null;
-            /** @description URL-safe org identifier. Must be unique. Returns 409 if already taken. */
-            slug?: string | null;
-        };
-        /** @description Request to change a member's role. */
-        UpdateMemberRequest: {
-            /** @description New role for the member, e.g. `"owner"` or `"member"`. */
-            role: string;
-        };
-        /** @description Partial org update. Omitted fields are left unchanged. */
-        UpdateOrgRequest: {
-            image_url?: string | null;
-            /** @description Full replacement of the org's metadata field. */
-            metadata?: unknown;
-            name?: string | null;
-            /** @description URL-safe identifier. Returns 409 if already taken. */
-            slug?: string | null;
-        };
-        /** @description Core user fields. */
-        UserBody: {
-            /** Format: date-time */
-            created_at: string;
-            /** Format: uuid */
-            id: string;
-            image_url?: string | null;
-            /** @description Arbitrary JSON metadata stored on the personal org. */
-            metadata: Record<string, unknown>;
-            /** @description Display name (mirrors the personal org name). */
-            name: string;
-            /**
-             * Format: uuid
-             * @description ID of the user's personal org. Always present; created at signup.
-             */
-            primary_org_id: string;
-        };
+  schemas: {
+    /**
+     * @description Request to add a password identity to an account that currently has none
+     *     (e.g. a user who signed up via OAuth and wants to add password login).
+     */
+    AddPasswordRequest: {
+      password: string;
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** @description Request to initiate a primary email address change. */
+    AddRequest: {
+      /** @description The new email address to switch to. Must not already be registered to any user. */
+      email: string;
+    };
+    AdminOAuthRequest: {
+      apple: Record<string, unknown> | null;
+      /** @description When true, OAuth identities are linked to existing accounts with the same email. */
+      email_link?: boolean | null;
+      github: Record<string, unknown> | null;
+      google: Record<string, unknown> | null;
+      microsoft: Record<string, unknown> | null;
+      oidc: Record<string, unknown>[] | null;
+    };
+    AdminOAuthResponse: {
+      apple?: null | components["schemas"]["AppleRedacted"];
+      email_link: boolean;
+      github?: null | components["schemas"]["GithubRedacted"];
+      google?: null | components["schemas"]["GoogleRedacted"];
+      microsoft?: null | components["schemas"]["MicrosoftRedacted"];
+      oidc?: components["schemas"]["OidcRedacted"][] | null;
+    };
+    /** @description Full user record returned to admin callers. */
+    AdminUserResponse: {
+      /** Format: date-time */
+      created_at: string;
+      /**
+       * Format: date-time
+       * @description Set when the user has been soft-deleted; null for active accounts.
+       */
+      deleted_at?: string | null;
+      email?: string | null;
+      /** Format: date-time */
+      email_verified_at?: string | null;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      primary_email_id: string;
+      /** Format: uuid */
+      primary_org_id: string;
+    };
+    AppleCallbackForm: {
+      code: string;
+      state: string;
+      /** @description JSON-encoded user object Apple sends on first sign-in (name fields). */
+      user?: string | null;
+    };
+    AppleRedacted: {
+      client_id: string;
+      key_id: string;
+      team_id: string;
+    };
+    /**
+     * @description Returned on successful login or signup. Contains the new session alongside the user,
+     *     primary email, and personal org context.
+     */
+    AuthResponse: {
+      email: components["schemas"]["EmailBody"];
+      org: components["schemas"]["OrgBody"];
+      session: components["schemas"]["SessionBody"];
+      user: components["schemas"]["UserBody"];
+    };
+    AuthorizeResponse: {
+      /** @description Full OAuth authorization URL — navigate the browser here to start the flow. */
+      url: string;
+    };
+    AuthzSchema: {
+      resources: components["schemas"]["ResourceDef"][];
+      subject_types?: string[];
+      /** Format: int32 */
+      version: number;
+    };
+    BatchDecisionRequest: {
+      checks: components["schemas"]["DecisionCheck"][];
+    };
+    BatchDecisionResponse: {
+      /** @description Results in the same order as the input `checks`. */
+      results: components["schemas"]["CheckResult"][];
+    };
+    /** @description Batch of relation tuples to write and/or delete in a single transaction. */
+    BatchRequest: {
+      /** @description Relation tuples to delete. Missing deletes are silently ignored. */
+      deletes?: components["schemas"]["RelationRequest"][];
+      /** @description Relation tuples to create. Duplicate writes are silently ignored. */
+      writes?: components["schemas"]["RelationRequest"][];
+    };
+    /** @description Result counts from a batch relation operation. */
+    BatchResponse: {
+      /** Format: int64 */
+      deleted: number;
+      /** Format: int64 */
+      written: number;
+    };
+    BeginResponse: {
+      /** @description WebAuthn options object — pass directly to the browser's WebAuthn API. */
+      options: Record<string, unknown>;
+      /** @description Opaque state token; include in the corresponding finish request. */
+      state_token: string;
+    };
+    /** @description Session token returned after a successful OAuth login callback. */
+    CallbackResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      /** @description Opaque session bearer token. Use as `Authorization: Bearer <token>`. */
+      token: string;
+    };
+    /** @description Result of a single permission check. */
+    CheckResponse: {
+      /** @description True if the subject has the requested permission on the resource. */
+      allowed: boolean;
+    };
+    /** @description Result of one item in a batch permission check, ordered to match the input. */
+    CheckResult: {
+      /** @description True if the subject has the requested permission on the resource. */
+      allowed: boolean;
+    };
+    ChecksItem: {
+      /** @description Permission name as defined in the authz schema. */
+      permission: string;
+      /** @description ID of the resource instance to check against. */
+      resource_id: string;
+      /** @description Resource type as defined in the authz schema. */
+      resource_type: string;
+      /** @description Explicit subject to check as. Defaults to the current session user. */
+      user?: string | null;
+    };
+    ChecksRequest: {
+      checks: components["schemas"]["ChecksItem"][];
+    };
+    ChecksResponse: {
+      /** @description Results in the same order as the input `checks`. */
+      results: components["schemas"]["CheckResult"][];
+    };
+    /** @description Current runtime configuration values. */
+    ConfigResponse: {
+      /** @description Whether `POST /v1/tokens` is enabled for JWT issuance. */
+      jwt_enabled: boolean;
+      /**
+       * Format: int32
+       * @description Seconds of inactivity before a session expires. Null means no idle timeout.
+       */
+      session_idle_timeout_seconds?: number | null;
+    };
+    /** @description Request body for TOTP confirmation and recovery-code regeneration. */
+    ConfirmRequest: {
+      /** @description Current 6-digit TOTP code from the authenticator app. */
+      code: string;
+    };
+    /** @description Token-based confirmation of email ownership. */
+    ConfirmVerificationRequest: {
+      /** @description The plaintext verification token from `POST /v1/emails/{id}/verifications`. */
+      token: string;
+    };
+    /** @description Returned when email verification succeeds. */
+    ConfirmVerificationResponse: {
+      /** Format: date-time */
+      verified_at: string;
+    };
+    /** @description Request to create an invitation to the org. */
+    CreateInvitationRequest: {
+      /**
+       * @description Email address to address the invitation to. Omit for an open link invitation
+       *     that any user can accept.
+       */
+      email?: string | null;
+      /** @description Role the invitee will receive on acceptance. */
+      role: string;
+    };
+    /** @description Request to create a new organization. */
+    CreateOrgRequest: {
+      metadata?: unknown;
+      name: string;
+      /** @description URL-safe identifier. Defaults to a slugified version of `name` if omitted. */
+      slug?: string | null;
+    };
+    CreateRequest: {
+      /**
+       * Format: date-time
+       * @description When the key expires. Defaults to 100 years from now (effectively never).
+       */
+      expires_at?: string | null;
+      name: string;
+    };
+    /** @description Returned only on creation — the `key` field is never shown again. */
+    CreateResponse: components["schemas"]["Key"] & {
+      /** @description The full bearer token. Store it now — it cannot be retrieved later. */
+      key: string;
+    };
+    CredentialRecord: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      last_used_at?: string | null;
+      nickname?: string | null;
+    };
+    /** @description Details of the session that authenticated the current request. */
+    CurrentSessionResponse: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      /**
+       * Format: uuid
+       * @description Session ID.
+       */
+      id: string;
+      /** @description IP address recorded at session creation, if available. */
+      ip_address?: string | null;
+      /**
+       * Format: date-time
+       * @description Time the bearer token was last presented, updated on each authenticated request.
+       */
+      last_used_at?: string | null;
+      /**
+       * Format: uuid
+       * @description ID of the underlying bearer token used to authenticate this request.
+       */
+      token_id: string;
+      /** @description User-Agent recorded at session creation, if available. */
+      user_agent?: string | null;
+    };
+    DecisionCheck: {
+      permission: string;
+      resource_id: string;
+      resource_type: string;
+      /** @description Explicit subject to check as. Defaults to the current session user. */
+      user?: string | null;
+    };
+    /** @description Primary email address for the user. */
+    EmailBody: {
+      email: string;
+      /** Format: uuid */
+      id: string;
+      /**
+       * Format: date-time
+       * @description Null if the address has not been verified.
+       */
+      verified_at?: string | null;
+    };
+    /** @description An email address belonging to the authenticated user. */
+    EmailRecord: {
+      email: string;
+      /** Format: uuid */
+      id: string;
+      /** @description True for the address that appears in `AuthResponse.email` and receives system emails. */
+      is_primary: boolean;
+      /**
+       * Format: date-time
+       * @description Null if the address has not been verified yet.
+       */
+      verified_at?: string | null;
+    };
+    /**
+     * @description TOTP enrollment data returned when starting enrollment. Pass `provisioning_uri` or
+     *     `qr_data_url` to an authenticator app, then confirm enrollment with a live TOTP code.
+     */
+    EnrollmentResponse: {
+      /**
+       * Format: uuid
+       * @description Opaque factor identifier.
+       */
+      factor_id: string;
+      /** @description `otpauth://` URI for QR code generation or direct authenticator import. */
+      provisioning_uri: string;
+      /** @description Data URL (`data:image/png;base64,…`) of the provisioning QR code. */
+      qr_data_url: string;
+      /** @description Single-use recovery codes. Store these securely — they are shown only once. */
+      recovery_codes: string[];
+      /** @description Raw TOTP secret in base32 — for manual entry into an authenticator app. */
+      secret_b32: string;
+    };
+    /** @description Wire-format error body returned on all non-2xx responses. */
+    ErrorBody: {
+      /** @description Machine-readable error code, e.g. `"invalid_credentials"`. */
+      code: string;
+      /** @description Optional actionable guidance present on configuration-gate errors. */
+      hint?: string | null;
+      /** @description Human-readable description. */
+      message: string;
+    };
+    /** @description Top-level error envelope for all API error responses. */
+    ErrorResponse: {
+      error: components["schemas"]["ErrorBody"];
+    };
+    FinishRegistrationRequest: {
+      /** @description WebAuthn `PublicKeyCredential` response from the browser. */
+      credential: Record<string, unknown>;
+      nickname?: string | null;
+      state_token: string;
+    };
+    GithubRedacted: {
+      client_id: string;
+    };
+    GoogleRedacted: {
+      client_id: string;
+    };
+    /** @description Health check response. */
+    HealthzResponse: {
+      /** @description `"ok"` when healthy, `"degraded"` when the database is unreachable. */
+      status: string;
+      /** @description Service version from `CARGO_PKG_VERSION`. */
+      version: string;
+    };
+    HierarchyDef: {
+      /** @description The relation name on this resource that points to parent objects. */
+      parent_relation: string;
+      /** @description The resource type of the parent. */
+      parent_resource: string;
+    };
+    IdentitiesResponse: {
+      identities: components["schemas"]["IdentityItem"][];
+    };
+    IdentityItem: {
+      /** Format: date-time */
+      created_at: string;
+      /** @description Human-readable label: email address for password identities, provider slug for OAuth. */
+      display: string;
+      /** Format: uuid */
+      id: string;
+      provider: string;
+    };
+    ImpersonateRequest: {
+      /**
+       * Format: uuid
+       * @description The ID of the user to impersonate.
+       */
+      user_id: string;
+    };
+    /** @description An org invitation. On creation, `token` is populated — it is never returned again. */
+    InvitationResponse: {
+      /** Format: date-time */
+      created_at: string;
+      /** @description Email address the invitation is addressed to, if any. Null for open link invitations. */
+      email?: string | null;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      org_id: string;
+      /** @description Role the invitee will receive on acceptance. */
+      role: string;
+      /** @description Plaintext token — only present on creation, never returned again. Deliver this to the invitee. */
+      token?: string | null;
+    };
+    /** @description Public view of an invitation, shown to the invitee before they accept or decline. */
+    InvitationViewResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      org_id: string;
+      org_name: string;
+      /** @description The role the invitee will receive on acceptance. */
+      role: string;
+    };
+    /** @description Cursor-paginated list of pending org invitations. */
+    InvitationsResponse: {
+      invitations: components["schemas"]["InvitationResponse"][];
+      /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
+    };
+    IssueRequest: {
+      /**
+       * @description Arbitrary JSON object merged into the JWT payload.
+       *     Reserved keys (`sub`, `iss`, `aud`, `iat`, `nbf`, `exp`, `jti`,
+       *     `impersonated`) are always overwritten by the service and cannot be
+       *     supplied here.
+       */
+      claims?: Record<string, unknown> | null;
+    };
+    /** @description A single JSON Web Key (Ed25519 public key in JWK format). */
+    Jwk: {
+      /** @description Algorithm — always `"EdDSA"`. */
+      alg: string;
+      /** @description Curve — always `"Ed25519"`. */
+      crv: string;
+      /** @description Key ID matching the `kid` claim in issued JWTs. */
+      kid: string;
+      /** @description Key type — always `"OKP"` for Ed25519. */
+      kty: string;
+      /** @description Intended use — always `"sig"`. */
+      use: string;
+      /** @description Base64url-encoded public key bytes. */
+      x: string;
+    };
+    /** @description JSON Web Key Set — the public keys used to verify JWTs issued by this service. */
+    JwkSet: {
+      keys: components["schemas"]["Jwk"][];
+    };
+    Key: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      last_used_at?: string | null;
+      name: string;
+    };
+    KeysResponse: {
+      keys: components["schemas"]["Key"][];
+    };
+    /**
+     * @description Returned when an OAuth callback links a provider identity to an existing account
+     *     rather than creating a new session.
+     */
+    LinkCallbackResponse: {
+      linked: boolean;
+    };
+    /** @description Credential payload for session creation. The `grant_type` field discriminates the variant. */
+    LoginRequest: {
+      email: string;
+      /** @enum {string} */
+      grant_type: "password";
+      password: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "magic_link";
+      /** @description The plaintext token from the magic-link response. */
+      token: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "password_reset";
+      new_password: string;
+      /** @description The plaintext token from the password-reset response. */
+      token: string;
+    } | {
+      /** @enum {string} */
+      grant_type: "email_change";
+      /** @description The plaintext token from the email-change (`POST /v1/emails`) response. */
+      token: string;
+    } | {
+      /** @description Six-digit TOTP code from the authenticator app. */
+      code: string;
+      /** @enum {string} */
+      grant_type: "totp_step_up";
+      /** @description The `step_up_token` from the preceding 200 step-up response. */
+      step_up_token: string;
+    } | {
+      /** @description One of the recovery codes issued at TOTP enrollment or last regeneration. */
+      code: string;
+      /** @enum {string} */
+      grant_type: "totp_recovery";
+      /** @description The `step_up_token` from the preceding 200 step-up response. */
+      step_up_token: string;
+    } | {
+      /** @description WebAuthn `PublicKeyCredential` response from the browser's `navigator.credentials.get()`. */
+      credential: Record<string, unknown>;
+      /** @enum {string} */
+      grant_type: "passkey";
+      /** @description The `state_token` from the `POST /v1/passkey-authentications` response. */
+      state_token: string;
+    };
+    /** @description Request to issue a magic-link login token for a user. */
+    MagicLinkRequest: {
+      /** @description The user's primary email address. */
+      email: string;
+    };
+    /**
+     * @description Magic-link token response. Pass `token` to `POST /v1/sessions` with
+     *     `grant_type=magic_link` to authenticate.
+     */
+    MagicLinkResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=magic_link`. */
+      token: string;
+    };
+    /** @description Current authenticated user context. */
+    MeResponse: {
+      email: components["schemas"]["EmailBody"];
+      /** @description The user's personal org. Multi-org memberships are listed via `GET /v1/orgs`. */
+      org: components["schemas"]["OrgBody"];
+      user: components["schemas"]["UserBody"];
+    };
+    /** @description An org membership record. */
+    MemberResponse: {
+      /** Format: date-time */
+      joined_at: string;
+      /** @description Role within this org, e.g. `"owner"` or `"member"`. */
+      role: string;
+      /** Format: uuid */
+      user_id: string;
+    };
+    /** @description Cursor-paginated list of org members. */
+    MembersResponse: {
+      members: components["schemas"]["MemberResponse"][];
+      /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
+    };
+    MicrosoftRedacted: {
+      client_id: string;
+      org: string;
+    };
+    /** @description Cursor-paginated list of resource IDs the subject can access. */
+    ObjectsResponse: {
+      /** @description Opaque cursor — pass as `cursor` for the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
+      object_ids: string[];
+    };
+    OidcRedacted: {
+      client_id: string;
+      discovery_url: string;
+      id: string;
+      scopes: string[];
+    };
+    /** @description The user's personal org. */
+    OrgBody: {
+      /** Format: uuid */
+      id: string;
+      image_url?: string | null;
+      name: string;
+      /** @description URL-safe identifier, unique across all orgs. */
+      slug: string;
+    };
+    /** @description An organization the authenticated user is a member of. */
+    OrgResponse: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: uuid */
+      id: string;
+      image_url?: string | null;
+      /** @description Arbitrary JSON metadata. */
+      metadata: Record<string, unknown>;
+      name: string;
+      /** @description URL-safe identifier, unique across all orgs. */
+      slug: string;
+    };
+    /** @description Cursor-paginated list of orgs. */
+    OrgsResponse: {
+      /** @description Opaque cursor — pass as `cursor` to retrieve the next page. Absent when there are no further pages. */
+      next_cursor?: string | null;
+      orgs: components["schemas"]["OrgResponse"][];
+    };
+    /** @description One-time token response for flows that require a follow-up session grant. */
+    OttTokenResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      /** @description One-time token to use in the corresponding session grant. */
+      token: string;
+    };
+    /** @description Request to issue a password-reset token for a user. */
+    PasswordResetRequest: {
+      /** @description The user's primary email address. */
+      email: string;
+    };
+    /**
+     * @description Password-reset token response. Pass `token` to `POST /v1/sessions` with
+     *     `grant_type=password_reset` along with the new password to complete the reset.
+     */
+    PasswordResetResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      /** @description One-time token to exchange via `POST /v1/sessions` with `grant_type=password_reset`. */
+      token: string;
+    };
+    /** @description Freshly generated TOTP recovery codes. */
+    RecoveryCodesResponse: {
+      /** @description New single-use recovery codes. All previous codes are immediately invalidated. */
+      recovery_codes: string[];
+    };
+    RegisteredCredential: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: uuid */
+      id: string;
+      nickname?: string | null;
+    };
+    /** @description The resource side of a relation tuple. */
+    RelationObject: {
+      /** @description Unique identifier for this resource instance. */
+      id: string;
+      /** @description Resource type as defined in the authz schema. */
+      type: string;
+    };
+    /** @description A relation tuple: `(object, relation, subject)`. */
+    RelationRequest: {
+      object: components["schemas"]["RelationObject"];
+      /** @description The relation name as defined in the authz schema (e.g. `"owner"`, `"member"`). */
+      relation: string;
+      subject: components["schemas"]["RelationSubject"];
+    };
+    /** @description The subject (actor) side of a relation tuple. */
+    RelationSubject: {
+      /** @description Subject ID — typically a user ID or another resource ID for subject sets. */
+      id: string;
+      /** @description For subject sets: the relation on the subject resource that grants membership. */
+      relation?: string | null;
+      /** @description For subject sets: the type of the subject resource. Omit for direct user subjects. */
+      type?: string | null;
+    };
+    ResourceDef: {
+      hierarchy?: null | components["schemas"]["HierarchyDef"];
+      name: string;
+      permissions: {
+        [key: string]: string[];
+      };
+      role_inheritance?: components["schemas"]["RoleInheritanceEntry"][];
+      roles: string[];
+    };
+    /**
+     * @description One entry in a resource's role inheritance list.
+     *     `superior` subsumes `inferior`: a subject holding `superior` implicitly holds `inferior`.
+     */
+    RoleInheritanceEntry: {
+      inferior: string;
+      superior: string;
+    };
+    /** @description Session credential returned on login or signup. */
+    SessionBody: {
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      /** @description Opaque bearer token — store securely, transmit as `Authorization: Bearer <token>`. */
+      token: string;
+    };
+    SessionListItem: {
+      /** Format: date-time */
+      created_at: string;
+      /** @description Whether this is the caller's current session. */
+      current: boolean;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: uuid */
+      id: string;
+      ip_address?: string | null;
+      /** Format: date-time */
+      last_used_at?: string | null;
+      /** Format: uuid */
+      token_id: string;
+      user_agent?: string | null;
+    };
+    /** @description Paginated list of active sessions for the authenticated user. */
+    SessionsResponse: {
+      sessions: components["schemas"]["SessionListItem"][];
+    };
+    /** @description Registration request. Creates a user, a personal org, and a session in one call. */
+    SignupRequest: {
+      /** @description Display name for the user's personal org. Defaults to the local part of the email. */
+      display_name?: string | null;
+      email: string;
+      password: string;
+    };
+    /**
+     * @description MFA method required to complete authentication.
+     * @enum {string}
+     */
+    StepUpKind: "totp";
+    /** @description Returned when the user has TOTP enrolled — caller must complete the step-up flow. */
+    StepUpResponse: {
+      /** @description The MFA method required to complete authentication. */
+      step_up_required: components["schemas"]["StepUpKind"];
+      /** @description Short-lived signed token to present when completing the step-up. */
+      step_up_token: string;
+    };
+    /** @description A subject (actor) with the relation through which they hold access. */
+    Subject: {
+      /** @description Subject ID. */
+      id: string;
+      /** @description The direct relation through which this subject was found. */
+      relation: string;
+    };
+    /** @description Subjects who hold the queried relation or permission on a resource. */
+    SubjectsResponse: {
+      subjects: components["schemas"]["Subject"][];
+    };
+    TokenResponse: {
+      access_token: string;
+      /**
+       * Format: int32
+       * @description Access token lifetime in seconds.
+       */
+      expires_in: number;
+      /**
+       * @description Rotate-on-use refresh token. Present when authenticated via a session or
+       *     a prior refresh token; absent for API-key auth.
+       */
+      refresh_token?: string | null;
+      token_type: string;
+    };
+    /** @description Trace result explaining why a permission check returned its outcome. */
+    TraceResponse: {
+      /** @description Whether the specified user has the permission on the resource. */
+      allowed: boolean;
+      /** @description All subjects found during expansion — check if `user` appears here to understand the grant. */
+      subjects: components["schemas"]["Subject"][];
+    };
+    /**
+     * @description Partial config update. Only fields explicitly set are updated.
+     *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
+     *     Partial config update. Only fields present in the body are changed.
+     *     Send `"session_idle_timeout_seconds": null` to clear the idle timeout.
+     */
+    UpdateConfigRequest: {
+      /** @description When true, `POST /v1/tokens` issues JWT access tokens. */
+      jwt_enabled?: boolean | null;
+      /**
+       * Format: int32
+       * @description Seconds of inactivity before a session is considered expired.
+       *     Omit to leave unchanged. Send `null` to disable (no idle timeout).
+       * @example 3600
+       */
+      session_idle_timeout_seconds?: number | null;
+    };
+    /** @description Request to rename a registered passkey credential. */
+    UpdateCredentialRequest: {
+      /** @description Human-readable label shown in credential lists. */
+      nickname: string;
+    };
+    /**
+     * @description Request to change the password for an existing password identity.
+     *     Requires the current password as proof of possession.
+     */
+    UpdateIdentityRequest: {
+      /** @description The existing password — must be correct or the request is rejected with 401. */
+      current_password: string;
+      new_password: string;
+    };
+    /**
+     * @description Partial update for the user's personal org. All fields are optional; omitted fields
+     *     are left unchanged.
+     */
+    UpdateMeRequest: {
+      image_url?: string | null;
+      /** @description Arbitrary JSON merged into the org's metadata field (full replacement, not merge). */
+      metadata?: unknown;
+      /** @description Display name for the user and their personal org. */
+      name?: string | null;
+      /** @description URL-safe org identifier. Must be unique. Returns 409 if already taken. */
+      slug?: string | null;
+    };
+    /** @description Request to change a member's role. */
+    UpdateMemberRequest: {
+      /** @description New role for the member, e.g. `"owner"` or `"member"`. */
+      role: string;
+    };
+    /** @description Partial org update. Omitted fields are left unchanged. */
+    UpdateOrgRequest: {
+      image_url?: string | null;
+      /** @description Full replacement of the org's metadata field. */
+      metadata?: unknown;
+      name?: string | null;
+      /** @description URL-safe identifier. Returns 409 if already taken. */
+      slug?: string | null;
+    };
+    /** @description Core user fields. */
+    UserBody: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: uuid */
+      id: string;
+      image_url?: string | null;
+      /** @description Arbitrary JSON metadata stored on the personal org. */
+      metadata: Record<string, unknown>;
+      /** @description Display name (mirrors the personal org name). */
+      name: string;
+      /**
+       * Format: uuid
+       * @description ID of the user's personal org. Always present; created at signup.
+       */
+      primary_org_id: string;
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    healthz: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthzResponse"];
-                };
-            };
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthzResponse"];
-                };
-            };
-        };
-    };
-    list_subjects_expand: {
-        parameters: {
-            query: {
-                object_type: string;
-                object_id: string;
-                /** @description The relation to expand (e.g. `"owner"`). */
-                relation: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubjectsResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_admin_config: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfigResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateConfigRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfigResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_impersonation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ImpersonateRequest"];
-            };
-        };
-        responses: {
-            /** @description Impersonation session created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
-            };
-            /** @description User not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_get_oauth_providers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminOAuthResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_set_oauth_providers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AdminOAuthRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminOAuthResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_search_users: {
-        parameters: {
-            query?: {
-                /** @description Look up by primary email address (case-insensitive). */
-                email?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminUserResponse"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_get_user: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description User ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminUserResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_delete_user_sessions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description User ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description All sessions revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    post_checks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChecksRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChecksResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unknown resource/permission */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    check_permission: {
-        parameters: {
-            query: {
-                /** @description Explicit subject to check as. Defaults to the current session user. */
-                user?: string | null;
-                /** @description Permission name as defined in the authz schema (e.g. `"read"`, `"edit"`). */
-                permission: string;
-                /** @description Resource type as defined in the authz schema. */
-                resource_type: string;
-                /** @description ID of the resource instance to check against. */
-                resource_id: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CheckResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unknown resource/permission */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_objects: {
-        parameters: {
-            query: {
-                /** @description Explicit subject to list objects for. Defaults to the current session user. */
-                user?: string | null;
-                permission: string;
-                resource_type: string;
-                limit?: number | null;
-                /** @description Opaque pagination cursor from a previous response's `next_cursor`. */
-                cursor?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ObjectsResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unknown resource/permission */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    write_relation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RelationRequest"];
-            };
-        };
-        responses: {
-            /** @description Relation written */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_relation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RelationRequest"];
-            };
-        };
-        responses: {
-            /** @description Relation deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Relation not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    batch_relations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_schema: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": null | components["schemas"]["AuthzSchema"];
-                };
-            };
-        };
-    };
-    put_schema: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AuthzSchema"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthzSchema"];
-                };
-            };
-            /** @description Schema invalid */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_subjects: {
-        parameters: {
-            query: {
-                resource_type: string;
-                resource_id: string;
-                /** @description The permission to expand (e.g. `"edit"`). Resolves through the role hierarchy. */
-                permission: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SubjectsResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unknown resource/permission */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    why_check: {
-        parameters: {
-            query: {
-                /** @description Subject ID to trace access for. */
-                user: string;
-                permission: string;
-                resource_type: string;
-                resource_id: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TraceResponse"];
-                };
-            };
-            /** @description Authz not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unknown resource/permission */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_emails: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EmailRecord"][];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    initiate_email_change: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OttTokenResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Email already registered */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    confirm_email_verification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfirmVerificationRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfirmVerificationResponse"];
-                };
-            };
-            /** @description Invalid or expired token */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    set_primary_email: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Email ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Email set as primary */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Email not found or not verified */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    remove_email: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Email ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Email removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Cannot remove primary email */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_email_verification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Email ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OttTokenResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Email not found or already verified */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_identities: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IdentitiesResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    add_password_identity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddPasswordRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IdentityItem"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Password identity already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Password validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    unlink_identity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Identity ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Cannot remove last auth method */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_identity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Identity ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateIdentityRequest"];
-            };
-        };
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Password validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_invitation: {
-        parameters: {
-            query: {
-                /** @description Plaintext invitation token */
-                token: string;
-            };
-            header?: never;
-            path: {
-                /** @description Invitation ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitationViewResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    accept_invitation: {
-        parameters: {
-            query: {
-                /** @description Plaintext invitation token */
-                token: string;
-            };
-            header?: never;
-            path: {
-                /** @description Invitation ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invitation not found or expired */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Already a member */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    decline_invitation: {
-        parameters: {
-            query: {
-                /** @description Plaintext invitation token */
-                token: string;
-            };
-            header?: never;
-            path: {
-                /** @description Invitation ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invitation not found or expired */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    jwks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    /** @description public, max-age=3600, must-revalidate */
-                    "Cache-Control"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JwkSet"];
-                };
-            };
-        };
-    };
-    list_keys: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KeysResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_key: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Key created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_key: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Key ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Key"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_key: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Key ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Key revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_magic_link: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MagicLinkRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MagicLinkResponse"];
-                };
-            };
-            /** @description No account with that email */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    apple_oauth_callback: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["AppleCallbackForm"];
-            };
-        };
-        responses: {
-            /** @description Link — identity added to existing account */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LinkCallbackResponse"];
-                };
-            };
-            /** @description Invalid state or Apple error */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    oauth_authorize: {
-        parameters: {
-            query: {
-                /** @description URL to redirect to after authentication */
-                redirect_url: string;
-            };
-            header?: never;
-            path: {
-                /** @description OAuth provider slug, e.g. `github`, `google` */
-                provider: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthorizeResponse"];
-                };
-            };
-            /** @description Provider not configured */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    oauth_callback: {
-        parameters: {
-            query: {
-                /** @description Authorization code from provider */
-                code: string;
-                /** @description PKCE state JWT */
-                state: string;
-            };
-            header?: never;
-            path: {
-                /** @description OAuth provider slug */
-                provider: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Link — identity added to existing account */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LinkCallbackResponse"];
-                };
-            };
-            /** @description Invalid state or provider error */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description OAuth identity already claimed by another user */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_orgs: {
-        parameters: {
-            query?: {
-                cursor?: string | null;
-                limit?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgsResponse"];
-                };
-            };
-        };
-    };
-    create_org: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateOrgRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgResponse"];
-                };
-            };
-            /** @description Slug already taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_org: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgResponse"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_org: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Cannot delete personal org */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_org: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateOrgRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgResponse"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Slug already taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_org_invitations: {
-        parameters: {
-            query?: {
-                cursor?: string | null;
-                limit?: number | null;
-            };
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitationsResponse"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_invitation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateInvitationRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitationResponse"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Pending invite for this email already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    revoke_invitation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-                /** @description Invitation ID */
-                inv_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    resend_invitation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-                /** @description Invitation ID */
-                inv_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitationResponse"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_org_members: {
-        parameters: {
-            query?: {
-                cursor?: string | null;
-                limit?: number | null;
-            };
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MembersResponse"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    remove_org_member: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-                /** @description User ID of the member */
-                member_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Would remove last owner */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_org_member: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Org ID */
-                id: string;
-                /** @description User ID of the member */
-                member_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMemberRequest"];
-            };
-        };
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Would remove last owner */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    begin_passkey_authentication: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BeginResponse"];
-                };
-            };
-        };
-    };
-    begin_passkey_registration: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BeginResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_passkeys: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CredentialRecord"][];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_passkey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FinishRegistrationRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RegisteredCredential"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_passkey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Credential ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Credential deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_passkey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Credential ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateCredentialRequest"];
-            };
-        };
-        responses: {
-            /** @description Credential updated */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_password_reset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordResetRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PasswordResetResponse"];
-                };
-            };
-        };
-    };
-    list_sessions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionsResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_session: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description MFA step-up required */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StepUpResponse"];
-                };
-            };
-            /** @description Session created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
-            };
-            /** @description Invalid credentials or token */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Password validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_all_sessions: {
-        parameters: {
-            query?: {
-                /**
-                 * @description When true, the current session is preserved; all other sessions are revoked.
-                 *     Defaults to false — all sessions including the current one are revoked.
-                 */
-                except_current?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Sessions revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_current_session: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CurrentSessionResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    revoke_current_session: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Session revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    revoke_session: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Session ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Session revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    issue: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["IssueRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-            /** @description JWT not enabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    begin_totp_enrollment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EnrollmentResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    disable_totp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description TOTP disabled */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    confirm_totp_enrollment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfirmRequest"];
-            };
-        };
-        responses: {
-            /** @description TOTP enrollment confirmed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    regenerate_totp_recovery_codes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfirmRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecoveryCodesResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description No enrolled TOTP factor */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_user: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SignupRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
-            };
-            /** @description Email already registered */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Password validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMeRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeResponse"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Slug already taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
+  healthz: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HealthzResponse"];
+        };
+      };
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HealthzResponse"];
+        };
+      };
+    };
+  };
+  list_subjects_expand: {
+    parameters: {
+      query: {
+        object_type: string;
+        object_id: string;
+        /** @description The relation to expand (e.g. `"owner"`). */
+        relation: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubjectsResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_admin_config: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConfigResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateConfigRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConfigResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_impersonation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ImpersonateRequest"];
+      };
+    };
+    responses: {
+      /** @description Impersonation session created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthResponse"];
+        };
+      };
+      /** @description User not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_get_oauth_providers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminOAuthResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_set_oauth_providers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AdminOAuthRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminOAuthResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_search_users: {
+    parameters: {
+      query?: {
+        /** @description Look up by primary email address (case-insensitive). */
+        email?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminUserResponse"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_get_user: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description User ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AdminUserResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  admin_delete_user_sessions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description User ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description All sessions revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  post_checks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChecksRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChecksResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  check_permission: {
+    parameters: {
+      query: {
+        /** @description Explicit subject to check as. Defaults to the current session user. */
+        user?: string | null;
+        /** @description Permission name as defined in the authz schema (e.g. `"read"`, `"edit"`). */
+        permission: string;
+        /** @description Resource type as defined in the authz schema. */
+        resource_type: string;
+        /** @description ID of the resource instance to check against. */
+        resource_id: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CheckResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_objects: {
+    parameters: {
+      query: {
+        /** @description Explicit subject to list objects for. Defaults to the current session user. */
+        user?: string | null;
+        permission: string;
+        resource_type: string;
+        limit?: number | null;
+        /** @description Opaque pagination cursor from a previous response's `next_cursor`. */
+        cursor?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ObjectsResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  write_relation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RelationRequest"];
+      };
+    };
+    responses: {
+      /** @description Relation written */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_relation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RelationRequest"];
+      };
+    };
+    responses: {
+      /** @description Relation deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Relation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  batch_relations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BatchResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_schema: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": null | components["schemas"]["AuthzSchema"];
+        };
+      };
+    };
+  };
+  put_schema: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AuthzSchema"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthzSchema"];
+        };
+      };
+      /** @description Schema invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_subjects: {
+    parameters: {
+      query: {
+        resource_type: string;
+        resource_id: string;
+        /** @description The permission to expand (e.g. `"edit"`). Resolves through the role hierarchy. */
+        permission: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubjectsResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  why_check: {
+    parameters: {
+      query: {
+        /** @description Subject ID to trace access for. */
+        user: string;
+        permission: string;
+        resource_type: string;
+        resource_id: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TraceResponse"];
+        };
+      };
+      /** @description Authz not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Unknown resource/permission */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_emails: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EmailRecord"][];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  initiate_email_change: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AddRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OttTokenResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Email already registered */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  confirm_email_verification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmVerificationRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            components["schemas"]["ConfirmVerificationResponse"];
+        };
+      };
+      /** @description Invalid or expired token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  set_primary_email: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Email ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Email set as primary */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Email not found or not verified */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  remove_email: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Email ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Email removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Cannot remove primary email */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_email_verification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Email ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OttTokenResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Email not found or already verified */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_identities: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IdentitiesResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  add_password_identity: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AddPasswordRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IdentityItem"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password identity already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  unlink_identity: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Identity ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Cannot remove last auth method */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_identity: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Identity ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateIdentityRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_invitation: {
+    parameters: {
+      query: {
+        /** @description Plaintext invitation token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Invitation ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationViewResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  accept_invitation: {
+    parameters: {
+      query: {
+        /** @description Plaintext invitation token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Invitation ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invitation not found or expired */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Already a member */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  decline_invitation: {
+    parameters: {
+      query: {
+        /** @description Plaintext invitation token */
+        token: string;
+      };
+      header?: never;
+      path: {
+        /** @description Invitation ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invitation not found or expired */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  jwks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          /** @description public, max-age=3600, must-revalidate */
+          "Cache-Control"?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JwkSet"];
+        };
+      };
+    };
+  };
+  list_keys: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeysResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Key created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CreateResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Key ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Key"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Key ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Key revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_magic_link: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MagicLinkRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MagicLinkResponse"];
+        };
+      };
+      /** @description No account with that email */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  apple_oauth_callback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/x-www-form-urlencoded":
+          components["schemas"]["AppleCallbackForm"];
+      };
+    };
+    responses: {
+      /** @description Link — identity added to existing account */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LinkCallbackResponse"];
+        };
+      };
+      /** @description Invalid state or Apple error */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  oauth_authorize: {
+    parameters: {
+      query: {
+        /** @description URL to redirect to after authentication */
+        redirect_url: string;
+      };
+      header?: never;
+      path: {
+        /** @description OAuth provider slug, e.g. `github`, `google` */
+        provider: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthorizeResponse"];
+        };
+      };
+      /** @description Provider not configured */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  oauth_callback: {
+    parameters: {
+      query: {
+        /** @description Authorization code from provider */
+        code: string;
+        /** @description PKCE state JWT */
+        state: string;
+      };
+      header?: never;
+      path: {
+        /** @description OAuth provider slug */
+        provider: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Link — identity added to existing account */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LinkCallbackResponse"];
+        };
+      };
+      /** @description Invalid state or provider error */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description OAuth identity already claimed by another user */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_orgs: {
+    parameters: {
+      query?: {
+        cursor?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgsResponse"];
+        };
+      };
+    };
+  };
+  create_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateOrgRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgResponse"];
+        };
+      };
+      /** @description Slug already taken */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Cannot delete personal org */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_org: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateOrgRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Slug already taken */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_org_invitations: {
+    parameters: {
+      query?: {
+        cursor?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationsResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_invitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateInvitationRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Pending invite for this email already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  revoke_invitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description Invitation ID */
+        inv_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  resend_invitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description Invitation ID */
+        inv_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InvitationResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_org_members: {
+    parameters: {
+      query?: {
+        cursor?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MembersResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  remove_org_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description User ID of the member */
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Would remove last owner */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_org_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Org ID */
+        id: string;
+        /** @description User ID of the member */
+        member_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateMemberRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Would remove last owner */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  begin_passkey_authentication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BeginResponse"];
+        };
+      };
+    };
+  };
+  begin_passkey_registration: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BeginResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  list_passkeys: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CredentialRecord"][];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_passkey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FinishRegistrationRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RegisteredCredential"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_passkey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Credential ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Credential deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_passkey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Credential ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateCredentialRequest"];
+      };
+    };
+    responses: {
+      /** @description Credential updated */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_password_reset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PasswordResetRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PasswordResetResponse"];
+        };
+      };
+    };
+  };
+  list_sessions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionsResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_session: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LoginRequest"];
+      };
+    };
+    responses: {
+      /** @description MFA step-up required */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StepUpResponse"];
+        };
+      };
+      /** @description Session created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthResponse"];
+        };
+      };
+      /** @description Invalid credentials or token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_all_sessions: {
+    parameters: {
+      query?: {
+        /**
+         * @description When true, the current session is preserved; all other sessions are revoked.
+         *     Defaults to false — all sessions including the current one are revoked.
+         */
+        except_current?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Sessions revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_current_session: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CurrentSessionResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  revoke_current_session: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Session revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  revoke_session: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Session revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  issue: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IssueRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
+      };
+      /** @description JWT not enabled */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  begin_totp_enrollment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EnrollmentResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  disable_totp: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description TOTP disabled */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  confirm_totp_enrollment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmRequest"];
+      };
+    };
+    responses: {
+      /** @description TOTP enrollment confirmed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  regenerate_totp_recovery_codes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RecoveryCodesResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description No enrolled TOTP factor */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  create_user: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SignupRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuthResponse"];
+        };
+      };
+      /** @description Email already registered */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Password validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  get_me: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  delete_me: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  update_me: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateMeRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Slug already taken */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
 }

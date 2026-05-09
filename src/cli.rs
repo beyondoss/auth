@@ -159,7 +159,8 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         LocalKeyEncryptor::from_base64(&secrets.signing_key_encryption_key, &old_key_strs)?;
 
     signing_keys::ensure_app_config(&pool).await?;
-    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key).await?;
+    let metrics = Arc::new(crate::metrics::Metrics::new());
+    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key, &metrics).await?;
     let all_keys = signing_keys::load_all_keys_for_jwks(&pool, &enc_key).await?;
     let jwks = signing_keys::render_jwks(&all_keys);
     let app_config = app_config::load(&pool)
@@ -201,8 +202,6 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         }
     };
 
-    let gc_handle = tokio::spawn(token_gc::run(pool.clone()));
-
     let authz_cache = Arc::new(crate::authz::cache::AuthzCache::new(
         cfg.authz_cache_size,
         cfg.authz_cache_size / 2,
@@ -217,7 +216,7 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         signing_key: Arc::new(loaded_key),
         app_config: Arc::new(RwLock::new(app_config)),
         authz_schema: Arc::new(RwLock::new(compiled_authz)),
-        metrics: Arc::new(crate::metrics::Metrics::new()),
+        metrics,
         admin_secret: http::AdminSecret::new(secrets.admin_secret),
         http_client,
         oauth: Arc::new(RwLock::new(oauth)),
@@ -228,7 +227,10 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         authz_cache,
         partition_cache: Arc::new(quick_cache::sync::Cache::new(1024)),
         parallel_batch_available,
+        cache_sync: Arc::new(http::CacheSyncState::new()),
     };
+
+    let gc_handle = tokio::spawn(token_gc::run(state.pool.clone(), state.metrics.clone()));
 
     let result = http::serve(&cfg.address, state).await;
     gc_handle.abort();
@@ -259,10 +261,11 @@ async fn migrate(cfg: MigrateConfig) -> Result<()> {
 
 fn generate_openapi() -> Result<()> {
     use utoipa::OpenApi as _;
+    telemetry::init_simple("info");
     let doc = routes::ApiDoc::openapi();
     let json = serde_json::to_string_pretty(&doc)?;
     std::fs::create_dir_all("openapi")?;
     std::fs::write("openapi/v1.json", json)?;
-    println!("wrote openapi/v1.json");
+    tracing::info!("wrote openapi/v1.json");
     Ok(())
 }

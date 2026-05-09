@@ -8,6 +8,11 @@ use serde_json::json;
 use thiserror::Error;
 use utoipa::ToSchema;
 
+/// Response extension inserted by `AuthError::into_response` so the metrics
+/// middleware can increment `auth_errors_total` without reading the body.
+#[derive(Clone)]
+pub struct AuthErrorCode(pub &'static str);
+
 /// Wire-format error body returned on all non-2xx responses.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ErrorBody {
@@ -332,6 +337,8 @@ impl IntoResponse for AuthError {
             Some(h) => json!({ "error": { "code": code, "message": message, "hint": h } }),
             None => json!({ "error": { "code": code, "message": message } }),
         };
-        (status, Json(body)).into_response()
+        let mut response = (status, Json(body)).into_response();
+        response.extensions_mut().insert(AuthErrorCode(code));
+        response
     }
 }
