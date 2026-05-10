@@ -11,7 +11,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createBrowserAuth } from "../../../react/index.js";
-import { getBaseUrl, signup, uniqueEmail } from "../../harness.js";
+import { getBaseUrl, getProxyUrl, signup, uniqueEmail } from "../../harness.js";
 
 describe("auth flow integration", () => {
   let baseUrl: string;
@@ -95,7 +95,11 @@ describe("auth flow integration", () => {
   });
 
   it("useSignIn calls the real service and gets a session", async () => {
-    const { AuthProvider, useSignIn } = createBrowserAuth({ baseUrl });
+    // useSignIn sends camelCase bodies (grantType) — must go through the proxy
+    // which snakeizes them before forwarding to Rust.
+    const { AuthProvider, useSignIn } = createBrowserAuth({
+      baseUrl: getProxyUrl(),
+    });
     const results: any[] = [];
     const errors: any[] = [];
 

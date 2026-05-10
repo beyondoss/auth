@@ -1,12 +1,16 @@
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import express from "express";
 import { execSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
+import http from "node:http";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import { arch } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { proxy } from "../express/index.js";
+import { testAuth } from "./harness.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +20,7 @@ const ENC_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 let serverProcess: ChildProcess | undefined;
 let stopContainer: (() => Promise<void>) | undefined;
+let proxyServer: http.Server | undefined;
 
 function findFreePort(): Promise<number> {
   return new Promise((res) => {
@@ -135,9 +140,24 @@ export async function setup(): Promise<void> {
     },
     body: JSON.stringify({ jwt_enabled: true }),
   });
+
+  // Start a TypeScript proxy server so React UI tests hit the full stack
+  // (camelization, cookie management, admin-route blocking) rather than the
+  // raw Rust service. Bearer-token auth still works via the proxy's fallback.
+  const proxyApp = express();
+  proxyApp.use("/", proxy(testAuth()));
+  proxyServer = await new Promise<http.Server>((resolve) => {
+    const srv = proxyApp.listen(0, "127.0.0.1", () => resolve(srv));
+  });
+  const proxyPort = (proxyServer.address() as AddressInfo).port;
+  process.env["BEYOND_AUTH_PROXY_URL"] = `http://127.0.0.1:${proxyPort}`;
 }
 
 export async function teardown(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    if (proxyServer) proxyServer.close(() => resolve());
+    else resolve();
+  });
   serverProcess?.kill("SIGTERM");
   await stopContainer?.();
 }

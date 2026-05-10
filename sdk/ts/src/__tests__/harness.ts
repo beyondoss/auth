@@ -17,6 +17,14 @@ export function getBaseUrl(): string {
   return url;
 }
 
+export function getProxyUrl(): string {
+  const url = process.env["BEYOND_AUTH_PROXY_URL"];
+  if (!url) {
+    throw new Error("BEYOND_AUTH_PROXY_URL not set — is globalSetup running?");
+  }
+  return url;
+}
+
 export function getAdminToken(): string {
   const secret = process.env["BEYOND_AUTH_ADMIN_SECRET"];
   if (!secret) {

@@ -17,11 +17,7 @@ export function camelize<T>(obj: T): Camelize<T> {
   if (Array.isArray(obj)) return obj.map(camelize) as Camelize<T>;
   if (typeof obj === "object") {
     const result: Record<string, unknown> = {};
-    for (
-      const [key, value] of Object.entries(
-        obj as Record<string, unknown>,
-      )
-    ) {
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
       const camel = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
       result[camel] = camelize(value);
     }
@@ -30,18 +26,16 @@ export function camelize<T>(obj: T): Camelize<T> {
   return obj as Camelize<T>;
 }
 
-/**
- * Shallow snake_case transformation — only top-level keys are renamed.
- * Used for request bodies where nested values (e.g. WebAuthn credentials)
- * must not be touched.
- */
-export function snakenize(
-  obj: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-    result[snake] = value;
+export function snakenize<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(snakenize) as T;
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+      result[snake] = snakenize(value);
+    }
+    return result as T;
   }
-  return result;
+  return obj;
 }

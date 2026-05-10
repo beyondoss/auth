@@ -2,7 +2,6 @@ import React from "react";
 import { isStepUpResponse } from "../flows/sign-in.js";
 import type { SignInRequest, StepUpResponse } from "../flows/sign-in.js";
 import type { AuthResponse } from "../flows/sign-up.js";
-import { snakenize } from "../utils/camelize.js";
 import { getRedirectParam } from "../utils/redirect.js";
 import { ErrorResponse } from "./client.js";
 import type { ErrorData } from "./client.js";
@@ -33,7 +32,7 @@ export function useSignIn(): UseSignInResult {
       setError(null);
       try {
         const data = await action.send({
-          body: snakenize(req as Record<string, unknown>) as never,
+          body: req as never,
         });
 
         if (isStepUpResponse(data)) {

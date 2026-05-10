@@ -28,6 +28,7 @@ depends = ["generate:types"]
 
 [tasks."check:fmt"]
 run = "dprint check"
+depends = ["generate:types"]
 
 [tasks."format"]
 run = "dprint fmt"
@@ -51,7 +52,7 @@ run = "cargo test --test api --features test-server"
 [tasks."test:integration:ts"]
 run = "npm test"
 dir = "sdk/ts"
-depends = ["generate:types", "build:rs"]
+depends = ["generate:types", "build:rs", "test:integration:rs"]
 
 [tasks."generate:openapi"]
 run = "cargo run -- generate-openapi"
@@ -60,6 +61,7 @@ run = "cargo run -- generate-openapi"
 run = [
   "cd ts && node scripts/generate-types.mjs",
   "cd ts && node scripts/generate-react-types.mjs",
+  "cd .. && dprint fmt openapi/v1.json sdk/ts/src/types.ts sdk/ts/src/react/types.ts",
 ]
 dir = "sdk"
 depends = ["install:ts", "generate:openapi"]

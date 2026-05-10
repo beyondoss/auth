@@ -258,16 +258,21 @@ export function proxy(auth: Auth, opts?: ProxyOptions): RequestHandler {
         req.url.includes("?") ? req.url.slice(req.url.indexOf("?") + 1) : "",
       );
 
-      // Stream req (IncomingMessage / Readable) directly as body.
-      // Node 18+ fetch accepts a Readable as BodyInit; duplex: 'half' is required.
-      const hasBody = req.method !== "GET" && req.method !== "HEAD";
+      let bodyBuf: Buffer | null = null;
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        bodyBuf = chunks.length > 0 ? Buffer.concat(chunks) : Buffer.alloc(0);
+      }
 
       const upstream = await proxyRequest(
         req.method,
         targetPath,
         searchParams,
         headers,
-        hasBody ? (req as unknown as BodyInit) : null,
+        bodyBuf as BodyInit | null,
         authServiceUrl,
         cookieOpts,
         `http://proxy${req.url}`,

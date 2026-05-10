@@ -1,4 +1,4 @@
-import { camelize } from "../utils/camelize.js";
+import { camelize, snakenize } from "../utils/camelize.js";
 import {
   clearCookieAttrs,
   type CookieAttrs,
@@ -42,6 +42,46 @@ function toCookieHeader(attrs: CookieAttrs): string {
   if (attrs.httpOnly) parts.push("HttpOnly");
   if (attrs.sameSite) parts.push(`SameSite=${attrs.sameSite}`);
   return parts.join("; ");
+}
+
+async function readBodyText(body: BodyInit): Promise<string> {
+  if (typeof body === "string") return body;
+  if (body instanceof Uint8Array || body instanceof ArrayBuffer) {
+    return new TextDecoder().decode(body);
+  }
+  // Node.js IncomingMessage / Readable implements AsyncIterable — use it
+  // directly rather than new Response(body) which hangs on Node Readable streams.
+  if (Symbol.asyncIterator in Object(body)) {
+    const parts: string[] = [];
+    for await (
+      const chunk of body as AsyncIterable<string | Uint8Array | ArrayBuffer>
+    ) {
+      if (typeof chunk === "string") parts.push(chunk);
+      else parts.push(new TextDecoder().decode(chunk));
+    }
+    return parts.join("");
+  }
+  return new Response(body as ReadableStream).text();
+}
+
+async function snakeizeRequestBody(
+  body: BodyInit | null,
+  headers: Headers,
+): Promise<BodyInit | null> {
+  if (!body || !headers.get("content-type")?.includes("application/json")) {
+    return body;
+  }
+  try {
+    const text = await readBodyText(body);
+    const snakeized = JSON.stringify(
+      snakenize(JSON.parse(text) as Record<string, unknown>),
+    );
+    // Content-Length from the client no longer matches after key renaming.
+    headers.delete("content-length");
+    return snakeized;
+  } catch {
+    return body;
+  }
 }
 
 function buildUpstreamUrl(
@@ -106,19 +146,23 @@ export async function proxyRequest(
   cookieOpts: CookieOptions,
   requestUrl: string,
 ): Promise<Response> {
+  const snakeBody = await snakeizeRequestBody(body, headers);
+
   const isOAuthCallback = (method === "GET"
     && /^\/v1\/oauth\/[^/]+\/callback$/.test(targetPath))
     || (method === "POST" && targetPath === "/v1/oauth/apple/callback");
 
   if (isOAuthCallback) {
     // For Apple's POST form callback the body is text; for GET callbacks it's null.
-    const bodyText = body instanceof ReadableStream
-      ? await new Response(body).text()
-      : typeof body === "string"
-      ? body
-      : body instanceof Uint8Array || body instanceof ArrayBuffer
+    const bodyText = snakeBody instanceof ReadableStream
+      ? await new Response(snakeBody).text()
+      : typeof snakeBody === "string"
+      ? snakeBody
+      : snakeBody instanceof Uint8Array || snakeBody instanceof ArrayBuffer
       ? new TextDecoder().decode(
-        body instanceof ArrayBuffer ? new Uint8Array(body) : body,
+        snakeBody instanceof ArrayBuffer
+          ? new Uint8Array(snakeBody)
+          : snakeBody,
       )
       : null;
 
@@ -172,7 +216,7 @@ export async function proxyRequest(
     {
       method,
       headers,
-      body,
+      body: snakeBody,
       // @ts-expect-error: duplex is required for streaming request bodies in Node 18+
       duplex: "half",
     },

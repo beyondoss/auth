@@ -1,6 +1,5 @@
 import React from "react";
 import type { Email } from "../../../account/emails.js";
-import { camelize } from "../../../utils/camelize.js";
 import { useAuthContext } from "../../context.js";
 import { Form } from "../form/index.js";
 
@@ -32,12 +31,7 @@ export function useEmailManagerContext(): EmailManagerContextValue {
 function Root({ children }: { children: React.ReactNode }) {
   const { client } = useAuthContext();
   const result = client.useInlineLoader({ path: "GET /v1/emails" });
-  const emails = React.useMemo(
-    () => (result.data
-      ? (camelize(result.data) as unknown as { emails: Email[] }).emails
-      : []),
-    [result.data],
-  );
+  const emails = React.useMemo(() => result.data ?? [], [result.data]);
 
   return (
     <EmailManagerContext.Provider

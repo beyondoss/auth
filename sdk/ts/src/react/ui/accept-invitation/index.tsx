@@ -73,8 +73,7 @@ function Accept(
   return (
     <Form
       path="POST /v1/invitations/{id}/acceptances"
-      params={{ path: { id: invitationId } } as any}
-      body={{ token }}
+      params={{ path: { id: invitationId }, query: { token } } as any}
       onSuccess={onSuccess as any}
     >
       <Form.Submit {...props}>{children ?? "Accept invitation"}</Form.Submit>
@@ -92,8 +91,7 @@ function Decline(
   return (
     <Form
       path="POST /v1/invitations/{id}/declinations"
-      params={{ path: { id: invitationId } } as any}
-      body={{ token }}
+      params={{ path: { id: invitationId }, query: { token } } as any}
       onSuccess={onSuccess as any}
     >
       <Form.Submit {...props}>{children ?? "Decline"}</Form.Submit>
