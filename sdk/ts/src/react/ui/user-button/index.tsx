@@ -1,5 +1,5 @@
 import React from "react";
-import { useUser } from "../../hooks.js";
+import { useAuth } from "../../hooks.js";
 import { Form } from "../form/index.js";
 
 interface UserButtonContextValue {
@@ -71,13 +71,13 @@ const Panel = React.forwardRef<
 Panel.displayName = "UserButton.Panel";
 
 function Name(props: React.HTMLAttributes<HTMLSpanElement>) {
-  const profile = useUser();
-  return <span {...props}>{props.children ?? profile.user.name}</span>;
+  const { user } = useAuth();
+  return <span {...props}>{props.children ?? user?.user.name}</span>;
 }
 
 function Email(props: React.HTMLAttributes<HTMLSpanElement>) {
-  const profile = useUser();
-  return <span {...props}>{props.children ?? profile.email.email}</span>;
+  const { user } = useAuth();
+  return <span {...props}>{props.children ?? user?.email.email}</span>;
 }
 
 export interface SignOutButtonProps

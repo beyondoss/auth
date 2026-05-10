@@ -12,7 +12,10 @@ export {
   ResetPassword,
   useResetPasswordContext,
 } from "./reset-password/index.js";
-export type { ResetPasswordRootProps } from "./reset-password/index.js";
+export type {
+  ResetPasswordContextValue,
+  ResetPasswordRootProps,
+} from "./reset-password/index.js";
 
 export { MagicLink, useMagicLinkContext } from "./magic-link/index.js";
 export type { MagicLinkRootProps } from "./magic-link/index.js";
@@ -22,7 +25,10 @@ export type { OAuthButtonProps } from "./oauth/index.js";
 
 // User / account
 export { UserButton, useUserButtonContext } from "./user-button/index.js";
-export type { UserButtonRootProps } from "./user-button/index.js";
+export type {
+  SignOutButtonProps,
+  UserButtonRootProps,
+} from "./user-button/index.js";
 
 export { ProfileEditor } from "./profile-editor/index.js";
 export type { ProfileEditorRootProps } from "./profile-editor/index.js";

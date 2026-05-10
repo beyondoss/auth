@@ -13,14 +13,11 @@ export interface ApiKeyManagerContextValue {
   refetch(): void;
   createdSecret: string | null;
   clearCreatedSecret(): void;
-}
-
-interface ApiKeyManagerInternalValue extends ApiKeyManagerContextValue {
   onKeyCreated(key: ApiKeyWithSecret): void;
 }
 
 const ApiKeyManagerContext = React.createContext<
-  ApiKeyManagerInternalValue | null
+  ApiKeyManagerContextValue | null
 >(null);
 
 export function useApiKeyManagerContext(): ApiKeyManagerContextValue {
@@ -45,6 +42,17 @@ function Root({ children }: { children: React.ReactNode }) {
     [result.data],
   );
   const [createdSecret, setCreatedSecret] = React.useState<string | null>(null);
+  const clearCreatedSecret = React.useCallback(
+    () => setCreatedSecret(null),
+    [],
+  );
+
+  // Auto-clear the revealed secret after 30 seconds.
+  React.useEffect(() => {
+    if (!createdSecret) return;
+    const t = setTimeout(clearCreatedSecret, 30_000);
+    return () => clearTimeout(t);
+  }, [createdSecret, clearCreatedSecret]);
 
   const onKeyCreated = React.useCallback(
     (key: ApiKeyWithSecret) => {
@@ -62,7 +70,7 @@ function Root({ children }: { children: React.ReactNode }) {
         error: result.error,
         refetch: result.refetch,
         createdSecret,
-        clearCreatedSecret: () => setCreatedSecret(null),
+        clearCreatedSecret,
         onKeyCreated,
       }}
     >
@@ -86,19 +94,14 @@ function Items({ children }: { children(key: ApiKey): React.ReactNode }) {
 function CreateForm(
   { onSuccess, children }: { onSuccess?(): void; children: React.ReactNode },
 ) {
-  const ctx = React.useContext(ApiKeyManagerContext);
-  if (!ctx) {
-    throw new Error(
-      "ApiKeyManager.CreateForm must be used inside <ApiKeyManager.Root>",
-    );
-  }
+  const { onKeyCreated } = useApiKeyManagerContext();
 
   const handleSuccess = React.useCallback(
     (data: unknown) => {
-      ctx.onKeyCreated(data as ApiKeyWithSecret);
+      onKeyCreated(data as ApiKeyWithSecret);
       onSuccess?.();
     },
-    [ctx, onSuccess],
+    [onKeyCreated, onSuccess],
   );
 
   return (
@@ -131,10 +134,10 @@ function Remove(
 }
 
 function CreatedSecret(props: React.HTMLAttributes<HTMLElement>) {
-  const { createdSecret, clearCreatedSecret } = useApiKeyManagerContext();
+  const { createdSecret } = useApiKeyManagerContext();
   if (!createdSecret) return null;
   return (
-    <code data-created-secret onBlur={clearCreatedSecret} {...props}>
+    <code data-created-secret {...props}>
       {props.children ?? createdSecret}
     </code>
   );

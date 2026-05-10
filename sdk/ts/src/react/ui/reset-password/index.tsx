@@ -5,8 +5,9 @@ import { Form } from "../form/index.js";
 
 type ResetPasswordPhase = "request" | "sent" | "confirm";
 
-interface ResetPasswordContextValue {
+export interface ResetPasswordContextValue {
   phase: ResetPasswordPhase;
+  resend(): void;
 }
 
 const ResetPasswordContext = React.createContext<
@@ -44,6 +45,8 @@ function Root(
     token ? "confirm" : "request",
   );
 
+  const resend = React.useCallback(() => setPhase("request"), []);
+
   const handleRequestSuccess = React.useCallback(
     (data: unknown, response: Response) => {
       setPhase("sent");
@@ -63,7 +66,7 @@ function Root(
     : onSuccess as any;
 
   return (
-    <ResetPasswordContext.Provider value={{ phase }}>
+    <ResetPasswordContext.Provider value={{ phase, resend }}>
       <Form
         path={formPath}
         body={formBody as any}
@@ -116,6 +119,17 @@ const ConfirmForm = React.forwardRef<
 );
 ConfirmForm.displayName = "ResetPassword.ConfirmForm";
 
+const ResendButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(
+  (props, ref) => {
+    const { resend } = useResetPasswordContext();
+    return <button type="button" onClick={resend} {...props} ref={ref} />;
+  },
+);
+ResendButton.displayName = "ResetPassword.ResendButton";
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export const ResetPassword = {
@@ -123,6 +137,7 @@ export const ResetPassword = {
   RequestForm,
   SentMessage,
   ConfirmForm,
+  ResendButton,
   Field: Form.Field,
   Error: Form.Error,
   Submit: Form.Submit,

@@ -86,6 +86,7 @@ function Root({ children }: { children: React.ReactNode }) {
       credential: Record<string, unknown>,
       stateToken: string,
     ): Promise<void> => {
+      setRegistering(true);
       try {
         await finishAction.send(
           { body: { state_token: stateToken, credential } } as any,

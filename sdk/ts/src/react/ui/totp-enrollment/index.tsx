@@ -190,6 +190,17 @@ function ConfirmField(
   );
 }
 
+// Only valid during the "enrolling" phase where a <Form> is in the tree.
+const ConfirmSubmit = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>((props, ref) => {
+  const { phase } = useTOTPEnrollmentContext();
+  if (phase !== "enrolling") return null;
+  return <Form.Submit {...props} ref={ref} />;
+});
+ConfirmSubmit.displayName = "TOTPEnrollment.ConfirmSubmit";
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export const TOTPEnrollment = {
@@ -199,7 +210,7 @@ export const TOTPEnrollment = {
   Secret,
   RecoveryCodes,
   ConfirmField,
+  ConfirmSubmit,
   DisableButton,
   Error: Form.Error,
-  Submit: Form.Submit,
 };

@@ -142,8 +142,7 @@ const ErrorMessage = React.forwardRef<
   if (!error) return null;
   return (
     <p role="alert" data-error {...props} ref={ref}>
-      {props.children ?? (error.data as any)?.error?.message
-        ?? "An error occurred"}
+      {props.children ?? error.message}
     </p>
   );
 });

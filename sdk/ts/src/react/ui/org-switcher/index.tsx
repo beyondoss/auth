@@ -99,6 +99,7 @@ function Item(
       role="menuitem"
       onClick={(e) => {
         onClick?.(e);
+        if (e.defaultPrevented) return;
         rootOnSwitch?.(org);
         itemOnSwitch?.(org);
         toggle();
