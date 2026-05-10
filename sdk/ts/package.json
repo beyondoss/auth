@@ -25,6 +25,10 @@
       "import": "./dist/react/index.js",
       "types": "./dist/react/index.d.ts"
     },
+    "./react/ui": {
+      "import": "./dist/react/ui.js",
+      "types": "./dist/react/ui.d.ts"
+    },
     "./server": {
       "import": "./dist/server/index.js",
       "types": "./dist/server/index.d.ts"

@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     "next/index": "src/next/index.ts",
     "react/index": "src/react/index.ts",
+    "react/ui": "src/react/ui/index.ts",
   },
   format: "esm",
   dts: true,
