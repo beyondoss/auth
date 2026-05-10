@@ -68,7 +68,9 @@
 import createFetchClient from "openapi-fetch";
 import * as v from "valibot";
 import { AuthError, AuthzError } from "./errors.js";
+import type { SessionContext } from "./session.js";
 import type { components, paths } from "./types.js";
+import { camelize } from "./utils/camelize.js";
 import type { AuthResult } from "./utils/wrap.js";
 
 export type { AuthzError };
@@ -471,20 +473,29 @@ export interface AuthzClient<S extends SchemaInput = SchemaInput> {
   /**
    * Zanzibar **Check** with a session token — one database round-trip.
    *
-   * Validates the session token and checks the permission in a single bundled
-   * CTE query. This is the hot path for request middleware: you pay one DB
-   * round-trip instead of two (session validate + authz check separately).
+   * Validates the session token AND checks the permission in a single bundled
+   * CTE query. The response includes both `allowed` and the resolved `session`
+   * context, so framework middleware can populate `req.auth` / `c.var.auth` /
+   * `request.auth` from this single call — no separate `GET /v1/sessions/current`
+   * required.
    *
-   * To check multiple permissions at once, use {@link checksSession} — it
-   * returns an `allowed` boolean per item.
+   * Returns `{ allowed: false, session: null }` for an invalid/expired token
+   * (the request never reaches the schema check), `{ allowed, session }` for
+   * a valid token (session populated regardless of `allowed`).
+   *
+   * To check multiple permissions at once, use {@link checksSession}.
    *
    * @example
    * ```ts
    * const { data, error } = await authz.checkSession({ token, resource: 'document', id: docId, permission: 'edit' })
-   * if (error) return new Response('Forbidden', { status: 403 })
+   * if (error) throw error
+   * if (!data.allowed) return new Response('Forbidden', { status: 403 })
+   * req.auth = data.session
    * ```
    */
-  checkSession(args: CheckSessionArgs<S>): Promise<AuthResult<boolean>>;
+  checkSession(
+    args: CheckSessionArgs<S>,
+  ): Promise<AuthResult<{ allowed: boolean; session: SessionContext | null }>>;
 
   /**
    * Batch **Check** with a session token — all N checks in a single request.
@@ -803,14 +814,14 @@ export function createAuthzClient<const S extends SchemaInput = AuthzSchema>(
         },
       );
       if (error !== undefined) return parseError(error, response);
-      if (!data.allowed) {
-        return {
-          data: undefined,
-          error: new AuthzError("unauthorized", "permission denied", 403),
-          response,
-        };
-      }
-      return { data: data.allowed, error: undefined, response };
+      const session = data.session
+        ? (camelize(data.session) as SessionContext)
+        : null;
+      return {
+        data: { allowed: data.allowed, session },
+        error: undefined,
+        response,
+      };
     },
 
     async createRelation(relation) {

@@ -1,6 +1,12 @@
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+import type {
+  FastifyPluginCallback,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import fp from "fastify-plugin";
-import { AuthError } from "../errors.js";
+import type { Auth } from "../auth.js";
+import type { CheckSessionArgs, SchemaInput } from "../authz.js";
+import { AuthError, AuthzError } from "../errors.js";
 import { getSessionTokenFromNodeHeaders } from "../server/cookie.js";
 import {
   matchesPublicPath,
@@ -17,7 +23,9 @@ declare module "fastify" {
   }
 }
 
-export interface AuthPluginOptions {
+export interface AuthnPluginOptions {
+  /** Unified server-side auth handle from `createAuth` (or the lazy `auth` singleton). */
+  auth: Auth;
   /**
    * Paths that bypass the auth check.
    *
@@ -41,31 +49,30 @@ export interface AuthPluginOptions {
 /**
  * Fastify plugin that protects routes behind session authentication.
  *
- * Wrap with `fp()` is applied internally so `request.auth` is visible across
- * the entire app. Tokens are read from the `__Host-session` / `__Secure-session`
- * cookie first, with an `Authorization: Bearer` fallback.
+ * `fp()` is applied internally so `request.auth` is visible across the entire
+ * app. Tokens are read from the `__Host-session` / `__Secure-session` cookie
+ * first, with an `Authorization: Bearer` fallback.
+ *
+ * **If your route also runs an {@link authz} check, prefer `authz` alone — it
+ * does both in one call.** Use `authn` for routes that need a session but no
+ * specific permission gating.
  *
  * @example
  * ```ts
- * import { createAuthPlugin } from '@beyond.dev/auth/fastify'
+ * import { auth } from '@beyond.dev/auth'
+ * import { authn } from '@beyond.dev/auth/fastify'
  *
- * const verifier = createSessionVerifier({ url: process.env.BEYOND_AUTH_URL! })
- * await app.register(createAuthPlugin(verifier), { prefix: '/protected' })
+ * await app.register(authn, { auth, publicPaths: ['/health'] })
  * ```
  */
-export function createAuthPlugin(
-  verifier: {
-    verify(token: string): Promise<{ data: unknown; error: unknown }>;
-  },
-  opts?: AuthPluginOptions,
-): FastifyPluginAsync {
-  const publicPaths = opts?.publicPaths ?? [];
-  const onUnauthorized = opts?.onUnauthorized
-    ?? (async (_request: FastifyRequest, reply: FastifyReply) => {
-      await reply.code(401).send({ code: "unauthorized" });
-    });
+export const authn: FastifyPluginCallback<AuthnPluginOptions> = fp(
+  (fastify, opts: AuthnPluginOptions, done) => {
+    const { auth, publicPaths = [], onUnauthorized } = opts;
+    const handleUnauthorized = onUnauthorized
+      ?? (async (_request: FastifyRequest, reply: FastifyReply) => {
+        await reply.code(401).send({ code: "unauthorized" });
+      });
 
-  const plugin: FastifyPluginAsync = async (fastify) => {
     fastify.decorateRequest("auth", null);
 
     fastify.addHook("preHandler", async (request, reply) => {
@@ -73,41 +80,143 @@ export function createAuthPlugin(
 
       const token = getSessionTokenFromNodeHeaders(request.headers);
       if (!token) {
-        return onUnauthorized(request, reply);
+        return handleUnauthorized(request, reply);
       }
 
-      const result = await verifier.verify(token);
+      const result = await auth.verify(token);
       if (result.error) {
         if (result.error instanceof AuthError && result.error.status >= 500) {
           throw result.error;
         }
-        return onUnauthorized(request, reply);
+        return handleUnauthorized(request, reply);
       }
       if (!result.data) {
-        return onUnauthorized(request, reply);
+        return handleUnauthorized(request, reply);
       }
 
       request.auth = result.data as SessionContext;
     });
-  };
 
-  // fp() makes the decorateRequest visible in the parent scope
-  return fp(plugin, { name: "@beyond.dev/auth", fastify: ">=4" });
+    done();
+  },
+  { name: "@beyond.dev/auth", fastify: ">=4" },
+);
+
+export interface AuthzPluginOptions {
+  /**
+   * Called when the permission check is denied. Send an error reply and
+   * return. Defaults to `{ code: 'forbidden' }` with status 403.
+   */
+  onForbidden?: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => void | Promise<void>;
+}
+
+/**
+ * Creates a Fastify `preHandler` hook that enforces a permission check using
+ * Zanzibar-style authorization.
+ *
+ * **Validates the session AND checks the permission in a single bundled call.**
+ * Populates `request.auth` with the resolved session context. **You do not
+ * need to stack `authn` before `authz` — it's a strict superset.**
+ *
+ * The canonical Fastify pattern (matching `@fastify/auth` / `@fastify/jwt`)
+ * is per-route via the route's `preHandler` array. For a route group sharing
+ * one check, register the hook inside a scoped plugin.
+ *
+ * `getCheck` receives the request and returns the resource, id, and permission
+ * to check — allowing dynamic values from route params.
+ *
+ * @example Per-route (canonical Fastify pattern)
+ * ```ts
+ * import { auth } from '@beyond.dev/auth'
+ * import { authz } from '@beyond.dev/auth/fastify'
+ *
+ * app.get('/docs/:id', {
+ *   preHandler: authz(auth, (req) => ({
+ *     resource: 'document',
+ *     id: (req.params as { id: string }).id,
+ *     permission: 'read',
+ *   })),
+ * }, async (request) => ({ user: request.auth }))
+ * ```
+ *
+ * @example Scoped over a route group
+ * ```ts
+ * await app.register(async (instance) => {
+ *   instance.addHook('preHandler', authz(auth, getCheck))
+ *   instance.get('/:id', handler)
+ *   instance.delete('/:id', handler)
+ * }, { prefix: '/docs' })
+ * ```
+ */
+export function authz<S extends SchemaInput>(
+  auth: Auth<S>,
+  getCheck: (request: FastifyRequest) => Omit<CheckSessionArgs<S>, "token">,
+  opts?: AuthzPluginOptions,
+): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
+  const onForbidden = opts?.onForbidden
+    ?? (async (_request: FastifyRequest, reply: FastifyReply) => {
+      await reply.code(403).send({ code: "forbidden" });
+    });
+
+  return async (request, reply) => {
+    const token = getSessionTokenFromNodeHeaders(request.headers);
+    if (!token) {
+      return reply.code(401).send({ code: "unauthorized" });
+    }
+
+    const check = getCheck(request);
+    const result = await auth.checkSession({
+      token,
+      ...check,
+    } as CheckSessionArgs<S>);
+
+    if (result.error) {
+      if (
+        result.error instanceof AuthzError
+        && (result.error.code === "authz_not_enabled"
+          || result.error.code === "authz_unknown_resource"
+          || result.error.code === "authz_unknown_permission")
+      ) {
+        throw result.error;
+      }
+      if (result.error instanceof AuthError) {
+        if (result.error.status === 401) {
+          return reply.code(401).send({ code: "unauthorized" });
+        }
+        if (result.error.status >= 500) {
+          throw result.error;
+        }
+      }
+      return onForbidden(request, reply);
+    }
+
+    if (!result.data.allowed) return onForbidden(request, reply);
+    // Bundled response carries the resolved session context — populate
+    // request.auth so handlers don't need a separate authn() in the chain.
+    request.auth = result.data.session;
+  };
+}
+
+export interface ProxyPluginOptions extends ProxyOptions {
+  /** Unified server-side auth handle from `createAuth` (or the lazy `auth` singleton). */
+  auth: Auth;
 }
 
 /**
  * Fastify plugin that proxies requests to the private auth service.
  *
- * Do NOT wrap in `fastify-plugin` — prefix isolation is required so the
- * content-type parser override is scoped only to these routes:
+ * NOT wrapped with `fastify-plugin` — prefix isolation is required so the
+ * content-type parser override is scoped only to these routes.
  *
  * @example
  * ```ts
- * import { createProxyPlugin } from '@beyond.dev/auth/fastify'
+ * import { auth } from '@beyond.dev/auth'
+ * import { proxy } from '@beyond.dev/auth/fastify'
  *
- * await app.register(createProxyPlugin(process.env.AUTH_SERVICE_URL!), {
- *   prefix: '/api/auth',
- * })
+ * await app.register(proxy, { auth, prefix: '/api/auth' })
  * ```
  *
  * - Blocks `/v1/admin/**` with 403
@@ -116,17 +225,21 @@ export function createAuthPlugin(
  * - On sign-out (DELETE /v1/sessions/current or /v1/sessions): clears cookie
  * - All JSON responses are camelCased
  */
-export function createProxyPlugin(
-  authServiceUrl: string,
-  opts?: ProxyOptions,
-): FastifyPluginAsync {
+export const proxy: FastifyPluginCallback<ProxyPluginOptions> = (
+  fastify,
+  opts,
+  done,
+) => {
+  const authServiceUrl = opts.auth.url;
   const cookieOpts = {
-    ...(opts?.domain !== undefined ? { domain: opts.domain } : {}),
-    ...(opts?.maxAge !== undefined ? { maxAge: opts.maxAge } : {}),
+    ...(opts.domain !== undefined ? { domain: opts.domain } : {}),
+    ...(opts.maxAge !== undefined ? { maxAge: opts.maxAge } : {}),
   };
 
-  // NOT wrapped with fp() — prefix isolation must work
-  return async (fastify) => {
+  // Body of the original async plugin, run synchronously inside this callback.
+  // Content-type parser override + the catch-all route are registered before
+  // calling done() so prefix isolation is preserved (no fp() wrapper).
+  {
     // Remove all default content type parsers (including Fastify's built-in
     // JSON parser) for routes in this plugin only. The '*' catch-all below
     // would otherwise not override application/json. This is scoped to this
@@ -190,5 +303,7 @@ export function createProxyPlugin(
         return reply.send(buf);
       },
     });
-  };
-}
+  }
+
+  done();
+};

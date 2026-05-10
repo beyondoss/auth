@@ -1,5 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
-import { AuthError } from "../errors.js";
+import type { Auth } from "../auth.js";
+import type { CheckSessionArgs, SchemaInput } from "../authz.js";
+import { AuthError, AuthzError } from "../errors.js";
 import { getSessionToken } from "../server/cookie.js";
 import {
   matchesPublicPath,
@@ -10,7 +12,7 @@ import type { SessionContext } from "../session.js";
 
 export type { ProxyOptions };
 
-export interface AuthMiddlewareOptions {
+export interface AuthnOptions {
   /**
    * Paths that bypass the auth check.
    *
@@ -38,24 +40,22 @@ export interface AuthMiddlewareOptions {
  * The verified session is stored in context variables as `'auth'`. Declare
  * your `Variables` type to get type safety on `c.var.auth`:
  *
+ * **If your route also runs an {@link authz} check, prefer `authz` alone — it
+ * does both in one call.** Use `authn` for routes that need a session but no
+ * specific permission gating.
+ *
  * @example
  * ```ts
- * import { createSessionVerifier } from '@beyond.dev/auth'
- * import { createAuthMiddleware } from '@beyond.dev/auth/hono'
+ * import { auth } from '@beyond.dev/auth'
+ * import { authn } from '@beyond.dev/auth/hono'
  *
  * type Env = { Variables: { auth: SessionContext } }
  * const app = new Hono<Env>()
  *
- * const verifier = createSessionVerifier({ url: process.env.BEYOND_AUTH_URL! })
- * app.use('/protected/*', createAuthMiddleware(verifier))
+ * app.use('/protected/*', authn(auth))
  * ```
  */
-export function createAuthMiddleware(
-  verifier: {
-    verify(token: string): Promise<{ data: unknown; error: unknown }>;
-  },
-  opts?: AuthMiddlewareOptions,
-): MiddlewareHandler {
+export function authn(auth: Auth, opts?: AuthnOptions): MiddlewareHandler {
   const publicPaths = opts?.publicPaths ?? [];
   const onUnauthorized = opts?.onUnauthorized
     ?? ((c: Context) => c.json({ code: "unauthorized" }, 401));
@@ -70,7 +70,7 @@ export function createAuthMiddleware(
       return onUnauthorized(c);
     }
 
-    const result = await verifier.verify(token);
+    const result = await auth.verify(token);
     if (result.error) {
       if (result.error instanceof AuthError && result.error.status >= 500) {
         throw result.error;
@@ -86,6 +86,94 @@ export function createAuthMiddleware(
   };
 }
 
+export interface AuthzOptions {
+  /**
+   * Called when the permission check is denied. Return a `Response` to send
+   * to the client. Defaults to `{ code: 'forbidden' }` with status 403.
+   */
+  onForbidden?: (c: Context) => Response | Promise<Response>;
+}
+
+/**
+ * Hono middleware that enforces a permission check on a route using
+ * Zanzibar-style authorization.
+ *
+ * **Validates the session AND checks the permission in a single bundled call.**
+ * Populates `c.var.auth` with the resolved session context. **You do not need
+ * to stack `authn` before `authz` — it's a strict superset.**
+ *
+ * - 401 when no session token is presented or the token is invalid/expired.
+ * - 403 when the session is valid but permission is denied.
+ *
+ * `getCheck` receives the context and returns the resource, id, and permission
+ * to check — allowing dynamic values from route params.
+ *
+ * @example
+ * ```ts
+ * import { auth } from '@beyond.dev/auth'
+ * import { authz } from '@beyond.dev/auth/hono'
+ *
+ * type Env = { Variables: { auth: SessionContext } }
+ * const app = new Hono<Env>()
+ *
+ * app.delete('/docs/:id',
+ *   authz(auth, (c) => ({
+ *     resource: 'document',
+ *     id: c.req.param('id')!,
+ *     permission: 'delete',
+ *   })),
+ *   (c) => c.json({ deletedBy: c.var.auth.tokenId }),
+ * )
+ * ```
+ */
+export function authz<S extends SchemaInput>(
+  auth: Auth<S>,
+  getCheck: (c: Context) => Omit<CheckSessionArgs<S>, "token">,
+  opts?: AuthzOptions,
+): MiddlewareHandler {
+  const onForbidden = opts?.onForbidden
+    ?? ((c: Context) => c.json({ code: "forbidden" }, 403));
+
+  return async (c, next) => {
+    const token = getSessionToken(c.req.raw);
+    if (!token) {
+      return c.json({ code: "unauthorized" }, 401);
+    }
+
+    const check = getCheck(c);
+    const result = await auth.checkSession({
+      token,
+      ...check,
+    } as CheckSessionArgs<S>);
+
+    if (result.error) {
+      if (
+        result.error instanceof AuthzError
+        && (result.error.code === "authz_not_enabled"
+          || result.error.code === "authz_unknown_resource"
+          || result.error.code === "authz_unknown_permission")
+      ) {
+        throw result.error;
+      }
+      if (result.error instanceof AuthError) {
+        if (result.error.status === 401) {
+          return c.json({ code: "unauthorized" }, 401);
+        }
+        if (result.error.status >= 500) {
+          throw result.error;
+        }
+      }
+      return onForbidden(c);
+    }
+
+    if (!result.data.allowed) return onForbidden(c);
+    // Bundled response carries the resolved session context — populate
+    // c.var.auth so handlers don't need a separate authn() in the chain.
+    c.set("auth" as never, result.data.session as SessionContext);
+    return next();
+  };
+}
+
 /**
  * Hono middleware that proxies requests to the private auth service.
  *
@@ -94,10 +182,10 @@ export function createAuthMiddleware(
  *
  * @example
  * ```ts
- * import { createProxy } from '@beyond.dev/auth/hono'
+ * import { auth } from '@beyond.dev/auth'
+ * import { proxy } from '@beyond.dev/auth/hono'
  *
- * const proxy = createProxy(process.env.AUTH_SERVICE_URL!)
- * app.all('/api/auth/*', proxy)
+ * app.all('/api/auth/*', proxy(auth))
  * ```
  *
  * - Blocks `/v1/admin/**` with 403 — admin routes must never be browser-accessible
@@ -106,10 +194,8 @@ export function createAuthMiddleware(
  * - On sign-out (DELETE /v1/sessions/current or /v1/sessions): clears cookie
  * - All JSON responses are camelCased
  */
-export function createProxy(
-  authServiceUrl: string,
-  opts?: ProxyOptions,
-): MiddlewareHandler {
+export function proxy(auth: Auth, opts?: ProxyOptions): MiddlewareHandler {
+  const authServiceUrl = auth.url;
   const cookieOpts = {
     ...(opts?.domain !== undefined ? { domain: opts.domain } : {}),
     ...(opts?.maxAge !== undefined ? { maxAge: opts.maxAge } : {}),

@@ -92,7 +92,7 @@ pub struct SessionsResponse {
 }
 
 /// Details of the session that authenticated the current request.
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CurrentSessionResponse {
     /// Session ID.
     pub id: Uuid,

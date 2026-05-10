@@ -322,7 +322,7 @@ describe("trace", () => {
 // ── checkSession ─────────────────────────────────────────────────────────────
 
 describe("checkSession", () => {
-  it("resolves when the session user holds the required permission", async () => {
+  it("resolves with bundled session context when the session user holds the required permission", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const doc = uid();
     await authz.createRelation({
@@ -338,7 +338,11 @@ describe("checkSession", () => {
       permission: "read",
     });
     expect(result.error).toBeUndefined();
-    expect(result.data).toBe(true);
+    expect(result.data?.allowed).toBe(true);
+    // Bundled response carries the resolved session — callers can populate
+    // request.auth without a separate /v1/sessions/current round-trip.
+    expect(result.data?.session?.id).toBe(auth.session.id);
+    expect(result.data?.session?.tokenId).toBeDefined();
   });
 
   it("returns AuthzError(unauthorized) for an invalid token", async () => {
@@ -369,7 +373,7 @@ describe("checkSession", () => {
       permission: "read",
     });
     expect(before.error).toBeUndefined();
-    expect(before.data).toBe(true);
+    expect(before.data?.allowed).toBe(true);
 
     const { error } = await authedClient(auth.session.token).DELETE(
       "/v1/sessions/current",

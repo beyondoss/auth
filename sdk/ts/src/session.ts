@@ -8,7 +8,7 @@ import type { AuthResult } from "./utils/wrap.js";
 /** Options for {@link createSessionVerifier}. */
 export interface SessionVerifierOptions {
   /** Base URL of the auth service, e.g. `http://auth:8080`. Trailing slash is stripped automatically. */
-  baseUrl: string;
+  url: string;
 }
 
 /**
@@ -52,7 +52,7 @@ export interface SessionVerifier {
  *
  * @example
  * ```ts
- * const verifier = createSessionVerifier({ baseUrl: 'http://auth:8080' })
+ * const verifier = createSessionVerifier({ url: 'http://auth:8080' })
  * const ctx = await verifier.verify(token)
  * ```
  */
@@ -60,7 +60,7 @@ export function createSessionVerifier(
   opts: SessionVerifierOptions,
 ): SessionVerifier {
   const client = createFetchClient<paths>({
-    baseUrl: opts.baseUrl.replace(/\/+$/, ""),
+    baseUrl: opts.url.replace(/\/+$/, ""),
   });
 
   return {

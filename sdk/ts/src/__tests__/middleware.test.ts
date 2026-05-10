@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Auth } from "../auth.js";
 import { AuthError, AuthzError, JwtVerificationError } from "../errors.js";
-import { createAuthMiddleware } from "../next/middleware.js";
+import { withAuth } from "../next/middleware.js";
 
 vi.mock("next/server", () => ({
   NextResponse: {
@@ -25,20 +26,46 @@ function makeRequest(
   } as unknown as NextRequest;
 }
 
-const okVerifier = {
-  verify: vi.fn().mockResolvedValue({ data: {}, error: undefined }),
-};
+/**
+ * Builds a stub `Auth` handle exposing only the methods `withAuth` exercises.
+ * Other surface (`flow`, `admin`, `authz`, `checkSession`) is left unimplemented
+ * — these unit tests are scoped to middleware behavior, not the full handle.
+ */
+function fakeAuth(verify: Auth["verify"]): Auth {
+  return {
+    url: "http://test",
+    verify,
+    checkSession: () =>
+      Promise.reject(new Error("checkSession not used by withAuth")),
+    get flow(): never {
+      throw new Error("flow not used by withAuth");
+    },
+    get admin(): never {
+      throw new Error("admin not used by withAuth");
+    },
+    get authz(): never {
+      throw new Error("authz not used by withAuth");
+    },
+  } as Auth;
+}
+
+const okAuth = fakeAuth(
+  vi.fn().mockResolvedValue({ data: {}, error: undefined }) as never,
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  okVerifier.verify.mockResolvedValue({ data: {}, error: undefined });
+  (okAuth.verify as ReturnType<typeof vi.fn>).mockResolvedValue({
+    data: {},
+    error: undefined,
+  });
 });
 
 // ── Path matching ─────────────────────────────────────────────────────────────
 
 describe("path matching", () => {
   // No token → only public paths call next(), protected paths redirect.
-  const middleware = createAuthMiddleware(okVerifier, {
+  const middleware = withAuth(okAuth, {
     publicPaths: ["/login", "/api/public/*"],
   });
 
@@ -69,21 +96,21 @@ describe("path matching", () => {
   });
 
   it("redirects to custom redirectTo path", async () => {
-    const m = createAuthMiddleware(okVerifier, { redirectTo: "/signin" });
+    const m = withAuth(okAuth, { redirectTo: "/signin" });
     await m(makeRequest("/dashboard"));
     const [url] = vi.mocked(NextResponse.redirect).mock.calls[0] as [URL];
     expect(url.pathname).toBe("/signin");
   });
 
   it("empty publicPaths protects all routes", async () => {
-    const m = createAuthMiddleware(okVerifier, { publicPaths: [] });
+    const m = withAuth(okAuth, { publicPaths: [] });
     await m(makeRequest("/anything")); // no token
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
   });
 
   it("omitted publicPaths protects all routes", async () => {
-    const m = createAuthMiddleware(okVerifier);
+    const m = withAuth(okAuth);
     await m(makeRequest("/anything")); // no token
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
@@ -101,9 +128,11 @@ describe("path matching", () => {
 describe("error dispatch", () => {
   it("re-throws AuthError with status >= 500", async () => {
     const err = new AuthError("internal_error", "oops", 500);
-    const m = createAuthMiddleware({
-      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
-    });
+    const m = withAuth(
+      fakeAuth(
+        vi.fn().mockResolvedValue({ data: undefined, error: err }) as never,
+      ),
+    );
     await expect(m(makeRequest("/dashboard", { token: "tok" }))).rejects.toBe(
       err,
     );
@@ -111,9 +140,11 @@ describe("error dispatch", () => {
 
   it("redirects on AuthError with status < 500", async () => {
     const err = new AuthError("not_found", "nope", 404);
-    const m = createAuthMiddleware({
-      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
-    });
+    const m = withAuth(
+      fakeAuth(
+        vi.fn().mockResolvedValue({ data: undefined, error: err }) as never,
+      ),
+    );
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
@@ -121,9 +152,11 @@ describe("error dispatch", () => {
 
   it("redirects on AuthzError — not re-thrown", async () => {
     const err = new AuthzError("unauthorized", "denied", 403);
-    const m = createAuthMiddleware({
-      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
-    });
+    const m = withAuth(
+      fakeAuth(
+        vi.fn().mockResolvedValue({ data: undefined, error: err }) as never,
+      ),
+    );
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
@@ -131,30 +164,36 @@ describe("error dispatch", () => {
 
   it("redirects on JwtVerificationError — not re-thrown", async () => {
     const err = new JwtVerificationError("expired");
-    const m = createAuthMiddleware({
-      verify: vi.fn().mockResolvedValue({ data: undefined, error: err }),
-    });
+    const m = withAuth(
+      fakeAuth(
+        vi.fn().mockResolvedValue({ data: undefined, error: err }) as never,
+      ),
+    );
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
   });
 
   it("redirects on generic Error — not re-thrown", async () => {
-    const m = createAuthMiddleware({
-      verify: vi.fn().mockResolvedValue({
-        data: undefined,
-        error: new Error("unexpected"),
-      }),
-    });
+    const m = withAuth(
+      fakeAuth(
+        vi.fn().mockResolvedValue({
+          data: undefined,
+          error: new Error("unexpected"),
+        }) as never,
+      ),
+    );
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();
   });
 
   it("redirects when data is null (expired session)", async () => {
-    const m = createAuthMiddleware({
-      verify: vi.fn().mockResolvedValue({ data: null, error: undefined }),
-    });
+    const m = withAuth(
+      fakeAuth(
+        vi.fn().mockResolvedValue({ data: null, error: undefined }) as never,
+      ),
+    );
     await m(makeRequest("/dashboard", { token: "tok" }));
     expect(NextResponse.redirect).toHaveBeenCalledOnce();
     expect(NextResponse.next).not.toHaveBeenCalled();

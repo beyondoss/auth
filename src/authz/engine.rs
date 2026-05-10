@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use quick_cache::sync::Cache;
@@ -6,7 +7,10 @@ use sqlx::PgPool;
 use tracing;
 use uuid::Uuid;
 
-use crate::{authz::schema::ValidIdent, error::AuthError};
+use crate::{
+    authz::{cache::CachedSession, schema::ValidIdent},
+    error::AuthError,
+};
 
 // ── Write / delete relations ──────────────────────────────────────────────────
 
@@ -185,10 +189,46 @@ pub async fn batch_relations(
 
 // ── Check ─────────────────────────────────────────────────────────────────────
 
+/// Row shape returned from the bundled session-validation queries.
+///
+/// Mirrors the columns the SDK adapters need to populate `req.auth` /
+/// `c.var.auth` / `request.auth` after a successful authz check, so
+/// protected+authorized routes can take a single HTTP round-trip instead of
+/// two (no separate `GET /v1/sessions/current` follow-up).
+#[derive(sqlx::FromRow, Clone, Debug)]
+pub struct SessionRow {
+    pub subject_id: String,
+    pub session_id: Uuid,
+    pub session_token_id: Uuid,
+    pub session_ip_address: Option<String>,
+    pub session_user_agent: Option<String>,
+    pub session_created_at: DateTime<Utc>,
+    pub token_expires_at: DateTime<Utc>,
+    pub token_last_used_at: Option<DateTime<Utc>>,
+}
+
+impl From<&SessionRow> for CachedSession {
+    fn from(row: &SessionRow) -> Self {
+        Self {
+            subject_id: Arc::from(row.subject_id.as_str()),
+            session_id: row.session_id,
+            token_id: row.session_token_id,
+            ip_address: row.session_ip_address.clone(),
+            user_agent: row.session_user_agent.clone(),
+            created_at: row.session_created_at,
+            expires_at: row.token_expires_at,
+            last_used_at: row.token_last_used_at,
+        }
+    }
+}
+
 /// Bundled CTE: validate session + authz check in one DB round-trip.
 ///
-/// Returns `None` if the token is invalid or expired; `Some((subject_id, allowed))` otherwise.
-/// `or_chain` is the SQL fragment produced by `CompiledSchema::build_or_chain`.
+/// Returns `None` if the token is invalid or expired; `Some((session, allowed))`
+/// otherwise. The session row carries all fields needed to populate
+/// `CurrentSessionResponse` so the SDK can short-circuit a follow-up
+/// `GET /v1/sessions/current` call. `or_chain` is the SQL fragment produced by
+/// `CompiledSchema::build_or_chain`.
 ///
 /// Uses the non-macro `sqlx::query_as` because the query shape is dynamic
 /// (the OR-chain length varies by permission/schema). This is the one justified
@@ -201,11 +241,13 @@ pub async fn check_with_session(
     object_id: &str,
     or_chain: &str,
     idle_timeout_seconds: Option<i32>,
-) -> Result<Option<(String, bool)>, AuthError> {
+) -> Result<Option<(SessionRow, bool)>, AuthError> {
     let sql = format!(
         r#"
         WITH valid_token AS (
-            SELECT tokens.id AS token_id
+            SELECT tokens.id           AS token_id,
+                   tokens.expires_at   AS token_expires_at,
+                   tokens.last_used_at AS token_last_used_at
             FROM auth.tokens
             WHERE tokens.id      = $1
               AND tokens.secret  = $2
@@ -225,40 +267,74 @@ pub async fn check_with_session(
                    OR auth.tokens.last_used_at < now() - interval '1 minute')
         ),
         subject AS (
-            SELECT u.id::text AS subject_id
+            SELECT
+                u.id::text          AS subject_id,
+                s.id                AS session_id,
+                s.token_id          AS session_token_id,
+                s.ip_address::text  AS session_ip_address,
+                s.user_agent        AS session_user_agent,
+                s.created_at        AS session_created_at,
+                v.token_expires_at  AS token_expires_at,
+                v.token_last_used_at AS token_last_used_at
             FROM valid_token v
             INNER JOIN auth.sessions s ON s.token_id  = v.token_id
             INNER JOIN auth.users  u ON u.id = s.user_id AND u.deleted_at IS NULL
         )
-        SELECT subject_id, (
-            {or_chain}
-        )
+        SELECT
+            subject_id,
+            session_id,
+            session_token_id,
+            session_ip_address,
+            session_user_agent,
+            session_created_at,
+            token_expires_at,
+            token_last_used_at,
+            (
+                {or_chain}
+            ) AS allowed
         FROM subject
         "#
     );
 
-    sqlx::query_as::<_, (String, bool)>(&sql)
+    let row: Option<SessionRowWithAllowed> = sqlx::query_as(&sql)
         .bind(token_id)
         .bind(secret_hash)
         .bind(object_id)
         .bind(idle_timeout_seconds)
         .fetch_optional(pool)
         .await
-        .map_err(AuthError::from)
+        .map_err(AuthError::from)?;
+
+    Ok(row.map(|r| (r.session, r.allowed)))
 }
 
-/// Validate a bearer token and return the subject user_id as a string for authz checks.
+#[derive(sqlx::FromRow)]
+struct SessionRowWithAllowed {
+    #[sqlx(flatten)]
+    session: SessionRow,
+    allowed: bool,
+}
+
+/// Validate a bearer token and return the resolved session row for downstream authz.
 /// Returns `None` if the token is invalid or expired.
+///
+/// Used by batch authz handlers that resolve the session lazily — the row carries
+/// the same columns as `check_with_session` so the response can include session
+/// context without a follow-up `GET /v1/sessions/current` call.
 #[tracing::instrument(skip(pool, secret_hash), fields(token_id = %token_id), err)]
 pub async fn resolve_session(
     pool: &PgPool,
     token_id: Uuid,
     secret_hash: &[u8],
     idle_timeout_seconds: Option<i32>,
-) -> Result<Option<String>, AuthError> {
-    let sql = r#"
+) -> Result<Option<SessionRow>, AuthError> {
+    sqlx::query_as!(
+        SessionRow,
+        r#"
         WITH valid_token AS (
-            SELECT tokens.id AS token_id
+            SELECT tokens.id           AS token_id,
+                   tokens.expires_at   AS token_expires_at,
+                   tokens.last_used_at AS token_last_used_at
             FROM auth.tokens
             WHERE tokens.id      = $1
               AND tokens.secret  = $2
@@ -277,19 +353,26 @@ pub async fn resolve_session(
               AND (auth.tokens.last_used_at IS NULL
                    OR auth.tokens.last_used_at < now() - interval '1 minute')
         )
-        SELECT u.id::text
+        SELECT
+            u.id::text         AS "subject_id!",
+            s.id               AS "session_id!",
+            s.token_id         AS "session_token_id!",
+            s.ip_address::text AS session_ip_address,
+            s.user_agent       AS session_user_agent,
+            s.created_at       AS "session_created_at!: DateTime<Utc>",
+            v.token_expires_at AS "token_expires_at!: DateTime<Utc>",
+            v.token_last_used_at AS "token_last_used_at: DateTime<Utc>"
         FROM valid_token v
         INNER JOIN auth.sessions s ON s.token_id  = v.token_id
         INNER JOIN auth.users  u ON u.id = s.user_id AND u.deleted_at IS NULL
-    "#;
-
-    sqlx::query_scalar::<_, String>(sql)
-        .bind(token_id)
-        .bind(secret_hash)
-        .bind(idle_timeout_seconds)
-        .fetch_optional(pool)
-        .await
-        .map_err(AuthError::from)
+        "#,
+        token_id,
+        secret_hash,
+        idle_timeout_seconds,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AuthError::from)
 }
 
 /// Batch check multiple object IDs against a single subject in one round-trip.

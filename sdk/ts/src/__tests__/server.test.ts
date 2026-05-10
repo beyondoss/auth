@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type CookieStore, createServerHelpers } from "../next/server.js";
-import { createSessionVerifier } from "../session.js";
-import { getBaseUrl, signup, uniqueEmail } from "./harness.js";
+import { type CookieStore, serverAuth } from "../next/server.js";
+import { signup, testAuth, uniqueEmail } from "./harness.js";
 
 function makeCookieStore(token: string | null): CookieStore {
   return {
@@ -11,8 +10,7 @@ function makeCookieStore(token: string | null): CookieStore {
 }
 
 function helpers() {
-  const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
-  return createServerHelpers(verifier, getBaseUrl());
+  return serverAuth(testAuth());
 }
 
 describe("getSession", () => {

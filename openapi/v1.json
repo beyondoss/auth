@@ -4170,6 +4170,17 @@
               "$ref": "#/components/schemas/CheckResult"
             },
             "description": "Results in the same order as the input `checks`."
+          },
+          "session": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CurrentSessionResponse",
+                "description": "Resolved session context, present when at least one check in the request\nused the Bearer session token (i.e. omitted `user`). Null when every check\nsupplied an explicit `user`. Lets the caller populate `req.auth` /\nequivalent without a follow-up `GET /v1/sessions/current` round-trip."
+              }
+            ]
           }
         }
       },
@@ -4258,6 +4269,17 @@
           "allowed": {
             "type": "boolean",
             "description": "True if the subject has the requested permission on the resource."
+          },
+          "session": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CurrentSessionResponse",
+                "description": "Resolved session context, present when the check was made using a Bearer\nsession token (i.e. `user` query param was omitted). Null for explicit-user\nchecks. Lets the caller populate `req.auth` / equivalent without a follow-up\n`GET /v1/sessions/current` round-trip."
+              }
+            ]
           }
         }
       },
@@ -4329,6 +4351,17 @@
               "$ref": "#/components/schemas/CheckResult"
             },
             "description": "Results in the same order as the input `checks`."
+          },
+          "session": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CurrentSessionResponse",
+                "description": "Resolved session context, present when at least one check in the request\nused the Bearer session token (i.e. omitted `user`). Null when every check\nsupplied an explicit `user`. Lets the caller populate `req.auth` /\nequivalent without a follow-up `GET /v1/sessions/current` round-trip."
+              }
+            ]
           }
         }
       },

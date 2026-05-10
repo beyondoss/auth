@@ -150,7 +150,7 @@ describe("signOut", () => {
 
     await flows().signOut(token);
 
-    const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
+    const verifier = createSessionVerifier({ url: getBaseUrl() });
     expect((await verifier.verify(token)).data).toBeNull();
   });
 });
@@ -164,7 +164,7 @@ describe("signOutAll", () => {
     });
     await flows().signOutAll(auth!.session.token);
 
-    const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
+    const verifier = createSessionVerifier({ url: getBaseUrl() });
     expect((await verifier.verify(auth!.session.token)).data).toBeNull();
   });
 
@@ -176,7 +176,7 @@ describe("signOutAll", () => {
     });
     await flows().signOutAll(auth!.session.token, { exceptCurrent: true });
 
-    const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
+    const verifier = createSessionVerifier({ url: getBaseUrl() });
     expect((await verifier.verify(auth!.session.token)).data).not.toBeNull();
   });
 });

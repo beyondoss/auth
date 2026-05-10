@@ -1,11 +1,14 @@
 import type { NextResponse } from "next/server";
 import type { Profile } from "../account/me.js";
+import type { Auth } from "../auth.js";
+import type { CheckSessionArgs, SchemaInput } from "../authz.js";
+import { AuthzError } from "../errors.js";
 import {
   clearCookieAttrs,
   type CookieOptions,
   sessionCookieAttrs,
 } from "../server/cookie.js";
-import type { SessionContext, SessionVerifier } from "../session.js";
+import type { SessionContext } from "../session.js";
 import { camelize } from "../utils/camelize.js";
 import { createProxy } from "./proxy.js";
 import type { ProxyOptions } from "./proxy.js";
@@ -20,76 +23,92 @@ export interface CookieStore {
   get(name: string): { value: string } | undefined;
 }
 
-type ServerHelpers = {
+/** Helpers returned by {@link serverAuth}. */
+export interface ServerAuthHelpers<S extends SchemaInput = SchemaInput> {
   /** Returns the current session record, or `null` if unauthenticated. */
   getSession(cookieStore: CookieStore): Promise<SessionContext | null>;
   /** Returns the authenticated user's full profile, or `null` if unauthenticated. */
   getMe(cookieStore: CookieStore): Promise<Profile | null>;
-};
-
-type ServerHelpersWithProxy = ServerHelpers & {
+  /**
+   * Returns the current session, redirecting to `redirectTo` (default: `/login`)
+   * if the request is unauthenticated. Never resolves to `null`.
+   */
+  requireSession(cookieStore: CookieStore): Promise<SessionContext>;
+  /**
+   * Checks that the session has a given permission, redirecting to
+   * `opts.redirectTo` (default: `/403`) on denial. **Validates the session AND
+   * checks the permission in a single bundled call** — no `requireSession`
+   * needed first.
+   *
+   * Throws if the underlying `auth` handle was constructed without
+   * `adminSecret`. The schema generic `S` constrains `resource` and
+   * `permission` literals when a typed `auth` is passed.
+   */
+  requirePermission(
+    cookieStore: CookieStore,
+    check: Omit<CheckSessionArgs<S>, "token">,
+    opts?: { redirectTo?: string },
+  ): Promise<SessionContext>;
   /**
    * Next.js catch-all route handlers. Mount at `app/api/auth/[...path]/route.ts`.
    * Transparently proxies requests to the private auth service, managing the
    * session cookie on sign-in/sign-out and blocking `/v1/admin/**`.
    */
   proxy: ReturnType<typeof createProxy>;
-};
+}
 
-export interface ServerHelpersOptions extends ProxyOptions {
+export interface ServerAuthOptions extends ProxyOptions {
   /**
-   * The base URL of the auth service — the same URL passed to
-   * `createSessionVerifier`. Required to enable the proxy route handlers.
+   * Path to redirect unauthenticated requests to from `requireSession` and
+   * unauthenticated `requirePermission` calls.
+   * @defaultValue '/login'
    */
-  authServiceUrl: string;
+  redirectTo?: string;
 }
 
 /**
- * Creates per-request session and profile helpers for Next.js server
- * components and route handlers. Reads the session cookie from the provided
- * `cookies()` store (from `next/headers`).
+ * Creates per-request session, permission, and profile helpers for Next.js
+ * server components and route handlers. Reads the session cookie from the
+ * provided `cookies()` store (from `next/headers`).
  *
+ * Returns:
  * - `getSession` — verifies the token; returns the session record or `null`.
  * - `getMe` — verifies the token and fetches the full user profile.
- * - `proxy` — catch-all route handlers that bridge the browser to the private
- *   auth service (only returned when `opts` is provided).
+ * - `requireSession` — like `getSession` but redirects to `redirectTo` if unauthenticated.
+ * - `requirePermission` — bundled session+authz check; redirects on denial.
+ * - `proxy` — catch-all route handlers that bridge the browser to the auth service.
  *
  * `getSession` and `getMe` are memoized per-request via React `cache()`.
  *
  * @example
  * ```ts
  * // lib/auth.server.ts
- * import { createSessionVerifier } from '@beyond.dev/auth'
- * import { createServerHelpers } from '@beyond.dev/auth/next'
+ * import { auth } from '@beyond.dev/auth'
+ * import { serverAuth } from '@beyond.dev/auth/next'
  *
- * const AUTH_URL = process.env.BEYOND_AUTH_URL!
- * const verifier = createSessionVerifier({ baseUrl: AUTH_URL })
- *
- * // Without proxy:
- * export const { getSession, getMe } = createServerHelpers(verifier, AUTH_URL)
- *
- * // With proxy:
- * export const { getSession, getMe, proxy } = createServerHelpers(verifier, { authServiceUrl: AUTH_URL })
+ * export const { getSession, getMe, requireSession, requirePermission, proxy } = serverAuth(auth)
  *
  * // app/api/auth/[...path]/route.ts
  * export const { GET, POST, DELETE, PUT, PATCH } = proxy
+ *
+ * // app/docs/[id]/page.tsx
+ * const session = await requirePermission(await cookies(), {
+ *   resource: 'document',
+ *   id: params.id,
+ *   permission: 'edit',
+ * })
  * ```
  */
-export function createServerHelpers(
-  verifier: SessionVerifier,
-  opts: ServerHelpersOptions,
-): ServerHelpersWithProxy;
-export function createServerHelpers(
-  verifier: SessionVerifier,
-  url: string,
-): ServerHelpers;
-export function createServerHelpers(
-  verifier: SessionVerifier,
-  urlOrOpts: string | ServerHelpersOptions,
-): ServerHelpers | ServerHelpersWithProxy {
-  const url = (
-    typeof urlOrOpts === "string" ? urlOrOpts : urlOrOpts.authServiceUrl
-  ).replace(/\/+$/, "");
+export function serverAuth<S extends SchemaInput>(
+  auth: Auth<S>,
+  opts?: ServerAuthOptions,
+): ServerAuthHelpers<S> {
+  const url = auth.url;
+  const redirectTo = opts?.redirectTo ?? "/login";
+  const proxyOpts: ProxyOptions = {
+    ...(opts?.domain !== undefined ? { domain: opts.domain } : {}),
+    ...(opts?.maxAge !== undefined ? { maxAge: opts.maxAge } : {}),
+  };
 
   function withCache<A extends unknown[], R>(
     fn: (...args: A) => Promise<R>,
@@ -111,7 +130,7 @@ export function createServerHelpers(
   const getSession = withCache(async (cookieStore: CookieStore) => {
     const token = getTokenFromCookieStore(cookieStore);
     if (!token) return null;
-    const result = await verifier.verify(token);
+    const result = await auth.verify(token);
     if (result.error) {
       if (result.error.status >= 500) throw result.error;
       return null;
@@ -127,15 +146,70 @@ export function createServerHelpers(
       headers: { Authorization: `Bearer ${token!}` },
     });
     if (!res.ok) return null;
-    return camelize(await res.json() as unknown) as Profile;
+    return camelize((await res.json()) as unknown) as Profile;
   });
 
-  if (typeof urlOrOpts === "object") {
-    const { authServiceUrl: _, ...proxyOpts } = urlOrOpts;
-    return { getSession, getMe, proxy: createProxy(url, proxyOpts) };
-  }
+  const requireSession = async (
+    cookieStore: CookieStore,
+  ): Promise<SessionContext> => {
+    const session = await getSession(cookieStore);
+    if (!session) {
+      // Dynamic import keeps next/navigation out of non-Next bundles.
+      const { redirect } = await import("next/navigation");
+      redirect(redirectTo);
+    }
+    // redirect() returns never but TypeScript can't narrow through dynamic imports
+    return session!;
+  };
 
-  return { getSession, getMe };
+  const requirePermission = async (
+    cookieStore: CookieStore,
+    check: Omit<CheckSessionArgs<S>, "token">,
+    permOpts?: { redirectTo?: string },
+  ): Promise<SessionContext> => {
+    const token = getTokenFromCookieStore(cookieStore);
+    if (!token) {
+      const { redirect } = await import("next/navigation");
+      redirect(redirectTo);
+    }
+    const result = await auth.checkSession({
+      token: token!,
+      ...check,
+    } as CheckSessionArgs<S>);
+    if (result.error !== undefined) {
+      // Config errors (authz disabled, unknown resource/permission) propagate.
+      if (
+        result.error instanceof AuthzError
+        && (result.error.code === "authz_not_enabled"
+          || result.error.code === "authz_unknown_resource"
+          || result.error.code === "authz_unknown_permission")
+      ) {
+        throw result.error;
+      }
+      const { redirect } = await import("next/navigation");
+      redirect(permOpts?.redirectTo ?? "/403");
+    }
+    const data = result.data!;
+    if (!data.allowed) {
+      const { redirect } = await import("next/navigation");
+      redirect(permOpts?.redirectTo ?? "/403");
+    }
+    if (!data.session) {
+      // The bundled response always populates session for valid tokens; absence
+      // here means the request reached `requirePermission` without a Bearer.
+      const { redirect } = await import("next/navigation");
+      redirect(redirectTo);
+    }
+    return data.session!;
+  };
+
+  return {
+    getSession,
+    getMe,
+    requireSession,
+    requirePermission,
+    proxy: createProxy(url, proxyOpts),
+  };
 }
 
 function getTokenFromCookieStore(store: CookieStore): string | null {

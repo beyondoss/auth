@@ -1,5 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { AuthError } from "../errors.js";
+import type { Auth } from "../auth.js";
+import type { CheckSessionArgs, SchemaInput } from "../authz.js";
+import { AuthError, AuthzError } from "../errors.js";
 import { getSessionTokenFromNodeHeaders } from "../server/cookie.js";
 import {
   matchesPublicPath,
@@ -18,7 +20,7 @@ declare global {
   }
 }
 
-export interface AuthMiddlewareOptions {
+export interface AuthnOptions {
   /**
    * Paths that bypass the auth check.
    *
@@ -45,20 +47,19 @@ export interface AuthMiddlewareOptions {
  *
  * The verified session is stored on `req.auth`.
  *
+ * **If your route also runs an {@link authz} check, prefer `authz` alone — it
+ * does both in one call.** Use `authn` for routes that need a session but no
+ * specific permission gating.
+ *
  * @example
  * ```ts
- * import { createAuthMiddleware } from '@beyond.dev/auth/express'
+ * import { auth } from '@beyond.dev/auth'
+ * import { authn } from '@beyond.dev/auth/express'
  *
- * const verifier = createSessionVerifier({ url: process.env.BEYOND_AUTH_URL! })
- * app.use('/protected', createAuthMiddleware(verifier))
+ * app.use('/protected', authn(auth))
  * ```
  */
-export function createAuthMiddleware(
-  verifier: {
-    verify(token: string): Promise<{ data: unknown; error: unknown }>;
-  },
-  opts?: AuthMiddlewareOptions,
-): RequestHandler {
+export function authn(auth: Auth, opts?: AuthnOptions): RequestHandler {
   const publicPaths = opts?.publicPaths ?? [];
   const onUnauthorized = opts?.onUnauthorized
     ?? ((_req: Request, res: Response) => {
@@ -76,7 +77,7 @@ export function createAuthMiddleware(
         return onUnauthorized(req, res, next);
       }
 
-      const result = await verifier.verify(token);
+      const result = await auth.verify(token);
       if (result.error) {
         if (result.error instanceof AuthError && result.error.status >= 500) {
           return next(result.error);
@@ -95,10 +96,108 @@ export function createAuthMiddleware(
   };
 }
 
+export interface AuthzOptions {
+  /**
+   * Called when the permission check is denied. Send an error response and
+   * return. Defaults to `{ code: 'forbidden' }` with status 403.
+   */
+  onForbidden?: (req: Request, res: Response, next: NextFunction) => void;
+}
+
+/**
+ * Express middleware that enforces a permission check on a route using
+ * Zanzibar-style authorization.
+ *
+ * **Validates the session AND checks the permission in a single bundled call.**
+ * Populates `req.auth` with the resolved session context. **You do not need to
+ * stack `authn` before `authz` — it's a strict superset.**
+ *
+ * - 401 when no session token is presented.
+ * - 401 when the session token is invalid/expired (delegates to `onForbidden`
+ *   only after a valid session is established and permission is denied).
+ * - 403 when the session is valid but permission is denied.
+ *
+ * `getCheck` receives the request and returns the resource, id, and permission
+ * to check — allowing dynamic values from route params.
+ *
+ * @example
+ * ```ts
+ * import { auth } from '@beyond.dev/auth'
+ * import { authz } from '@beyond.dev/auth/express'
+ *
+ * app.delete('/docs/:id',
+ *   authz(auth, (req) => ({
+ *     resource: 'document',
+ *     id: req.params.id as string,
+ *     permission: 'delete',
+ *   })),
+ *   (req, res) => {
+ *     // req.auth is populated — no separate authn() needed
+ *     res.json({ deletedBy: req.auth!.tokenId })
+ *   },
+ * )
+ * ```
+ */
+export function authz<S extends SchemaInput>(
+  auth: Auth<S>,
+  getCheck: (req: Request) => Omit<CheckSessionArgs<S>, "token">,
+  opts?: AuthzOptions,
+): RequestHandler {
+  const onForbidden = opts?.onForbidden
+    ?? ((_req: Request, res: Response) => {
+      res.status(403).json({ code: "forbidden" });
+    });
+
+  return async (req, res, next) => {
+    try {
+      const token = getSessionTokenFromNodeHeaders(req.headers);
+      if (!token) {
+        res.status(401).json({ code: "unauthorized" });
+        return;
+      }
+
+      const check = getCheck(req);
+      const result = await auth.checkSession({
+        token,
+        ...check,
+      } as CheckSessionArgs<S>);
+
+      if (result.error) {
+        if (
+          result.error instanceof AuthzError
+          && (result.error.code === "authz_not_enabled"
+            || result.error.code === "authz_unknown_resource"
+            || result.error.code === "authz_unknown_permission")
+        ) {
+          return next(result.error);
+        }
+        if (result.error instanceof AuthError) {
+          if (result.error.status === 401) {
+            res.status(401).json({ code: "unauthorized" });
+            return;
+          }
+          if (result.error.status >= 500) {
+            return next(result.error);
+          }
+        }
+        return onForbidden(req, res, next);
+      }
+
+      if (!result.data.allowed) return onForbidden(req, res, next);
+      // Bundled response carries the resolved session context — populate
+      // req.auth so handlers don't need a separate authn() in the chain.
+      req.auth = result.data.session;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
 /**
  * Express middleware that proxies requests to the private auth service.
  *
- * Mount with `app.use('/api/auth', createProxy(...))` — Express strips the
+ * Mount with `app.use('/api/auth', proxy(auth))` — Express strips the
  * mount prefix so `req.path` gives the subpath forwarded to the auth service.
  *
  * **Important**: Mount this proxy *before* `express.json()` on the same path,
@@ -107,10 +206,11 @@ export function createAuthMiddleware(
  *
  * @example
  * ```ts
- * import { createProxy } from '@beyond.dev/auth/express'
+ * import { auth } from '@beyond.dev/auth'
+ * import { proxy } from '@beyond.dev/auth/express'
  *
  * // Mount before express.json() on this path
- * app.use('/api/auth', createProxy(process.env.AUTH_SERVICE_URL!))
+ * app.use('/api/auth', proxy(auth))
  * ```
  *
  * - Blocks `/v1/admin/**` with 403
@@ -119,10 +219,8 @@ export function createAuthMiddleware(
  * - On sign-out (DELETE /v1/sessions/current or /v1/sessions): clears cookie
  * - All JSON responses are camelCased
  */
-export function createProxy(
-  authServiceUrl: string,
-  opts?: ProxyOptions,
-): RequestHandler {
+export function proxy(auth: Auth, opts?: ProxyOptions): RequestHandler {
+  const authServiceUrl = auth.url;
   const cookieOpts = {
     ...(opts?.domain !== undefined ? { domain: opts.domain } : {}),
     ...(opts?.maxAge !== undefined ? { maxAge: opts.maxAge } : {}),

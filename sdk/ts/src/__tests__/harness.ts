@@ -1,4 +1,10 @@
 import createFetchClient, { type Client } from "openapi-fetch";
+import { type Auth, createAuth } from "../auth.js";
+import {
+  type AuthzClient,
+  createAuthzClient,
+  type SchemaInput,
+} from "../authz.js";
 import type { components, paths } from "../types.js";
 
 export type AuthResponse = components["schemas"]["AuthResponse"];
@@ -72,3 +78,33 @@ export async function login(
   // 201 = AuthResponse; 200 = StepUpResponse (MFA). Test users have no MFA.
   return data as AuthResponse;
 }
+
+/** Returns an authz client scoped to the test auth service. */
+export function authzClient<S extends SchemaInput = SchemaInput>(): AuthzClient<
+  S
+> {
+  return createAuthzClient<S>(
+    {
+      url: getBaseUrl(),
+      adminSecret: getAdminToken(),
+    } as Parameters<typeof createAuthzClient<S>>[0],
+  );
+}
+
+/**
+ * Returns the unified Auth handle scoped to the test auth service. Pass to
+ * framework adapters (`authn(auth)`, `authz(auth, ...)`, `proxy(auth)`).
+ */
+export function testAuth<S extends SchemaInput = SchemaInput>(
+  schema?: S,
+): Auth<S> {
+  return createAuth<S>(
+    {
+      url: getBaseUrl(),
+      adminSecret: getAdminToken(),
+      ...(schema !== undefined ? { schema } : {}),
+    } as Parameters<typeof createAuth<S>>[0],
+  );
+}
+
+export type { SchemaInput } from "../authz.js";

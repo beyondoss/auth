@@ -125,13 +125,14 @@ require_auth
   ▼
 authz::cache lookup (LRU, 100k entries, 30 min TTL, version-tagged)
   │
-  ├── cache hit ──► allow/deny immediately
+  ├── cache hit ──► allow/deny + cached session context
   │
-  └── cache miss
+  └── cache miss (Bearer-token path)
         │
         ▼
-      authz::schema::compile(schema, resource_type, permission)
-      ──► Vec<AuthzCheckCall>
+      engine::check_with_session: bundled SQL CTE
+      ──► validates token + resolves session row + runs OR-chain
+      ──► returns (SessionRow, allowed) in one round-trip
             │
             ├── SingleHop:  SELECT auth.authz_check(subject, relations[], obj_type, obj_id)
             │                       (PostgreSQL extension: indexed EXISTS + BFS for subject-sets)
@@ -140,10 +141,21 @@ authz::cache lookup (LRU, 100k entries, 30 min TTL, version-tagged)
                                    (PostgreSQL extension: BFS across resource hierarchy)
         │
         ▼
-      result cached ──► allow/deny
+      result cached (subject + full session row) ──► allow/deny + session
+
+Response shape:
+  CheckResponse        { allowed, session: CurrentSessionResponse | null }
+  BatchDecisionResponse { results: [...], session: CurrentSessionResponse | null }
+  ChecksResponse       { results: [...], session: CurrentSessionResponse | null }
+
+The bundled `session` field lets SDK middleware populate `req.auth` /
+`c.var.auth` / `request.auth` from a single HTTP call — no follow-up
+`GET /v1/sessions/current` round-trip. See "Why the bundled CTE returns
+session context" below.
 
 Batch (POST /v1/authz/checks): each check runs the same path independently;
-results are collected and returned as an array in input order.
+results are collected and returned as an array in input order. The shared
+session is resolved once and returned at the response top level.
 ```
 
 ### OAuth Flow
@@ -376,6 +388,12 @@ Every request in a session would otherwise cause a write. At even modest traffic
 ### Why the authz extension runs inside PostgreSQL
 
 Authorization checks need to walk the relation graph, which lives in `auth.authz_relations`. Moving that traversal into the database eliminates the round-trips that a service-side BFS would require (one query per hop). The extension's BFS is single-process, ACID-consistent with the relation writes, and eliminates serialization overhead.
+
+### Why the bundled CTE returns session context
+
+`engine::check_with_session` runs a single CTE that validates the bearer token, resolves the session row (id, token_id, ip, user-agent, created_at, expires_at, last_used_at), and evaluates the permission OR-chain — all in one DB round-trip. The handler returns `(session, allowed)` together; the response includes both an `allowed` boolean and a `session: CurrentSessionResponse | null` field.
+
+This makes `authz` a strict superset of `authn` from the SDK's perspective: a route guarded by `authz(auth, ...)` validates the session AND checks the permission AND populates `req.auth` from one HTTP call. Stacking `authn + authz` would otherwise cost two HTTP calls (and two DB round-trips) for the same outcome. The shared `authz_cache.insert_session(token_id, CachedSession)` keeps the resolved session warm for subsequent checks within the cache TTL, so the hot path is also one DB round-trip on a cache miss and zero on a hit.
 
 ### Why refresh tokens use family-based replay detection instead of per-token revocation
 

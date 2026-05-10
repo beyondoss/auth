@@ -2,13 +2,20 @@ import express from "express";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createAuthMiddleware, createProxy } from "../../express/index.js";
-import { createSessionVerifier } from "../../session.js";
-import { getBaseUrl, login, signup, uniqueEmail } from "../harness.js";
+import { authn, authz, proxy } from "../../express/index.js";
+import {
+  authzClient,
+  login,
+  signup,
+  testAuth,
+  uniqueEmail,
+} from "../harness.js";
 
-function parseCookieHeader(
-  header: string,
-): { name: string; value: string; attrs: Record<string, string | true> } {
+function parseCookieHeader(header: string): {
+  name: string;
+  value: string;
+  attrs: Record<string, string | true>;
+} {
   const [nameValue, ...attrParts] = header.split(";").map((p) => p.trim());
   const eqIdx = nameValue!.indexOf("=");
   const name = nameValue!.slice(0, eqIdx);
@@ -37,7 +44,7 @@ function listen(
 
 function close(server: http.Server): Promise<void> {
   return new Promise((resolve, reject) =>
-    server.close((err) => err ? reject(err) : resolve())
+    server.close((err) => (err ? reject(err) : resolve()))
   );
 }
 
@@ -51,7 +58,7 @@ describe("express proxy integration", () => {
   beforeAll(async () => {
     const app = express();
     // Mount proxy BEFORE any body parsers on this path
-    app.use("/api/auth", createProxy(getBaseUrl()));
+    app.use("/api/auth", proxy(testAuth()));
     ({ server, baseUrl: proxyBaseUrl } = await listen(app));
 
     email = uniqueEmail();
@@ -155,13 +162,10 @@ describe("express proxy integration", () => {
   describe("sign-out flow", () => {
     it("clears the session cookie on DELETE /v1/sessions/current", async () => {
       const signOutAuth = await login(email, password);
-      const res = await fetch(
-        `${proxyBaseUrl}/api/auth/v1/sessions/current`,
-        {
-          method: "DELETE",
-          headers: { cookie: `__Host-session=${signOutAuth.session.token}` },
-        },
-      );
+      const res = await fetch(`${proxyBaseUrl}/api/auth/v1/sessions/current`, {
+        method: "DELETE",
+        headers: { cookie: `__Host-session=${signOutAuth.session.token}` },
+      });
       expect(res.status).toBe(204);
       const setCookie = res.headers.get("set-cookie");
       expect(setCookie).not.toBeNull();
@@ -186,7 +190,7 @@ describe("express proxy integration", () => {
       const domainApp = express();
       domainApp.use(
         "/api/auth",
-        createProxy(getBaseUrl(), { domain: "example.com" }),
+        proxy(testAuth(), { domain: "example.com" }),
       );
       const { server: domainServer, baseUrl: domainBase } = await listen(
         domainApp,
@@ -224,14 +228,10 @@ describe("express auth middleware integration", () => {
   let password: string;
 
   beforeAll(async () => {
-    const authUrl = getBaseUrl();
-    const verifier = createSessionVerifier({ baseUrl: authUrl });
+    const auth = testAuth();
 
     const app = express();
-    app.use(
-      "/protected",
-      createAuthMiddleware(verifier),
-    );
+    app.use("/protected", authn(auth));
     app.get("/protected/me", (req, res) => {
       res.json({ auth: req.auth });
     });
@@ -240,7 +240,7 @@ describe("express auth middleware integration", () => {
     });
     app.use(
       "/custom-unauth",
-      createAuthMiddleware(verifier, {
+      authn(auth, {
         onUnauthorized: (_req, res) => {
           res.status(403).json({ custom: true });
         },
@@ -253,8 +253,8 @@ describe("express auth middleware integration", () => {
     email = uniqueEmail();
     password = "testPass123!";
     await signup(email, password);
-    const auth = await login(email, password);
-    sessionToken = auth.session.token;
+    const loginData = await login(email, password);
+    sessionToken = loginData.session.token;
   });
 
   afterAll(() => close(server));
@@ -294,5 +294,147 @@ describe("express auth middleware integration", () => {
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.custom).toBe(true);
+  });
+});
+
+describe("express authz middleware integration", () => {
+  const RESOURCE = "document";
+  const DOC_ID = crypto.randomUUID();
+  // Use the comprehensive schema from authz.test.ts so concurrent putSchema
+  // calls don't race-clobber each other (every concurrent test file targeting
+  // "document" must agree on the schema shape).
+  const SCHEMA = {
+    version: 1,
+    resources: [
+      {
+        name: RESOURCE,
+        roles: ["owner", "editor", "viewer"],
+        permissions: {
+          delete: ["owner"],
+          read: ["owner", "editor", "viewer"],
+          write: ["owner", "editor"],
+        },
+        role_inheritance: [
+          { superior: "owner", inferior: "editor" },
+          { superior: "editor", inferior: "viewer" },
+        ],
+      },
+    ],
+  } as const;
+
+  let baseUrl: string;
+  let server: http.Server;
+  let sessionToken: string;
+  let userId: string;
+  let client: ReturnType<typeof authzClient>;
+
+  beforeAll(async () => {
+    client = authzClient();
+    await client.putSchema(SCHEMA);
+
+    const email = uniqueEmail();
+    const password = "testPass123!";
+    const authData = await signup(email, password);
+    userId = authData.user.id;
+    const loginData = await login(email, password);
+    sessionToken = loginData.session.token;
+
+    await client.createRelation({
+      resource: RESOURCE,
+      id: DOC_ID,
+      relation: "viewer",
+      subject: userId,
+    });
+
+    const auth = testAuth();
+    const app = express();
+
+    // authz alone — no separate authn() needed; the bundled call validates
+    // the session AND populates req.auth from a single round-trip.
+    app.get(
+      "/docs/:id",
+      authz(auth, (req) => ({
+        resource: RESOURCE,
+        id: req.params.id as string,
+        permission: "read",
+      })),
+      (req, res) => res.json({ ok: true, sessionId: req.auth?.id }),
+    );
+
+    app.get(
+      "/docs/:id/write",
+      authz(auth, (req) => ({
+        resource: RESOURCE,
+        id: req.params.id as string,
+        permission: "write",
+      })),
+      (_req, res) => res.json({ ok: true }),
+    );
+
+    ({ server, baseUrl } = await listen(app));
+  });
+
+  afterAll(() => close(server));
+
+  it("allows a request when permission is granted", async () => {
+    const res = await fetch(`${baseUrl}/docs/${DOC_ID}`, {
+      headers: { cookie: `__Host-session=${sessionToken}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+  });
+
+  it("returns 403 when permission is denied", async () => {
+    const res = await fetch(`${baseUrl}/docs/${DOC_ID}/write`, {
+      headers: { cookie: `__Host-session=${sessionToken}` },
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.code).toBe("forbidden");
+  });
+
+  it("returns 401 when no token is present", async () => {
+    const res = await fetch(`${baseUrl}/docs/${DOC_ID}`);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.code).toBe("unauthorized");
+  });
+
+  it("returns 403 for a resource the user has no relation to", async () => {
+    const otherId = crypto.randomUUID();
+    const res = await fetch(`${baseUrl}/docs/${otherId}`, {
+      headers: { cookie: `__Host-session=${sessionToken}` },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("calls custom onForbidden when provided", async () => {
+    const auth = testAuth();
+    const customApp = express();
+    customApp.get(
+      "/docs/:id",
+      authz(
+        auth,
+        (req) => ({
+          resource: RESOURCE,
+          id: req.params.id as string,
+          permission: "write",
+        }),
+        { onForbidden: (_req, res) => res.status(403).json({ custom: true }) },
+      ),
+      (_req, res) => res.json({ ok: true }),
+    );
+    const { server: s, baseUrl: u } = await listen(customApp);
+    try {
+      const res = await fetch(`${u}/docs/${DOC_ID}`, {
+        headers: { cookie: `__Host-session=${sessionToken}` },
+      });
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.custom).toBe(true);
+    } finally {
+      await close(s);
+    }
   });
 });

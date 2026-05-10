@@ -2,13 +2,20 @@ import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createAuthPlugin, createProxyPlugin } from "../../fastify/index.js";
-import { createSessionVerifier } from "../../session.js";
-import { getBaseUrl, login, signup, uniqueEmail } from "../harness.js";
+import { authn, authz, proxy } from "../../fastify/index.js";
+import {
+  authzClient,
+  login,
+  signup,
+  testAuth,
+  uniqueEmail,
+} from "../harness.js";
 
-function parseCookieHeader(
-  header: string,
-): { name: string; value: string; attrs: Record<string, string | true> } {
+function parseCookieHeader(header: string): {
+  name: string;
+  value: string;
+  attrs: Record<string, string | true>;
+} {
   const [nameValue, ...attrParts] = header.split(";").map((p) => p.trim());
   const eqIdx = nameValue!.indexOf("=");
   const name = nameValue!.slice(0, eqIdx);
@@ -33,7 +40,8 @@ describe("fastify proxy integration", () => {
 
   beforeAll(async () => {
     app = Fastify();
-    await app.register(createProxyPlugin(getBaseUrl()), {
+    await app.register(proxy, {
+      auth: testAuth(),
       prefix: "/api/auth",
     });
     await app.listen({ port: 0, host: "127.0.0.1" });
@@ -141,13 +149,10 @@ describe("fastify proxy integration", () => {
   describe("sign-out flow", () => {
     it("clears the session cookie on DELETE /v1/sessions/current", async () => {
       const signOutAuth = await login(email, password);
-      const res = await fetch(
-        `${proxyBaseUrl}/api/auth/v1/sessions/current`,
-        {
-          method: "DELETE",
-          headers: { cookie: `__Host-session=${signOutAuth.session.token}` },
-        },
-      );
+      const res = await fetch(`${proxyBaseUrl}/api/auth/v1/sessions/current`, {
+        method: "DELETE",
+        headers: { cookie: `__Host-session=${signOutAuth.session.token}` },
+      });
       expect(res.status).toBe(204);
       const setCookie = res.headers.get("set-cookie");
       expect(setCookie).not.toBeNull();
@@ -170,10 +175,11 @@ describe("fastify proxy integration", () => {
   describe("domain-scoped proxy", () => {
     it("uses __Secure-session cookie name when domain is configured", async () => {
       const domainApp = Fastify();
-      await domainApp.register(
-        createProxyPlugin(getBaseUrl(), { domain: "example.com" }),
-        { prefix: "/api/auth" },
-      );
+      await domainApp.register(proxy, {
+        auth: testAuth(),
+        domain: "example.com",
+        prefix: "/api/auth",
+      });
       await domainApp.listen({ port: 0, host: "127.0.0.1" });
       const domainPort = (domainApp.server.address() as AddressInfo).port;
 
@@ -212,13 +218,10 @@ describe("fastify auth plugin integration", () => {
   let password: string;
 
   beforeAll(async () => {
-    const authUrl = getBaseUrl();
-    const verifier = createSessionVerifier({ baseUrl: authUrl });
+    const auth = testAuth();
 
     app = Fastify();
-    await app.register(createAuthPlugin(verifier, {
-      publicPaths: ["/public/*"],
-    }));
+    await app.register(authn, { auth, publicPaths: ["/public/*"] });
 
     app.get("/protected/me", (request, reply) => {
       reply.send({ auth: request.auth });
@@ -234,8 +237,8 @@ describe("fastify auth plugin integration", () => {
     email = uniqueEmail();
     password = "testPass123!";
     await signup(email, password);
-    const auth = await login(email, password);
-    sessionToken = auth.session.token;
+    const loginData = await login(email, password);
+    sessionToken = loginData.session.token;
   });
 
   afterAll(() => app.close());
@@ -271,14 +274,13 @@ describe("fastify auth plugin integration", () => {
   });
 
   it("calls custom onUnauthorized when provided", async () => {
-    const authUrl = getBaseUrl();
-    const verifier = createSessionVerifier({ baseUrl: authUrl });
     const customApp = Fastify();
-    await customApp.register(createAuthPlugin(verifier, {
+    await customApp.register(authn, {
+      auth: testAuth(),
       onUnauthorized: async (_req, reply) => {
         await reply.code(403).send({ custom: true });
       },
-    }));
+    });
     customApp.get("/resource", (_req, reply) => reply.send({ ok: true }));
     await customApp.listen({ port: 0, host: "127.0.0.1" });
     const port = (customApp.server.address() as AddressInfo).port;
@@ -291,5 +293,134 @@ describe("fastify auth plugin integration", () => {
     } finally {
       await customApp.close();
     }
+  });
+});
+
+describe("fastify authz plugin integration", () => {
+  const RESOURCE = "document";
+  const DOC_ID = crypto.randomUUID();
+  // Use the comprehensive schema from authz.test.ts so concurrent putSchema
+  // calls don't race-clobber each other (every concurrent test file targeting
+  // "document" must agree on the schema shape).
+  const SCHEMA = {
+    version: 1,
+    resources: [
+      {
+        name: RESOURCE,
+        roles: ["owner", "editor", "viewer"],
+        permissions: {
+          delete: ["owner"],
+          read: ["owner", "editor", "viewer"],
+          write: ["owner", "editor"],
+        },
+        role_inheritance: [
+          { superior: "owner", inferior: "editor" },
+          { superior: "editor", inferior: "viewer" },
+        ],
+      },
+    ],
+  } as const;
+
+  let baseUrl: string;
+  let app: FastifyInstance;
+  let sessionToken: string;
+  let userId: string;
+  let client: ReturnType<typeof authzClient>;
+
+  beforeAll(async () => {
+    client = authzClient();
+    await client.putSchema(SCHEMA);
+
+    const email = uniqueEmail();
+    const password = "testPass123!";
+    const authData = await signup(email, password);
+    userId = authData.user.id;
+    const loginData = await login(email, password);
+    sessionToken = loginData.session.token;
+
+    await client.createRelation({
+      resource: RESOURCE,
+      id: DOC_ID,
+      relation: "viewer",
+      subject: userId,
+    });
+
+    const auth = testAuth();
+
+    app = Fastify();
+    // authz alone — no separate authn() needed; the bundled call validates
+    // the session AND populates request.auth from a single round-trip.
+    await app.register(
+      async (instance) => {
+        instance.addHook(
+          "preHandler",
+          authz(auth, (req) => ({
+            resource: RESOURCE,
+            id: (req.params as { id: string }).id,
+            permission: "read",
+          })),
+        );
+        instance.get(
+          "/:id",
+          (request, reply) =>
+            reply.send({ ok: true, sessionId: request.auth?.id }),
+        );
+      },
+      { prefix: "/docs" },
+    );
+
+    await app.register(
+      async (instance) => {
+        instance.addHook(
+          "preHandler",
+          authz(auth, (req) => ({
+            resource: RESOURCE,
+            id: (req.params as { id: string }).id,
+            permission: "write",
+          })),
+        );
+        instance.get("/:id", (_request, reply) => reply.send({ ok: true }));
+      },
+      { prefix: "/docs-write" },
+    );
+
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const port = (app.server.address() as AddressInfo).port;
+    baseUrl = `http://127.0.0.1:${port}`;
+  });
+
+  afterAll(() => app.close());
+
+  it("allows a request when permission is granted", async () => {
+    const res = await fetch(`${baseUrl}/docs/${DOC_ID}`, {
+      headers: { cookie: `__Host-session=${sessionToken}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+  });
+
+  it("returns 403 when permission is denied", async () => {
+    const res = await fetch(`${baseUrl}/docs-write/${DOC_ID}`, {
+      headers: { cookie: `__Host-session=${sessionToken}` },
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.code).toBe("forbidden");
+  });
+
+  it("returns 401 when no token is present", async () => {
+    const res = await fetch(`${baseUrl}/docs/${DOC_ID}`);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.code).toBe("unauthorized");
+  });
+
+  it("returns 403 for a resource the user has no relation to", async () => {
+    const otherId = crypto.randomUUID();
+    const res = await fetch(`${baseUrl}/docs/${otherId}`, {
+      headers: { cookie: `__Host-session=${sessionToken}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

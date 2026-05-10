@@ -10,8 +10,26 @@ pub struct CacheCounters {
     pub invalidations: u64,
 }
 
+use chrono::{DateTime, Utc};
 use quick_cache::sync::Cache;
 use uuid::Uuid;
+
+/// Resolved session context cached alongside the subject ID.
+///
+/// Populated by the bundled `check_with_session` CTE so that subsequent authz
+/// checks AND the SDK adapters can return session metadata without a second
+/// `GET /v1/sessions/current` round-trip.
+#[derive(Clone, Debug)]
+pub struct CachedSession {
+    pub subject_id: Arc<str>,
+    pub session_id: Uuid,
+    pub token_id: Uuid,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+}
 
 #[derive(Hash, Eq, PartialEq, Clone)]
 pub struct CheckKey {
@@ -62,7 +80,7 @@ fn hash_one(val: impl Hash) -> u64 {
 
 pub struct AuthzCache {
     checks: Cache<CheckKey, CheckEntry>,
-    sessions: Cache<Uuid, Arc<str>>,
+    sessions: Cache<Uuid, Arc<CachedSession>>,
     obj_versions: VersionTable,
     subj_versions: VersionTable,
     max_age: Duration,
@@ -94,12 +112,12 @@ impl AuthzCache {
         }
     }
 
-    pub fn get_session(&self, token_id: Uuid) -> Option<Arc<str>> {
+    pub fn get_session(&self, token_id: Uuid) -> Option<Arc<CachedSession>> {
         self.sessions.get(&token_id)
     }
 
-    pub fn insert_session(&self, token_id: Uuid, subject_id: Arc<str>) {
-        self.sessions.insert(token_id, subject_id);
+    pub fn insert_session(&self, token_id: Uuid, session: Arc<CachedSession>) {
+        self.sessions.insert(token_id, session);
     }
 
     pub fn invalidate_session(&self, token_id: Uuid) {

@@ -2,12 +2,13 @@ import type {
   NextRequest,
   NextResponse as NextResponseType,
 } from "next/server";
+import type { Auth } from "../auth.js";
 import { AuthError } from "../errors.js";
 import { getSessionToken } from "../server/cookie.js";
 import { matchesPublicPath } from "../server/proxy-core.js";
 
-/** Options for {@link createAuthMiddleware}. */
-export interface AuthMiddlewareOptions {
+/** Options for {@link withAuth}. */
+export interface WithAuthOptions {
   /**
    * Path to redirect unauthenticated requests to.
    * @defaultValue '/login'
@@ -33,28 +34,26 @@ export interface AuthMiddlewareOptions {
  * with an `Authorization: Bearer` fallback. Unauthenticated requests are
  * redirected to `opts.redirectTo` (default: `/login`).
  *
- * @param verifier - A session or JWT verifier with a `verify(token)` method.
+ * @param auth - Unified server-side auth handle from `createAuth`.
  * @param opts - Middleware configuration.
  * @returns A Next.js middleware function compatible with `middleware.ts`.
  *
  * @example
  * ```ts
  * // middleware.ts
- * import { createAuthMiddleware } from '@beyond.dev/auth/next'
- * import { verifier } from './lib/auth'
+ * import { auth } from '@beyond.dev/auth'
+ * import { withAuth } from '@beyond.dev/auth/next'
  *
- * export const middleware = createAuthMiddleware(verifier, {
+ * export default withAuth(auth, {
  *   publicPaths: ['/login', '/signup', '/api/public/*'],
  * })
  *
  * export const config = { matcher: ['/((?!_next/static|favicon.ico).*)'] }
  * ```
  */
-export function createAuthMiddleware(
-  verifier: {
-    verify(token: string): Promise<{ data: unknown; error: unknown }>;
-  },
-  opts?: AuthMiddlewareOptions,
+export function withAuth(
+  auth: Auth,
+  opts?: WithAuthOptions,
 ): (request: NextRequest) => Promise<NextResponseType> {
   const redirectTo = opts?.redirectTo ?? "/login";
   const publicPaths = opts?.publicPaths ?? [];
@@ -75,7 +74,7 @@ export function createAuthMiddleware(
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
 
-    const result = await verifier.verify(token);
+    const result = await auth.verify(token);
     if (result.error) {
       if (result.error instanceof AuthError && result.error.status >= 500) {
         throw result.error;

@@ -7,7 +7,7 @@ describe("createSessionVerifier", () => {
   it("verifies a valid session token", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
     const result = await createSessionVerifier({
-      baseUrl: getBaseUrl(),
+      url: getBaseUrl(),
     }).verify(auth.session.token);
     expect(result.error).toBeUndefined();
     expect(result.data).not.toBeNull();
@@ -19,7 +19,7 @@ describe("createSessionVerifier", () => {
 
   it("returns null data for an invalid token", async () => {
     const result = await createSessionVerifier({
-      baseUrl: getBaseUrl(),
+      url: getBaseUrl(),
     }).verify("invalid-token");
     expect(result.error).toBeUndefined();
     expect(result.data).toBeNull();
@@ -27,7 +27,7 @@ describe("createSessionVerifier", () => {
 
   it("returns null data after the session is revoked", async () => {
     const auth = await signup(uniqueEmail(), "correct-horse-battery-staple");
-    const verifier = createSessionVerifier({ baseUrl: getBaseUrl() });
+    const verifier = createSessionVerifier({ url: getBaseUrl() });
 
     expect((await verifier.verify(auth.session.token)).data).not.toBeNull();
 
@@ -42,7 +42,7 @@ describe("createSessionVerifier", () => {
   it("propagates network errors as rejections", async () => {
     // Network failures (not HTTP errors) still propagate as uncaught exceptions.
     // Only HTTP-level service errors are captured in the result object.
-    const verifier = createSessionVerifier({ baseUrl: "http://127.0.0.1:1" });
+    const verifier = createSessionVerifier({ url: "http://127.0.0.1:1" });
     await expect(verifier.verify("tok")).rejects.toSatisfy(
       (e: unknown) => !(e instanceof AuthError),
     );

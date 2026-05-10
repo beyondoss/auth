@@ -1220,6 +1220,7 @@ export interface components {
     BatchDecisionResponse: {
       /** @description Results in the same order as the input `checks`. */
       results: components["schemas"]["CheckResult"][];
+      session?: null | components["schemas"]["CurrentSessionResponse"];
     };
     /** @description Batch of relation tuples to write and/or delete in a single transaction. */
     BatchRequest: {
@@ -1252,6 +1253,7 @@ export interface components {
     CheckResponse: {
       /** @description True if the subject has the requested permission on the resource. */
       allowed: boolean;
+      session?: null | components["schemas"]["CurrentSessionResponse"];
     };
     /** @description Result of one item in a batch permission check, ordered to match the input. */
     CheckResult: {
@@ -1274,6 +1276,7 @@ export interface components {
     ChecksResponse: {
       /** @description Results in the same order as the input `checks`. */
       results: components["schemas"]["CheckResult"][];
+      session?: null | components["schemas"]["CurrentSessionResponse"];
     };
     /** @description Current runtime configuration values. */
     ConfigResponse: {
