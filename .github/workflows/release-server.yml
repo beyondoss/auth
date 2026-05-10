@@ -55,24 +55,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: install postgres dev headers
         run: |
-          sudo apt-get install -y gnupg2 lsb-release
-          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+          sudo apt-get install -y gnupg2 lsb-release libclang-dev clang
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4cf8.asc \
             | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-server-dev-${{ matrix.pg }} libclang-dev clang
-      - name: build extension
-        env:
-          PGRX_PG_CONFIG_PATH: /usr/lib/postgresql/${{ matrix.pg }}/bin/pg_config
-        run: |
-          cargo build --release --no-default-features --features pg${{ matrix.pg }} \
-            -p beyond-auth-extension
-      - name: package
+          sudo apt-get install -y postgresql-server-dev-${{ matrix.pg }}
+      - name: install cargo-pgrx
+        run: cargo install cargo-pgrx --version "=0.18.0" --locked
+      - name: build and package extension
         run: |
           VERSION=${GITHUB_REF_NAME#server/v}
+          PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg }}/bin/pg_config
+          cargo pgrx package \
+            --pg-config "${PG_CONFIG}" \
+            --no-default-features --features pg${{ matrix.pg }} \
+            -p beyond-auth-extension
           tar -czf beyond-auth-extension-v${VERSION}-pg${{ matrix.pg }}-linux-${{ matrix.arch }}.tar.gz \
-            -C target/release libbeyond_auth_extension.so
+            -C target/release/beyond-auth-extension-pg${{ matrix.pg }} .
       - uses: actions/upload-artifact@v7
         with:
           name: extension-pg${{ matrix.pg }}-${{ matrix.arch }}
