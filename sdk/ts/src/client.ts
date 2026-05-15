@@ -32,10 +32,21 @@ import { camelize } from "./utils/camelize.js";
 import { snakenize } from "./utils/camelize.js";
 import type { Camelize } from "./utils/camelize.js";
 import { buildFetch } from "./utils/fetch.js";
+import { buildTlsFetch } from "./utils/tls.js";
 import { wrap } from "./utils/wrap.js";
 
 export type { paths };
 export type { components, operations } from "./types.js";
+
+/** TLS options for mTLS client connections. */
+export interface TlsOptions {
+  /** PEM-encoded CA certificate(s) to trust. */
+  ca?: string | string[];
+  /** PEM-encoded client certificate for mTLS. */
+  cert?: string;
+  /** PEM-encoded client private key for mTLS. */
+  key?: string;
+}
 export type Org = Camelize<components["schemas"]["OrgResponse"]>;
 export type Invitation = Camelize<components["schemas"]["InvitationResponse"]>;
 
@@ -67,6 +78,12 @@ export interface AdminClientOptions {
   token?: string;
   /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
   fetch?: typeof globalThis.fetch;
+  /**
+   * TLS options for mTLS connections (Node/Bun via undici Agent, Deno via
+   * `Deno.createHttpClient`). Silently ignored in edge/browser runtimes.
+   * Ignored when `fetch` is also provided.
+   */
+  tls?: TlsOptions;
   /** Per-request timeout in milliseconds. */
   timeout?: number;
   /** Number of retries on transient 5xx responses. Defaults to 2. */
@@ -113,10 +130,17 @@ export function createAdminClient(opts: AdminClientOptions = {}) {
     );
   }
   const { onRequest, onResponse } = opts;
+  // Resolve TLS-aware fetch lazily: if `tls` is set and no custom `fetch` was
+  // provided, build a Promise that resolves to the TLS fetch on first call.
+  const baseFetch:
+    | typeof globalThis.fetch
+    | Promise<typeof globalThis.fetch>
+    | undefined = opts.fetch
+      ?? (opts.tls ? buildTlsFetch(opts.tls) : undefined);
   const raw = createFetchClient<paths>({
     baseUrl: url.replace(/\/+$/, ""),
     headers: { Authorization: `Bearer ${token}` },
-    fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
+    fetch: buildFetch(baseFetch, opts.retries ?? 2, opts.timeout),
   });
 
   raw.use({
@@ -245,6 +269,12 @@ export interface AuthClientOptions {
   token: string;
   /** Custom fetch implementation. Defaults to `globalThis.fetch`. */
   fetch?: typeof globalThis.fetch;
+  /**
+   * TLS options for mTLS connections (Node/Bun via undici Agent, Deno via
+   * `Deno.createHttpClient`). Silently ignored in edge/browser runtimes.
+   * Ignored when `fetch` is also provided.
+   */
+  tls?: TlsOptions;
   /** Per-request timeout in milliseconds. */
   timeout?: number;
   /** Number of retries on transient 5xx responses. Defaults to 2. */
@@ -291,10 +321,15 @@ export function createAuthClient<OrgRole extends string = string>(
     );
   }
   const { onRequest, onResponse } = opts;
+  const baseFetch2:
+    | typeof globalThis.fetch
+    | Promise<typeof globalThis.fetch>
+    | undefined = opts.fetch
+      ?? (opts.tls ? buildTlsFetch(opts.tls) : undefined);
   const raw = createFetchClient<paths>({
     baseUrl: url.replace(/\/+$/, ""),
     headers: { Authorization: `Bearer ${opts.token}` },
-    fetch: buildFetch(opts.fetch, opts.retries ?? 2, opts.timeout),
+    fetch: buildFetch(baseFetch2, opts.retries ?? 2, opts.timeout),
   });
 
   function cmd<F extends (...args: never[]) => Promise<unknown>>(

@@ -1,10 +1,20 @@
 export function buildFetch(
-  base: typeof globalThis.fetch | undefined,
+  base: typeof globalThis.fetch | Promise<typeof globalThis.fetch> | undefined,
   retries: number,
   timeout: number | undefined,
 ): typeof globalThis.fetch {
-  const fetchFn = base ?? globalThis.fetch;
+  // If base is a Promise, lazily resolve it on first call.
+  let fetchFn: typeof globalThis.fetch | undefined = base instanceof Promise
+    ? undefined
+    : (base ?? globalThis.fetch);
+  const baseFetchPromise: Promise<typeof globalThis.fetch> | undefined =
+    base instanceof Promise ? base : undefined;
+
   return async (input, init) => {
+    // Resolve the TLS fetch on first call if it was provided as a Promise.
+    if (fetchFn == null) {
+      fetchFn = await baseFetchPromise ?? globalThis.fetch;
+    }
     const signal = timeout != null
       ? AbortSignal.timeout(timeout)
       : init?.signal;

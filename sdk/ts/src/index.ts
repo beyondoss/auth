@@ -109,6 +109,7 @@ export {
   type operations,
   type Org,
   type paths,
+  type TlsOptions,
 } from "./client.js";
 export { AuthError, AuthzError, JwtVerificationError } from "./errors.js";
 export {
