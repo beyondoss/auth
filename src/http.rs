@@ -16,7 +16,7 @@ use bytes::Bytes;
 use quick_cache::sync::Cache;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
-use tower::ServiceBuilder;
+use tower::{ServiceBuilder, ServiceExt};
 use tower_http::{
     catch_panic::CatchPanicLayer,
     request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
@@ -136,23 +136,113 @@ impl<B> MakeSpan<B> for OtelMakeSpan {
     }
 }
 
-pub async fn serve(bind_addr: &str, state: AppState) -> Result<()> {
-    let app = router(state);
+pub async fn serve(
+    bind_addr: &str,
+    tls: Option<(String, String, String)>,
+    state: AppState,
+) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+    tracing::info!(addr = bind_addr, tls = tls.is_some(), "listening");
 
-    tracing::info!(addr = bind_addr, "listening");
+    if let Some((cert, key, ca)) = tls {
+        serve_tls(listener, &cert, &key, &ca, state).await
+    } else {
+        axum::serve(listener, router(state))
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+        Ok(())
+    }
+}
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+async fn serve_tls(
+    listener: tokio::net::TcpListener,
+    cert_path: &str,
+    key_path: &str,
+    ca_path: &str,
+    state: AppState,
+) -> Result<()> {
+    use hyper_util::rt::{TokioExecutor, TokioIo};
+    use hyper_util::server::conn::auto::Builder;
+    use rustls::RootCertStore;
+    use rustls::ServerConfig;
+    use rustls::server::WebPkiClientVerifier;
+    use tokio_rustls::TlsAcceptor;
 
+    let server_certs = tls_load_certs(cert_path)?;
+    let server_key = tls_load_key(key_path)?;
+    let ca_certs = tls_load_certs(ca_path)?;
+
+    let mut ca_store = RootCertStore::empty();
+    for cert in ca_certs {
+        ca_store.add(cert)?;
+    }
+
+    let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+    let verifier = WebPkiClientVerifier::builder_with_provider(
+        std::sync::Arc::new(ca_store),
+        provider.clone(),
+    )
+    .build()?;
+
+    let mut cfg = ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?
+        .with_client_cert_verifier(verifier)
+        .with_single_cert(server_certs, server_key)?;
+    cfg.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+    let acceptor = TlsAcceptor::from(std::sync::Arc::new(cfg));
+    let app = router(state);
+
+    loop {
+        tokio::select! {
+            result = listener.accept() => {
+                let (tcp, _) = result?;
+                let acceptor = acceptor.clone();
+                let app = app.clone();
+                tokio::spawn(async move {
+                    match acceptor.accept(tcp).await {
+                        Ok(tls_stream) => {
+                            let io = TokioIo::new(tls_stream);
+                            let svc = hyper::service::service_fn(move |req: axum::http::Request<hyper::body::Incoming>| app.clone().oneshot(req));
+                            Builder::new(TokioExecutor::new())
+                                .serve_connection_with_upgrades(io, svc)
+                                .await
+                                .ok();
+                        }
+                        Err(e) => tracing::debug!(error = %e, "TLS handshake failed"),
+                    }
+                });
+            }
+            _ = shutdown_signal() => break,
+        }
+    }
     Ok(())
 }
 
-pub async fn serve_with_listener(listener: tokio::net::TcpListener, state: AppState) -> Result<()> {
-    let app = router(state);
-    axum::serve(listener, app).await?;
-    Ok(())
+fn tls_load_certs(path: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>> {
+    let f = std::fs::File::open(path)?;
+    rustls_pemfile::certs(&mut std::io::BufReader::new(f))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(Into::into)
+}
+
+fn tls_load_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
+    let f = std::fs::File::open(path)?;
+    rustls_pemfile::private_key(&mut std::io::BufReader::new(f))?
+        .ok_or_else(|| anyhow::anyhow!("no private key found in {path}"))
+}
+
+pub async fn serve_with_listener(
+    listener: tokio::net::TcpListener,
+    tls: Option<(String, String, String)>,
+    state: AppState,
+) -> Result<()> {
+    if let Some((cert, key, ca)) = tls {
+        serve_tls(listener, &cert, &key, &ca, state).await
+    } else {
+        axum::serve(listener, router(state)).await?;
+        Ok(())
+    }
 }
 
 fn router(state: AppState) -> Router {

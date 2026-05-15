@@ -76,6 +76,19 @@ pub struct ServeConfig {
     /// write-side correctness; TTL is a safety net for deep-chain transitive changes.
     #[arg(long, env = "AUTHZ_CACHE_TTL_SECS", default_value_t = 1800)]
     pub authz_cache_ttl_secs: u64,
+
+    /// Path to the PEM-encoded TLS certificate for this service.
+    /// When all three BEYOND_TLS_* vars are set, the server switches to mTLS.
+    #[arg(long, env = "BEYOND_TLS_CERT")]
+    pub tls_cert: Option<String>,
+
+    /// Path to the PEM-encoded TLS private key for this service.
+    #[arg(long, env = "BEYOND_TLS_KEY")]
+    pub tls_key: Option<String>,
+
+    /// Path to the PEM-encoded CA certificate used to verify client certificates.
+    #[arg(long, env = "BEYOND_TLS_CA")]
+    pub tls_ca: Option<String>,
 }
 
 impl std::fmt::Debug for ServeConfig {
@@ -107,6 +120,9 @@ impl std::fmt::Debug for ServeConfig {
             .field("database_pool_size", &self.database_pool_size)
             .field("authz_cache_size", &self.authz_cache_size)
             .field("authz_cache_ttl_secs", &self.authz_cache_ttl_secs)
+            .field("tls_cert", &self.tls_cert)
+            .field("tls_key", &self.tls_key)
+            .field("tls_ca", &self.tls_ca)
             .finish()
     }
 }

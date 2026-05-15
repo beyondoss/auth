@@ -236,7 +236,14 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
         state.metrics.clone(),
     ));
 
-    let result = http::serve(&cfg.address, state).await;
+    let tls = match (cfg.tls_cert, cfg.tls_key, cfg.tls_ca) {
+        (Some(cert), Some(key), Some(ca)) => Some((cert, key, ca)),
+        (None, None, None) => None,
+        _ => anyhow::bail!(
+            "BEYOND_TLS_CERT, BEYOND_TLS_KEY, and BEYOND_TLS_CA must all be set or all unset"
+        ),
+    };
+    let result = http::serve(&cfg.address, tls, state).await;
     gc_handle.abort();
     sessions_handle.abort();
     let _ = gc_handle.await; // JoinError here means cancelled (expected) or panicked (already exiting)

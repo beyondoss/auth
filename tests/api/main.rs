@@ -13,6 +13,7 @@ mod orgs;
 mod passkeys;
 mod password_reset;
 mod sessions;
+mod tls;
 mod token_gc;
 mod tokens;
 mod totp;

@@ -85,7 +85,9 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
     let url = format!("http://127.0.0.1:{port}");
 
     let handle = tokio::spawn(async move {
-        crate::http::serve_with_listener(listener, state).await.ok();
+        crate::http::serve_with_listener(listener, None, state)
+            .await
+            .ok();
     });
 
     Ok(BenchServer {
@@ -93,6 +95,55 @@ pub async fn start(pool: PgPool) -> Result<BenchServer> {
         admin_secret: ADMIN_SECRET,
         handle,
     })
+}
+
+/// Start a TLS server on a random port and return its `https://` URL.
+///
+/// The returned URL uses `https://127.0.0.1:{port}`. Temp files for the cert
+/// material are kept alive inside the spawned task.
+pub async fn start_tls(pool: PgPool, tls: (String, String, String)) -> Result<String> {
+    signing_keys::ensure_app_config(&pool).await?;
+    let enc_key = LocalKeyEncryptor::from_base64(ENC_KEY, &[])?;
+    let metrics = Metrics::new();
+    let loaded_key = signing_keys::load_or_create_active_key(&pool, &enc_key, &metrics).await?;
+    let jwks = signing_keys::render_jwks(std::slice::from_ref(&loaded_key));
+    let app_config = app_config::load(&pool).await?;
+    let compiled_authz = app_config::compile_authz_schema(&app_config).ok().flatten();
+    let encryptor: Arc<dyn crate::crypto::KeyEncryptor> = Arc::new(enc_key);
+    let authz_cache = Arc::new(AuthzCache::new(1_000, 500, Duration::from_secs(60)));
+    let parallel_batch_available = crate::authz::engine::probe_parallel_batch(&pool).await;
+
+    let state = AppState {
+        pool: pool.clone(),
+        jwks: Arc::new(bytes::Bytes::from(jwks)),
+        signing_key: Arc::new(loaded_key),
+        app_config: Arc::new(RwLock::new(app_config)),
+        authz_schema: Arc::new(RwLock::new(compiled_authz)),
+        metrics: Arc::new(metrics),
+        admin_secret: crate::http::AdminSecret::new(ADMIN_SECRET.to_string()),
+        http_client: reqwest::Client::new(),
+        oauth: Arc::new(RwLock::new(OAuthProviders::default())),
+        webauthn: None,
+        encryptor,
+        oauth_redirect_allowlist: vec![],
+        public_url: None,
+        authz_cache,
+        partition_cache: Arc::new(quick_cache::sync::Cache::new(1024)),
+        parallel_batch_available,
+        cache_sync: Arc::new(crate::http::CacheSyncState::new()),
+    };
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let port = listener.local_addr()?.port();
+    let url = format!("https://127.0.0.1:{port}");
+
+    tokio::spawn(async move {
+        crate::http::serve_with_listener(listener, Some(tls), state)
+            .await
+            .ok();
+    });
+
+    Ok(url)
 }
 
 /// Create a minimal user+session directly in the DB and return a valid bearer token.
