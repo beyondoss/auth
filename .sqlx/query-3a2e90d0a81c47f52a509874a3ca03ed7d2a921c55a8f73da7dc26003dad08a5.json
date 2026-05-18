@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM auth.authz_relations\n        WHERE object_type            = $1\n          AND object_id              = $2\n          AND relation               = $3\n          AND subject_id             = $4\n          AND subject_set_type     IS NOT DISTINCT FROM $5\n          AND subject_set_relation IS NOT DISTINCT FROM $6\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a2e90d0a81c47f52a509874a3ca03ed7d2a921c55a8f73da7dc26003dad08a5"
+}

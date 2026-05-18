@@ -222,6 +222,10 @@ beforeAll(async () => {
   const port = await findFreePort();
   tlsServerUrl = `https://127.0.0.1:${port}`;
 
+  // Override BEYOND_DATA_DIR; default `/var/lib/beyond-auth` is not
+  // writable by test runners.
+  const dataDir = mkdtempSync(join(tmpdir(), "beyond-auth-ts-tls-test-"));
+
   serverProcess = spawn(binaryPath, ["serve"], {
     env: {
       ...process.env,
@@ -236,6 +240,7 @@ beforeAll(async () => {
       BEYOND_TLS_CERT: certPath,
       BEYOND_TLS_KEY: keyPath,
       BEYOND_TLS_CA: caPath,
+      BEYOND_DATA_DIR: dataDir,
     },
     stdio: ["pipe", "pipe", "inherit"],
   });

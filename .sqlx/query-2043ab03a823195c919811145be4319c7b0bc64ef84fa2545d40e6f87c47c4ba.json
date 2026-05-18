@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.totp_factors WHERE user_id = $1 AND enrolled_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2043ab03a823195c919811145be4319c7b0bc64ef84fa2545d40e6f87c47c4ba"
+}

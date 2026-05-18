@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.signing_keys (id, algorithm, private_key_enc, status)\n         VALUES ($1, 'ed25519', $2, 'active')\n         ON CONFLICT (status) WHERE status = 'active' DO NOTHING\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ecaaab55cd913e26c920d0dec9f1e9bcf354a545b8f33445027a02f2887288ed"
+}

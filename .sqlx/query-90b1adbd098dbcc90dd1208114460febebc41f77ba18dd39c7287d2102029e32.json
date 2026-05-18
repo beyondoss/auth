@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.user_id, i.secret\n         FROM auth.identities i\n         JOIN auth.users u ON u.id = i.user_id\n         WHERE i.provider = 'password' AND i.subject = $1 AND u.deleted_at IS NULL\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "secret",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "90b1adbd098dbcc90dd1208114460febebc41f77ba18dd39c7287d2102029e32"
+}

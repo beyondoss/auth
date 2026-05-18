@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.one_time_tokens WHERE expires_at < now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "4d44d46a90c0e15bd1938c9f12163d6f7abad3ca9749dae71052d974c57e22b7"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.tokens (id, secret, expires_at) VALUES ($1, $2, now() + interval '1 day')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6dafde82a219bff261ef68c304fd7b62901488519612a7707df5d450fc39b055"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.app_config SET session_idle_timeout_seconds = $1 WHERE id = true",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "10f5b4c21ec1d3e98e7a65ea95644e3d27961405ff759e0e545ac5c9fd65da74"
+}

@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            object_type AS \"object_type!\",\n            object_id   AS \"object_id!\",\n            relation    AS \"relation!\",\n            subject_id  AS \"subject_id!\",\n            tuple_id    AS \"tuple_id!: Uuid\",\n            created_at  AS \"created_at!: DateTime<Utc>\"\n        FROM auth.authz_lookup_subjects($1::text[], $2, $3)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "object_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "object_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "relation!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "tuple_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a6d60a7a24ab32b90b493aef283eb4b24e64c3cda2db4e6641803ab59437ad87"
+}

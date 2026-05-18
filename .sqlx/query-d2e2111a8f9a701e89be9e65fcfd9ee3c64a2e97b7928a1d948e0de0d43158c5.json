@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.id, o.user_id, o.name, o.slug, o.image_url,\n                  o.metadata as \"metadata: serde_json::Value\",\n                  o.created_at, o.updated_at, o.deleted_at\n           FROM auth.orgs o\n           WHERE o.deleted_at IS NULL\n             AND ($1::text IS NULL OR o.id > $1::uuid)\n             AND EXISTS (\n                 SELECT 1 FROM auth.authz_relations\n                 WHERE object_type = 'org'\n                   AND object_id   = o.id::text\n                   AND subject_id  = $2\n                   AND subject_set_type IS NULL\n             )\n           ORDER BY o.id ASC\n           LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "metadata: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d2e2111a8f9a701e89be9e65fcfd9ee3c64a2e97b7928a1d948e0de0d43158c5"
+}

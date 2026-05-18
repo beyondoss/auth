@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -13,6 +14,8 @@ use axum::{
     routing::get,
 };
 use bytes::Bytes;
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto::Builder as HyperBuilder;
 use quick_cache::sync::Cache;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
@@ -29,6 +32,7 @@ use uuid::Uuid;
 use crate::{
     app_config::AppConfig,
     authz::{cache::AuthzCache, schema::CompiledSchema},
+    handoff_bridge::{DrainSignal, SharedState},
     metrics::Metrics,
     routes::{self, ApiDoc},
     signing_keys::LoadedKey,
@@ -136,33 +140,196 @@ impl<B> MakeSpan<B> for OtelMakeSpan {
     }
 }
 
+/// Grace window for in-flight connections to finish after the accept loop
+/// exits via a SIGINT/SIGTERM (full shutdown). On a committed handoff,
+/// `AuthDrainable::drain` has already waited for in-flight to reach zero,
+/// so this is effectively a no-op on that path.
+const SHUTDOWN_DRAIN_GRACE: Duration = Duration::from_secs(30);
+
+/// Main entry point used by `cli::serve`. Owns the bound listener (which
+/// may have been inherited from a handoff supervisor), the optional TLS
+/// acceptor, and the shared atomics that the handoff control thread reads
+/// to coordinate drain.
+///
+/// The accept loop never closes the listener — when `shared.accept_paused`
+/// is true it parks instead, so the kernel's SYN backlog absorbs the gap
+/// between O draining and N starting accept. This is the invariant that
+/// makes zero-downtime restart possible.
 pub async fn serve(
-    bind_addr: &str,
+    listener: tokio::net::TcpListener,
     tls: Option<(String, String, String)>,
     state: AppState,
+    shared: SharedState,
+    handoff_shutdown: Arc<AtomicBool>,
 ) -> Result<()> {
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
-    tracing::info!(addr = bind_addr, tls = tls.is_some(), "listening");
+    let tls_acceptor = match tls.as_ref() {
+        Some((cert, key, ca)) => Some(build_tls_acceptor(cert, key, ca)?),
+        None => None,
+    };
 
-    if let Some((cert, key, ca)) = tls {
-        serve_tls(listener, &cert, &key, &ca, state).await
-    } else {
-        axum::serve(listener, router(state))
-            .with_graceful_shutdown(shutdown_signal())
-            .await?;
-        Ok(())
+    let app = router(state);
+
+    let stop_reason = accept_loop(
+        listener,
+        tls_acceptor,
+        app,
+        shared.clone(),
+        handoff_shutdown.clone(),
+    )
+    .await;
+
+    match stop_reason {
+        StopReason::HandoffCommitted => {
+            tracing::info!("handoff committed — accept loop exited; pending tasks already drained");
+        }
+        StopReason::Signal => {
+            tracing::info!(
+                grace_ms = SHUTDOWN_DRAIN_GRACE.as_millis() as u64,
+                "shutdown signal received; waiting for in-flight requests to complete"
+            );
+            let deadline = Instant::now() + SHUTDOWN_DRAIN_GRACE;
+            while shared.in_flight.load(Ordering::Relaxed) > 0 && Instant::now() < deadline {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            let remaining = shared.in_flight.load(Ordering::Relaxed);
+            if remaining > 0 {
+                tracing::warn!(remaining, "shutdown grace expired with open connections");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum StopReason {
+    Signal,
+    HandoffCommitted,
+}
+
+async fn accept_loop(
+    listener: tokio::net::TcpListener,
+    tls_acceptor: Option<tokio_rustls::TlsAcceptor>,
+    app: Router,
+    shared: SharedState,
+    handoff_shutdown: Arc<AtomicBool>,
+) -> StopReason {
+    let signal_fut = shutdown_signal();
+    tokio::pin!(signal_fut);
+
+    loop {
+        if handoff_shutdown.load(Ordering::Relaxed) {
+            return StopReason::HandoffCommitted;
+        }
+
+        let paused = shared.accept_paused.load(Ordering::Relaxed);
+
+        tokio::select! {
+            biased;
+
+            _ = &mut signal_fut => {
+                tracing::info!("shutdown signal received, draining connections");
+                return StopReason::Signal;
+            }
+
+            res = listener.accept(), if !paused => {
+                match res {
+                    Ok((tcp, peer)) => {
+                        shared.in_flight.fetch_add(1, Ordering::Relaxed);
+                        let in_flight = shared.in_flight.clone();
+                        let acceptor = tls_acceptor.clone();
+                        let app = app.clone();
+                        let drain_signal = shared.drain_signal.clone();
+                        tokio::spawn(async move {
+                            serve_one_connection(tcp, peer, acceptor, app, drain_signal).await;
+                            in_flight.fetch_sub(1, Ordering::Relaxed);
+                        });
+                    }
+                    Err(e) => {
+                        tracing::debug!(error = %e, "accept error");
+                    }
+                }
+            }
+
+            // Paused: park the accept arm so the kernel's listen backlog
+            // absorbs incoming SYNs. We keep the loop alive (and the
+            // listener bound) for the entire drain → seal → commit window;
+            // on abort we'll resume accepting from this same fd.
+            _ = tokio::time::sleep(Duration::from_millis(25)), if paused => {}
+
+            // Idle wake to check handoff_shutdown when traffic is quiet.
+            // 100ms cap on commit-to-exit latency is fine — the handoff
+            // protocol's own deadline is measured in seconds.
+            _ = tokio::time::sleep(Duration::from_millis(100)), if !paused => {}
+        }
     }
 }
 
-async fn serve_tls(
-    listener: tokio::net::TcpListener,
+async fn serve_one_connection(
+    tcp: tokio::net::TcpStream,
+    _peer: std::net::SocketAddr,
+    tls_acceptor: Option<tokio_rustls::TlsAcceptor>,
+    app: Router,
+    drain_signal: Arc<DrainSignal>,
+) {
+    let svc = hyper::service::service_fn(move |req: axum::http::Request<hyper::body::Incoming>| {
+        app.clone().oneshot(req)
+    });
+    // Bind the Builder so the connection future can borrow from it for its
+    // entire lifetime — without this, `HyperBuilder::new(...)` is a
+    // temporary that drops while the pinned future still borrows it.
+    let builder = HyperBuilder::new(TokioExecutor::new());
+
+    match tls_acceptor {
+        Some(acceptor) => match acceptor.accept(tcp).await {
+            Ok(tls_stream) => {
+                let io = TokioIo::new(tls_stream);
+                let conn = builder.serve_connection_with_upgrades(io, svc);
+                tokio::pin!(conn);
+                tokio::select! {
+                    biased;
+                    res = conn.as_mut() => {
+                        if let Err(e) = res {
+                            tracing::debug!(error = %e, "TLS connection serve error");
+                        }
+                    }
+                    _ = drain_signal.wait() => {
+                        conn.as_mut().graceful_shutdown();
+                        if let Err(e) = conn.await {
+                            tracing::debug!(error = %e, "TLS connection drained with error");
+                        }
+                    }
+                }
+            }
+            Err(e) => tracing::debug!(error = %e, "TLS handshake failed"),
+        },
+        None => {
+            let io = TokioIo::new(tcp);
+            let conn = builder.serve_connection_with_upgrades(io, svc);
+            tokio::pin!(conn);
+            tokio::select! {
+                biased;
+                res = conn.as_mut() => {
+                    if let Err(e) = res {
+                        tracing::debug!(error = %e, "connection serve error");
+                    }
+                }
+                _ = drain_signal.wait() => {
+                    conn.as_mut().graceful_shutdown();
+                    if let Err(e) = conn.await {
+                        tracing::debug!(error = %e, "connection drained with error");
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn build_tls_acceptor(
     cert_path: &str,
     key_path: &str,
     ca_path: &str,
-    state: AppState,
-) -> Result<()> {
-    use hyper_util::rt::{TokioExecutor, TokioIo};
-    use hyper_util::server::conn::auto::Builder;
+) -> Result<tokio_rustls::TlsAcceptor> {
     use rustls::RootCertStore;
     use rustls::ServerConfig;
     use rustls::server::WebPkiClientVerifier;
@@ -190,33 +357,7 @@ async fn serve_tls(
         .with_single_cert(server_certs, server_key)?;
     cfg.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
-    let acceptor = TlsAcceptor::from(std::sync::Arc::new(cfg));
-    let app = router(state);
-
-    loop {
-        tokio::select! {
-            result = listener.accept() => {
-                let (tcp, _) = result?;
-                let acceptor = acceptor.clone();
-                let app = app.clone();
-                tokio::spawn(async move {
-                    match acceptor.accept(tcp).await {
-                        Ok(tls_stream) => {
-                            let io = TokioIo::new(tls_stream);
-                            let svc = hyper::service::service_fn(move |req: axum::http::Request<hyper::body::Incoming>| app.clone().oneshot(req));
-                            Builder::new(TokioExecutor::new())
-                                .serve_connection_with_upgrades(io, svc)
-                                .await
-                                .ok();
-                        }
-                        Err(e) => tracing::debug!(error = %e, "TLS handshake failed"),
-                    }
-                });
-            }
-            _ = shutdown_signal() => break,
-        }
-    }
-    Ok(())
+    Ok(TlsAcceptor::from(std::sync::Arc::new(cfg)))
 }
 
 fn tls_load_certs(path: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>> {
@@ -232,17 +373,22 @@ fn tls_load_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>>
         .ok_or_else(|| anyhow::anyhow!("no private key found in {path}"))
 }
 
+/// Convenience entry for in-process test servers that don't participate in
+/// the handoff protocol. Constructs throwaway shared state and a
+/// never-fires handoff-shutdown flag.
 pub async fn serve_with_listener(
     listener: tokio::net::TcpListener,
     tls: Option<(String, String, String)>,
     state: AppState,
 ) -> Result<()> {
-    if let Some((cert, key, ca)) = tls {
-        serve_tls(listener, &cert, &key, &ca, state).await
-    } else {
-        axum::serve(listener, router(state)).await?;
-        Ok(())
-    }
+    serve(
+        listener,
+        tls,
+        state,
+        SharedState::new(),
+        Arc::new(AtomicBool::new(false)),
+    )
+    .await
 }
 
 fn router(state: AppState) -> Router {
@@ -410,6 +556,4 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
-
-    tracing::info!("shutdown signal received, draining connections");
 }

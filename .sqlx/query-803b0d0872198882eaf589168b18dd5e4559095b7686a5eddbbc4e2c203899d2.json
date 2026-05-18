@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.tokens WHERE id IN (SELECT token_id FROM auth.sessions WHERE user_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "803b0d0872198882eaf589168b18dd5e4559095b7686a5eddbbc4e2c203899d2"
+}

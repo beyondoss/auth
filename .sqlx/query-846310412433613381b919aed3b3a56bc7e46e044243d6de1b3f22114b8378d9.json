@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM auth.tokens t\n        USING auth.app_config cfg\n        WHERE cfg.id = true\n          AND cfg.session_idle_timeout_seconds IS NOT NULL\n          AND t.last_used_at IS NOT NULL\n          AND t.last_used_at < now() - make_interval(secs => cfg.session_idle_timeout_seconds::float8)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "846310412433613381b919aed3b3a56bc7e46e044243d6de1b3f22114b8378d9"
+}

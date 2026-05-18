@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Args;
 
 #[derive(Args)]
@@ -89,6 +91,13 @@ pub struct ServeConfig {
     /// Path to the PEM-encoded CA certificate used to verify client certificates.
     #[arg(long, env = "BEYOND_TLS_CA")]
     pub tls_ca: Option<String>,
+
+    /// Directory for handoff coordination state — the data-dir flock
+    /// (`.handoff.lock`) and the handoff control socket (`.handoff.sock`).
+    /// Created at startup if missing. Required even when running without
+    /// `handoff-supervisor`, since `ColdStart` still acquires the flock.
+    #[arg(long, env = "BEYOND_DATA_DIR", default_value = "/var/lib/beyond-auth")]
+    pub data_dir: PathBuf,
 }
 
 impl std::fmt::Debug for ServeConfig {
@@ -123,6 +132,7 @@ impl std::fmt::Debug for ServeConfig {
             .field("tls_cert", &self.tls_cert)
             .field("tls_key", &self.tls_key)
             .field("tls_ca", &self.tls_ca)
+            .field("data_dir", &self.data_dir)
             .finish()
     }
 }

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.refresh_tokens SET replaced_at = now()\n         WHERE token_id = $1 AND replaced_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ec1e5ced5affba8fc5f1a80f70f76a087ba61a038b6931c2a6d23ff18436514f"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH deleted AS (\n                DELETE FROM auth.tokens\n                WHERE id IN (\n                    SELECT token_id FROM auth.sessions\n                    WHERE user_id = $1 AND token_id != $2\n                )\n                RETURNING id\n            )\n            SELECT id AS \"id: Uuid\" FROM deleted\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f3140c1ce5d7a6a540137b20884b529be15b6388d1c596f9c3d075d406a0a27c"
+}

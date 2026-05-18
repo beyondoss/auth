@@ -1,0 +1,126 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH valid_token AS (\n            SELECT tokens.id AS token_id\n            FROM auth.tokens\n            WHERE tokens.id         = $1\n              AND tokens.secret     = $2\n              AND tokens.expires_at > now()\n              AND (\n                  $3::int4 IS NULL\n                  OR tokens.last_used_at IS NULL\n                  OR tokens.last_used_at > now() - make_interval(secs => $3::float8)\n              )\n            LIMIT 1\n        ),\n        update_attempt AS (\n            UPDATE auth.tokens SET last_used_at = now()\n            FROM valid_token\n            WHERE auth.tokens.id = valid_token.token_id\n              AND (auth.tokens.last_used_at IS NULL\n                   OR auth.tokens.last_used_at < now() - interval '1 minute')\n        )\n        SELECT\n            u.id                AS \"user_id!: Uuid\",\n            u.primary_org_id    AS \"primary_org_id!: Uuid\",\n            u.primary_email_id  AS \"primary_email_id!: Uuid\",\n            u.created_at        AS \"user_created_at!: DateTime<Utc>\",\n            t.id                AS \"org_id!: Uuid\",\n            t.user_id           AS \"org_user_id!: Uuid\",\n            t.name              AS \"org_name!\",\n            t.slug              AS \"org_slug!\",\n            t.image_url         AS \"org_image_url\",\n            t.metadata          AS \"org_metadata: serde_json::Value\",\n            t.created_at        AS \"org_created_at!: DateTime<Utc>\",\n            t.updated_at        AS \"org_updated_at!: DateTime<Utc>\",\n            t.deleted_at        AS \"org_deleted_at\",\n            e.id                AS \"email_id!: Uuid\",\n            e.email::text       AS \"email!\",\n            e.verified_at,\n            s.id                AS \"session_id!: Uuid\",\n            v.token_id          AS \"token_id!: Uuid\"\n        FROM valid_token v\n        INNER JOIN auth.sessions  s ON s.token_id  = v.token_id\n        INNER JOIN auth.users   u ON u.id = s.user_id AND u.deleted_at IS NULL\n        INNER JOIN auth.orgs      t ON t.id = u.primary_org_id AND t.deleted_at IS NULL\n        LEFT  JOIN auth.emails    e ON e.id = u.primary_email_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "primary_org_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "primary_email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "org_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "org_user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "org_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "org_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "org_image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "org_metadata: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "org_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "org_updated_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "org_deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "email!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "session_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "token_id!: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d0282bc76d18a5feb07d4406892fd7947f95d70f91c736f5efec993c6b2305f7"
+}

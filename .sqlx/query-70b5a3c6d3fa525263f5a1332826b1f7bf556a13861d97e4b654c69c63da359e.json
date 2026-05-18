@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT u.id AS \"id!: Uuid\"\n            FROM auth.users u\n            INNER JOIN auth.emails e ON e.id = u.primary_email_id\n            WHERE e.email = $1::text\n              AND e.verified_at IS NOT NULL\n              AND u.deleted_at IS NULL\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "70b5a3c6d3fa525263f5a1332826b1f7bf556a13861d97e4b654c69c63da359e"
+}

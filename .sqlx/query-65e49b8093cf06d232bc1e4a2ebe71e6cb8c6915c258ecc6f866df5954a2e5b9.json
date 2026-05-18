@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.emails (id, user_id, email) VALUES ($1, $2, $3::text)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "65e49b8093cf06d232bc1e4a2ebe71e6cb8c6915c258ecc6f866df5954a2e5b9"
+}

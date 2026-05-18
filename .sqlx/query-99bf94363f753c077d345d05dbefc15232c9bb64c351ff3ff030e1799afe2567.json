@@ -1,0 +1,125 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH valid_token AS (\n            SELECT tokens.id AS token_id\n            FROM auth.tokens\n            WHERE tokens.id         = $1\n              AND tokens.secret     = $2\n              AND tokens.expires_at > now()\n            LIMIT 1\n        ),\n        update_attempt AS (\n            UPDATE auth.tokens SET last_used_at = now()\n            FROM valid_token\n            WHERE auth.tokens.id = valid_token.token_id\n              AND (auth.tokens.last_used_at IS NULL\n                   OR auth.tokens.last_used_at < now() - interval '1 minute')\n        )\n        SELECT\n            k.id                AS \"key_id!: Uuid\",\n            u.id                AS \"user_id!: Uuid\",\n            u.primary_org_id    AS \"primary_org_id!: Uuid\",\n            u.primary_email_id  AS \"primary_email_id!: Uuid\",\n            u.created_at        AS \"user_created_at!: DateTime<Utc>\",\n            t.id                AS \"org_id!: Uuid\",\n            t.user_id           AS \"org_user_id!: Uuid\",\n            t.name              AS \"org_name!\",\n            t.slug              AS \"org_slug!\",\n            t.image_url         AS \"org_image_url\",\n            t.metadata          AS \"org_metadata: serde_json::Value\",\n            t.created_at        AS \"org_created_at!: DateTime<Utc>\",\n            t.updated_at        AS \"org_updated_at!: DateTime<Utc>\",\n            t.deleted_at        AS \"org_deleted_at\",\n            e.id                AS \"email_id!: Uuid\",\n            e.email::text       AS \"email!\",\n            e.verified_at,\n            v.token_id          AS \"token_id!: Uuid\"\n        FROM valid_token v\n        INNER JOIN auth.keys     k ON k.token_id  = v.token_id\n        INNER JOIN auth.users    u ON u.id = k.user_id AND u.deleted_at IS NULL\n        INNER JOIN auth.orgs     t ON t.id = u.primary_org_id AND t.deleted_at IS NULL\n        LEFT  JOIN auth.emails   e ON e.id = u.primary_email_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "primary_org_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "primary_email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "user_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "org_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "org_user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "org_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "org_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "org_image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "org_metadata: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 11,
+        "name": "org_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "org_updated_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "org_deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "email!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "token_id!: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      true,
+      false
+    ]
+  },
+  "hash": "99bf94363f753c077d345d05dbefc15232c9bb64c351ff3ff030e1799afe2567"
+}

@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.one_time_tokens\n         WHERE id = $1 AND secret = $2 AND kind = $3 AND expires_at > now()\n         RETURNING user_id, context",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "context",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "b0dc906e385c870ad44bb94c8420fd65d92566b24e95d057b4780e6b1144c4a4"
+}

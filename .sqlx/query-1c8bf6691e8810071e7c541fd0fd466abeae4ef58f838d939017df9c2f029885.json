@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.app_config SET oauth_providers_enc = $1, oauth_email_link = $2 WHERE id = true",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1c8bf6691e8810071e7c541fd0fd466abeae4ef58f838d939017df9c2f029885"
+}

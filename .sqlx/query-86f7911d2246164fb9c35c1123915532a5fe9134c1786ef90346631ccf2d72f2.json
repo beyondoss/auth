@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.emails SET verified_at = now()\n         WHERE id = $1 AND user_id = $2\n         RETURNING verified_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "86f7911d2246164fb9c35c1123915532a5fe9134c1786ef90346631ccf2d72f2"
+}

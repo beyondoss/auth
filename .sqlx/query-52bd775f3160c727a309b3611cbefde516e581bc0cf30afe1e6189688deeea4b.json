@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.totp_recovery_codes WHERE factor_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "52bd775f3160c727a309b3611cbefde516e581bc0cf30afe1e6189688deeea4b"
+}

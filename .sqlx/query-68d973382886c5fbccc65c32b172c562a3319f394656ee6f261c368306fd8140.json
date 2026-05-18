@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT object_id AS \"object_id!\"\n        FROM auth.authz_lookup_resources($1, $2::text[], $3)\n        WHERE ($4::text IS NULL OR object_id > $4)\n        ORDER BY object_id\n        LIMIT $5\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "object_id!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "68d973382886c5fbccc65c32b172c562a3319f394656ee6f261c368306fd8140"
+}

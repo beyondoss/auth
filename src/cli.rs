@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -10,7 +11,7 @@ use crate::{
     app_config,
     config::{MigrateConfig, ServeConfig},
     crypto::LocalKeyEncryptor,
-    db, http, mmds, routes, signing_keys, telemetry, token_gc,
+    db, handoff_bridge, http, mmds, routes, signing_keys, telemetry, token_gc,
 };
 
 #[derive(Parser)]
@@ -34,12 +35,32 @@ enum Command {
     GenerateOpenapi,
 }
 
-pub async fn run() -> Result<()> {
+/// Synchronous entry from `main()`. We *must* call `handoff::detect_role()`
+/// before spawning any thread (it mutates env vars under an unsafe
+/// single-threaded-startup contract), so we cannot live under
+/// `#[tokio::main]`. Instead we build the tokio runtime explicitly *after*
+/// detect_role has run for the Serve path. Non-Serve subcommands skip
+/// detect_role entirely — they're one-shots and don't participate in
+/// handoff.
+pub fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Serve(cfg) => serve(*cfg).await,
-        Command::Migrate(cfg) => migrate(cfg).await,
+        Command::Serve(cfg) => {
+            let role = handoff::detect_role().context("handoff::detect_role")?;
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .context("build tokio runtime")?;
+            runtime.block_on(serve(*cfg, role))
+        }
+        Command::Migrate(cfg) => {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .context("build tokio runtime")?;
+            runtime.block_on(migrate(cfg))
+        }
         Command::GenerateOpenapi => generate_openapi(),
     }
 }
@@ -99,7 +120,30 @@ async fn resolve_secrets(
     }
 }
 
-async fn serve(cfg: ServeConfig) -> Result<()> {
+async fn serve(cfg: ServeConfig, role: handoff::Role) -> Result<()> {
+    // `role` was resolved synchronously in `run()` before any tokio thread
+    // started. The handshake/wait_for_begin steps below are sync I/O on a
+    // Unix socket — fine to run inside the tokio runtime since they don't
+    // touch env vars.
+    let (inherited_http, mut successor) = match role {
+        handoff::Role::ColdStart { mut inherited } => {
+            tracing::info!(inherited = ?inherited.names(), "handoff cold-start");
+            (inherited.take("http"), None)
+        }
+        handoff::Role::Successor(s) => {
+            let build_id = env!("CARGO_PKG_VERSION").as_bytes().to_vec();
+            let s = s.handshake(build_id).context("handoff handshake")?;
+            tracing::info!(handoff_id = %s.handoff_id(), "handoff handshake complete");
+            let mut s = s.wait_for_begin().context("handoff wait_for_begin")?;
+            (s.take_listener("http"), Some(s))
+        }
+    };
+
+    std::fs::create_dir_all(&cfg.data_dir)
+        .with_context(|| format!("create data dir {}", cfg.data_dir.display()))?;
+    let data_dir_lock = handoff::DataDirLock::acquire_or_break_stale(&cfg.data_dir)
+        .with_context(|| format!("acquire data-dir flock {}", cfg.data_dir.display()))?;
+
     let secrets = resolve_secrets(
         cfg.mmds_endpoint.as_deref(),
         cfg.database_url,
@@ -243,11 +287,80 @@ async fn serve(cfg: ServeConfig) -> Result<()> {
             "BEYOND_TLS_CERT, BEYOND_TLS_KEY, and BEYOND_TLS_CA must all be set or all unset"
         ),
     };
-    let result = http::serve(&cfg.address, tls, state).await;
+
+    let bind_addr: std::net::SocketAddr = cfg
+        .address
+        .parse()
+        .with_context(|| format!("parse ADDRESS={}", cfg.address))?;
+    let listener = match inherited_http {
+        Some(std_listener) => {
+            std_listener
+                .set_nonblocking(true)
+                .context("set inherited listener non-blocking")?;
+            tokio::net::TcpListener::from_std(std_listener).context("adopt inherited listener")?
+        }
+        None => tokio::net::TcpListener::bind(bind_addr)
+            .await
+            .with_context(|| format!("bind {bind_addr}"))?,
+    };
+    let listening_on = listener
+        .local_addr()
+        .context("listener local_addr")?
+        .to_string();
+    tracing::info!(addr = %listening_on, tls = tls.is_some(), "listening");
+
+    let control_socket_path = cfg.data_dir.join(".handoff.sock");
+    let shared = handoff_bridge::SharedState::new();
+    let drainable = handoff_bridge::AuthDrainable::new(shared.clone());
+
+    let incumbent = match successor.take() {
+        Some(s) => {
+            #[cfg(feature = "test-server")]
+            if std::env::var("BEYOND_AUTH_TEST_PANIC_BEFORE_READY").is_ok() {
+                panic!("BEYOND_AUTH_TEST_PANIC_BEFORE_READY tripped");
+            }
+            let snapshot = handoff::ReadinessSnapshot {
+                listening_on: vec![listening_on.clone()],
+                healthz_ok: true,
+                advertised_revision_per_shard: Vec::new(),
+            };
+            s.announce_and_bind(snapshot, &control_socket_path, data_dir_lock)
+                .context("handoff announce_and_bind")?
+        }
+        None => handoff::Incumbent::bind_cold_start(&control_socket_path, data_dir_lock)
+            .with_context(|| {
+                format!(
+                    "bind handoff control socket {}",
+                    control_socket_path.display()
+                )
+            })?,
+    }
+    .with_build_id(env!("CARGO_PKG_VERSION").as_bytes().to_vec());
+
+    let handoff_shutdown = Arc::new(AtomicBool::new(false));
+    let handoff_shutdown_for_thread = handoff_shutdown.clone();
+    let handoff_thread = std::thread::Builder::new()
+        .name("beyond-auth-handoff".into())
+        .spawn(move || match incumbent.serve(drainable) {
+            Ok(()) => {
+                tracing::info!("handoff committed; signaling main to exit");
+                handoff_shutdown_for_thread.store(true, Ordering::Relaxed);
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "handoff control thread exited with error");
+            }
+        })
+        .context("spawn handoff control thread")?;
+
+    let result = http::serve(listener, tls, state, shared, handoff_shutdown).await;
     gc_handle.abort();
     sessions_handle.abort();
     let _ = gc_handle.await; // JoinError here means cancelled (expected) or panicked (already exiting)
     let _ = sessions_handle.await;
+    // The handoff thread either exited cleanly on commit (we already saw
+    // handoff_shutdown=true) or it is still parked in accept() on the
+    // control socket. We're going down anyway; don't wait.
+    let _ = handoff_thread;
     result
 }
 

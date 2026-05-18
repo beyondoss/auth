@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(\n               SELECT 1 FROM auth.authz_relations\n               WHERE object_type = 'org'\n                 AND object_id   = $1\n                 AND subject_id  = $2\n                 AND subject_set_type IS NULL\n           ) as \"exists!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "da9ea3044f9b52bdc8f56ab93fa6415fe9d24813c31d3bc627bf3cd3fd3927d8"
+}

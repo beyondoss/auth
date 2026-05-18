@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) as \"count!\" FROM auth.authz_relations\n               WHERE object_type = 'org' AND object_id = $1\n                 AND relation = 'owner' AND subject_set_type IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f126648f0d9a30e0fa0b46b8e13c09d51e55c4afce3f32d1e0ca897a43645ea0"
+}

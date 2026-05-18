@@ -46,6 +46,11 @@ jobs:
             "${POSTGRES_CONTAINER}:${PGLIB}/beyond_auth_extension.so"
       - name: migrate
         run: mise run migrate
+      - name: check:sqlx
+        # Verify the committed .sqlx/ query cache is in sync with the
+        # query!/query_as! macro calls in code. Runs after migrate so the
+        # CI postgres has the schema the macros need to introspect.
+        run: mise run check:sqlx
       - name: check:fmt
         run: mise run check:fmt
       - name: check:rs
@@ -54,6 +59,12 @@ jobs:
         run: mise run test:unit:rs
       - name: test:integration:rs
         run: mise run test:integration:rs
+      - name: test:integration:rs:handoff
+        # End-to-end handoff tests: spawn the real beyond-auth binary +
+        # bundled handoff-test-supervisor, drive zero-downtime restarts
+        # under load (including TLS, supervisor crash, multi-cycle abort,
+        # and slow-drain heartbeat scenarios).
+        run: mise run test:integration:rs:handoff
       - name: check:ts
         run: mise run check:ts
       - name: build:rs:release

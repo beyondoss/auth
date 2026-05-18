@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               subject_id::uuid as \"user_id!: Uuid\",\n               relation          as \"role!\",\n               created_at        as \"joined_at!: DateTime<Utc>\"\n           FROM auth.authz_relations\n           WHERE object_type = 'org'\n             AND object_id   = $1\n             AND subject_set_type IS NULL\n             AND ($2::text IS NULL OR subject_id > $2)\n           ORDER BY subject_id ASC\n           LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "role!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "joined_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "47474bd6a513aa1cde95a38593aaaf388f3f75f0a3cfd1b0edfe0961aafa6f23"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM auth.authz_relations\n         WHERE object_type = 'org' AND object_id = $1\n           AND subject_id = $2 AND subject_set_type IS NULL\n         RETURNING relation",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "relation",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f671e9fc374592784cc390f57482f4b713edcdb94065054d8c70cb74fea97d29"
+}

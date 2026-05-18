@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id                AS \"user_id!: Uuid\",\n            u.primary_org_id    AS \"primary_org_id!: Uuid\",\n            u.primary_email_id  AS \"primary_email_id!: Uuid\",\n            u.created_at        AS \"user_created_at!: DateTime<Utc>\",\n            t.id                AS \"org_id!: Uuid\",\n            t.user_id           AS \"org_user_id!: Uuid\",\n            t.name              AS \"org_name!\",\n            t.slug              AS \"org_slug!\",\n            t.image_url         AS \"org_image_url\",\n            t.metadata          AS \"org_metadata: serde_json::Value\",\n            t.created_at        AS \"org_created_at!: DateTime<Utc>\",\n            t.updated_at        AS \"org_updated_at!: DateTime<Utc>\",\n            t.deleted_at        AS \"org_deleted_at\",\n            e.id                AS \"email_id!: Uuid\",\n            e.email::text       AS \"email!\",\n            e.verified_at\n        FROM auth.users u\n        INNER JOIN auth.orgs    t ON t.id = u.primary_org_id AND t.deleted_at IS NULL\n        LEFT  JOIN auth.emails  e ON e.id = u.primary_email_id\n        WHERE u.id = $1 AND u.deleted_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "primary_org_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "primary_email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "org_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "org_user_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "org_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "org_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "org_image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "org_metadata: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "org_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "org_updated_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "org_deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "email_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "email!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "7a88dc600c55f4073e4baad4fd11da29c25525b202226a3068ed0006959ae538"
+}

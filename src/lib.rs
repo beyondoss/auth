@@ -7,6 +7,7 @@ mod db;
 mod email;
 mod emails;
 mod error;
+pub mod handoff_bridge;
 mod http;
 mod identities;
 mod invitations;

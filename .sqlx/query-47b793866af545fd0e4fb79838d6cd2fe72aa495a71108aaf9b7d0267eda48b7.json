@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.passkey_credentials\n           SET nickname = $1\n           WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "47b793866af545fd0e4fb79838d6cd2fe72aa495a71108aaf9b7d0267eda48b7"
+}

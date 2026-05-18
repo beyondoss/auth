@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH valid_token AS (\n            SELECT tokens.id           AS token_id,\n                   tokens.expires_at   AS token_expires_at,\n                   tokens.last_used_at AS token_last_used_at\n            FROM auth.tokens\n            WHERE tokens.id      = $1\n              AND tokens.secret  = $2\n              AND tokens.expires_at > now()\n              AND (\n                  $3::int4 IS NULL\n                  OR tokens.last_used_at IS NULL\n                  OR tokens.last_used_at > now() - make_interval(secs => $3::float8)\n              )\n            LIMIT 1\n        ),\n        update_attempt AS (\n            UPDATE auth.tokens SET last_used_at = now()\n            FROM valid_token\n            WHERE auth.tokens.id = valid_token.token_id\n              AND (auth.tokens.last_used_at IS NULL\n                   OR auth.tokens.last_used_at < now() - interval '1 minute')\n        )\n        SELECT\n            u.id::text         AS \"subject_id!\",\n            s.id               AS \"session_id!\",\n            s.token_id         AS \"session_token_id!\",\n            s.ip_address::text AS session_ip_address,\n            s.user_agent       AS session_user_agent,\n            s.created_at       AS \"session_created_at!: DateTime<Utc>\",\n            v.token_expires_at AS \"token_expires_at!: DateTime<Utc>\",\n            v.token_last_used_at AS \"token_last_used_at: DateTime<Utc>\"\n        FROM valid_token v\n        INNER JOIN auth.sessions s ON s.token_id  = v.token_id\n        INNER JOIN auth.users  u ON u.id = s.user_id AND u.deleted_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subject_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "session_token_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "session_ip_address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "session_user_agent",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "session_created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "token_expires_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "token_last_used_at: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "90d3be69b15ee8b9fef289d62564f7bb6cb561a8073d3870c4a2a8314d8f4b05"
+}

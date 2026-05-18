@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.app_config SET jwt_enabled = true",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "52b761fbc2b17bffcf582a3c317e7befc88532c1838e3cf84bae5b623742be6d"
+}

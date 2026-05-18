@@ -2,12 +2,12 @@ import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import express from "express";
 import { execSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import http from "node:http";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
-import { arch } from "node:os";
-import { dirname, resolve } from "node:path";
+import { arch, tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { proxy } from "../express/index.js";
 import { testAuth } from "./harness.js";
@@ -107,6 +107,11 @@ export async function setup(): Promise<void> {
   const port = await findFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
+  // Default BEYOND_DATA_DIR is `/var/lib/beyond-auth` (used by the handoff
+  // flock + control socket). The default isn't writable by test runners;
+  // override with an ephemeral tempdir per test process.
+  const dataDir = mkdtempSync(join(tmpdir(), "beyond-auth-ts-test-"));
+
   serverProcess = spawn(binaryPath, ["serve"], {
     env: {
       ...process.env,
@@ -118,6 +123,7 @@ export async function setup(): Promise<void> {
       WEBAUTHN_RP_ORIGIN: "http://localhost",
       PUBLIC_URL: baseUrl,
       LOG_LEVEL: "error",
+      BEYOND_DATA_DIR: dataDir,
     },
     stdio: ["pipe", "pipe", "inherit"],
   });

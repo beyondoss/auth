@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.users SET primary_email_id = $1\n         WHERE id = $2\n           AND EXISTS (\n               SELECT 1 FROM auth.emails\n               WHERE id = $1 AND user_id = $2 AND verified_at IS NOT NULL\n           )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f00b5c96961583229cb00db3fb5a82d86de0deaea9d5f81479365ee8ec68b187"
+}

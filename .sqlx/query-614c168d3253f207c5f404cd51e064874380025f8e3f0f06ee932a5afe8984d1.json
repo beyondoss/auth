@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.authz_relations (object_type, object_id, relation, subject_id)\n         VALUES ('org', $1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "614c168d3253f207c5f404cd51e064874380025f8e3f0f06ee932a5afe8984d1"
+}

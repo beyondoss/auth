@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            rt.token_id         AS \"token_id!: Uuid\",\n            rt.family_id        AS \"family_id!: Uuid\",\n            rt.session_id       AS \"session_id!: Uuid\",\n            rt.replaced_at,\n            tok.expires_at      AS \"expires_at!: DateTime<Utc>\",\n            u.id                AS \"user_id!: Uuid\"\n        FROM auth.refresh_tokens rt\n        INNER JOIN auth.tokens tok ON tok.id = rt.token_id\n        INNER JOIN auth.sessions s ON s.id = rt.session_id\n        INNER JOIN auth.users u ON u.id = s.user_id AND u.deleted_at IS NULL\n        WHERE rt.token_id = $1\n          AND tok.secret  = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "family_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "session_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "replaced_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "expires_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "user_id!: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8291985d7df3448fe3102ac9767921e7689350614489d737b92751481fd79f3d"
+}

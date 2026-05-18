@@ -430,25 +430,31 @@ This service is deployed inside a private network behind the operator's own prox
 
 **Process environment:**
 
-| Variable                         | Default                  | What It Controls                                                                                 |
-| -------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                   | —                        | Postgres connection string; `search_path` is set to `auth, public`                               |
-| `ADDRESS`                        | `0.0.0.0:8080`           | HTTP bind address                                                                                |
-| `SIGNING_KEY_ENCRYPTION_KEY`     | —                        | Base64url-encoded 32-byte AES-256-GCM KEK; wraps Ed25519 private keys at rest                    |
-| `SIGNING_KEY_ENCRYPTION_KEY_OLD` | (empty)                  | Comma-separated old KEKs; decryption fallback during rotation, triggers re-encryption on success |
-| `ADMIN_SECRET`                   | —                        | Bearer token that gates `/v1/admin/*` routes; compared in constant time                          |
-| `WEBAUTHN_RP_ID`                 | —                        | Relying party domain (e.g., `example.com`); must match the origin                                |
-| `WEBAUTHN_RP_ORIGIN`             | —                        | Relying party origin (e.g., `https://example.com`)                                               |
-| `PUBLIC_URL`                     | derived from Host header | Base URL prepended to OAuth callback paths                                                       |
-| `OAUTH_ALLOWED_REDIRECT_ORIGINS` | (all allowed)            | Comma-separated allowlist; empty = accept any origin                                             |
-| `LOG_LEVEL`                      | `info`                   | Tracing filter: `debug`, `info`, `warn`, `error`                                                 |
-| `OTLP_ENABLED`                   | `false`                  | Enables OpenTelemetry OTLP export                                                                |
-| `OTLP_ENDPOINT`                  | `http://localhost:4317`  | OTLP collector gRPC endpoint                                                                     |
-| `OTLP_SAMPLE_RATE`               | `1.0`                    | Fraction of traces sampled (0.0–1.0)                                                             |
-| `DATABASE_POOL_SIZE`             | `16`                     | Max concurrent Postgres connections; excess requests queue until a connection is free            |
-| `AUTHZ_CACHE_SIZE`               | `100_000`                | Max entries in the in-process authz LRU cache                                                    |
-| `AUTHZ_CACHE_TTL_SECS`           | `1800`                   | Per-entry TTL before a cache miss re-queries the extension                                       |
-| `MMDS_ENDPOINT`                  | (unset)                  | Firecracker Metadata Service URL; when set, secrets are fetched from MMDS at startup             |
+| Variable                           | Default                  | What It Controls                                                                                 |
+| ---------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                     | —                        | Postgres connection string; `search_path` is set to `auth, public`                               |
+| `ADDRESS`                          | `0.0.0.0:8080`           | HTTP bind address                                                                                |
+| `SIGNING_KEY_ENCRYPTION_KEY`       | —                        | Base64url-encoded 32-byte AES-256-GCM KEK; wraps Ed25519 private keys at rest                    |
+| `SIGNING_KEY_ENCRYPTION_KEY_OLD`   | (empty)                  | Comma-separated old KEKs; decryption fallback during rotation, triggers re-encryption on success |
+| `ADMIN_SECRET`                     | —                        | Bearer token that gates `/v1/admin/*` routes; compared in constant time                          |
+| `WEBAUTHN_RP_ID`                   | —                        | Relying party domain (e.g., `example.com`); must match the origin                                |
+| `WEBAUTHN_RP_ORIGIN`               | —                        | Relying party origin (e.g., `https://example.com`)                                               |
+| `PUBLIC_URL`                       | derived from Host header | Base URL prepended to OAuth callback paths                                                       |
+| `OAUTH_ALLOWED_REDIRECT_ORIGINS`   | (all allowed)            | Comma-separated allowlist; empty = accept any origin                                             |
+| `LOG_LEVEL`                        | `info`                   | Tracing filter: `debug`, `info`, `warn`, `error`                                                 |
+| `OTLP_ENABLED`                     | `false`                  | Enables OpenTelemetry OTLP export                                                                |
+| `OTLP_ENDPOINT`                    | `http://localhost:4317`  | OTLP collector gRPC endpoint                                                                     |
+| `OTLP_SAMPLE_RATE`                 | `1.0`                    | Fraction of traces sampled (0.0–1.0)                                                             |
+| `DATABASE_POOL_SIZE`               | `16`                     | Max concurrent Postgres connections; excess requests queue until a connection is free            |
+| `AUTHZ_CACHE_SIZE`                 | `100_000`                | Max entries in the in-process authz LRU cache                                                    |
+| `AUTHZ_CACHE_TTL_SECS`             | `1800`                   | Per-entry TTL before a cache miss re-queries the extension                                       |
+| `MMDS_ENDPOINT`                    | (unset)                  | Firecracker Metadata Service URL; when set, secrets are fetched from MMDS at startup             |
+| `BEYOND_TLS_CERT`                  | (unset)                  | Path to PEM server certificate; mTLS enabled when this + KEY + CA are all set                    |
+| `BEYOND_TLS_KEY`                   | (unset)                  | Path to PEM server private key                                                                   |
+| `BEYOND_TLS_CA`                    | (unset)                  | Path to PEM CA certificate used to verify client certs                                           |
+| `BEYOND_DATA_DIR`                  | `/var/lib/beyond-auth`   | Directory for the handoff data-dir flock + control socket; created on startup if missing         |
+| `LISTEN_FDS` / `LISTEN_FDNAMES`    | (unset)                  | Systemd-style listener inheritance from a handoff supervisor; set by the parent supervisor       |
+| `HANDOFF_ROLE` / `HANDOFF_SOCK_FD` | (unset)                  | Internal handoff envelope set by the supervisor on successor spawn; absent on cold start         |
 
 **Runtime configuration (stored in `auth.app_config`, writable via `PATCH /v1/admin/config`):**
 
@@ -503,18 +509,97 @@ This service is deployed inside a private network behind the operator's own prox
 | `src/token_gc.rs`         | Background task; periodically DELETEs rows with `expires_at < now()`                       |
 | `src/telemetry.rs`        | Tracing setup; OpenTelemetry OTLP export; structured spans                                 |
 | `src/metrics.rs`          | Prometheus metrics: HTTP, auth errors, DB pool stats, authz cache hit/miss                 |
+| `src/handoff_bridge.rs`   | `AuthDrainable`, `SharedState`, `DrainSignal` — the bridge to `beyond-handoff`             |
+
+## Zero-Downtime Handoff
+
+`beyond-auth` integrates with [`beyond-handoff`](https://crates.io/crates/beyond-handoff) so a running process can be replaced by a new binary version with no dropped SYNs and no aborted in-flight requests. The integration is small (one bridge module, one config field, one accept-loop rewrite); the heavy lifting — wire protocol, journaling, crash recovery — lives in the `beyond-handoff` crate. See its `ARCHITECTURE.md` for protocol-level invariants.
+
+### Process model
+
+In production, operators run `handoff-supervisor` (the reference binary shipped by `beyond-handoff`, or a custom embedder linking the library) as the parent process. The supervisor binds the listening TCP socket once and execs `beyond-auth serve` as a child with that socket inherited via `LISTEN_FDS`/`LISTEN_FDNAMES`. On rollout, the supervisor exec's a _new_ `beyond-auth` binary, drives the handoff protocol against the running incumbent, and atomically swaps which process accepts new connections.
+
+The `beyond-auth` binary still runs standalone (no supervisor) — `handoff::detect_role()` returns `ColdStart { inherited: empty }` and the binary binds its own listener. This is the local-dev path; it does not deliver zero-downtime restart.
+
+### Startup flow
+
+```
+main() ─ sync, single-threaded ──────────────────────────────────┐
+   │                                                             │
+   ▼                                                             │
+handoff::detect_role()                                           │
+   ├── ColdStart { inherited: empty } ─── bind listener fresh    │
+   ├── ColdStart { inherited: {http} } ── adopt inherited fd 3   │
+   └── Successor(s) ── handshake → wait_for_begin → take_listener│
+   │                                                             │
+   ▼                                                             │
+DataDirLock::acquire_or_break_stale(data_dir)                    │
+   │   (incumbent's lock released after seal — successor waits)  │
+   ▼                                                             │
+tokio::runtime::Builder.block_on(serve(…)) ─────────────────────-┘
+   │
+   ▼
+db::migrate, signing-key load, AppState construction, background tasks
+   │
+   ▼
+spawn handoff control thread ── incumbent.serve(AuthDrainable) — blocks on Unix socket from supervisor
+   │
+   ▼
+http::serve(listener, …) ── tokio accept loop with pause-but-don't-close semantics
+```
+
+`detect_role` must run before any thread spawns: it mutates `HANDOFF_*` env vars under the handoff lib's single-threaded-startup safety contract. `main()` is therefore synchronous; the tokio runtime is built explicitly _after_ role detection.
+
+### Drain protocol
+
+When the supervisor decides to swap, three pieces of shared state coordinate the in-process drain:
+
+| Field                       | Owner           | Reader                 | Role                                                                                                                                                                                |
+| --------------------------- | --------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accept_paused: AtomicBool` | `AuthDrainable` | accept loop            | Set during drain, cleared on abort. Loop parks 25 ms / iteration when set instead of pulling from the kernel accept queue.                                                          |
+| `in_flight: AtomicUsize`    | accept loop     | `AuthDrainable::drain` | Incremented when a connection task spawns, decremented when it returns. Drain polls until 0 or deadline.                                                                            |
+| `drain_signal: DrainSignal` | `AuthDrainable` | each connection task   | Latched broadcast: flag + `Notify`. Triggers each task to call `hyper::Connection::graceful_shutdown` so HTTP/1.1 keep-alive idle connections close instead of pinning `in_flight`. |
+
+The accept loop never closes the listener while paused — the kernel's SYN backlog absorbs incoming connections during the swap window. When the successor binds the same fd (inherited from the supervisor), it pulls those queued SYNs from the same accept queue. No SYN is lost, no RST is sent.
+
+### `AuthDrainable` lifecycle hooks
+
+| Hook                   | Purpose                                                                                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `drain(deadline)`      | Set `accept_paused`, trigger `drain_signal`, poll `in_flight` until 0 or deadline. Returns `DrainReport { open_conns_remaining, accept_closed }`.                                                         |
+| `seal()`               | **No-op for auth.** Postgres owns durability; there is no on-disk state to flush. Returns an empty `SealReport`. If a future change adds embedded state (e.g. a local cache file), this must be expanded. |
+| `resume_after_abort()` | Clear `accept_paused`, call `drain_signal.reset()`. Called when the supervisor aborts mid-handoff (e.g. successor crashed). The incumbent resumes accepting on the same listener.                         |
+| `snapshot_state()`     | Diagnostic only: returns `open_conns` from `in_flight`. `shard_count` is always 0.                                                                                                                        |
+
+### What does not migrate across a handoff
+
+- **Database connections.** The successor opens a fresh `PgPool`. Briefly, both processes hold ~`DATABASE_POOL_SIZE` connections; sized your Postgres `max_connections` accordingly.
+- **Signing keys.** Decrypted from `auth.signing_keys` on each cold start. JWTs issued by the incumbent validate cleanly on the successor because the KEK and DB row are unchanged.
+- **In-process caches** (`AuthzCache`, partition cache, OAuth providers). All rebuilt from Postgres on successor startup; cache miss rate spikes briefly post-handoff.
+- **Background tasks** (token GC, sessions gauge). Both processes have their own copies; redundant but harmless.
+
+### Invariants
+
+- Exactly one process holds `<data_dir>/.handoff.lock` at any moment. The supervisor guarantees the incumbent releases it after `seal()` succeeds and before the successor's `acquire`.
+- The listener fd is bound by the supervisor and inherited unchanged across child generations. The accept loop must never close it; closing would drop the kernel's SYN backlog.
+- `seal()` is idempotent and safe to retry (currently trivially so — it's a no-op).
+- The supervisor's `drain_grace` (config-tunable; default 60s in the reference supervisor) must comfortably exceed `p99(drain)` for current request profile.
 
 ## Failure Modes
 
-| Failure                               | What Actually Happens                                                                                 | Recovery                                                                     |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Postgres unavailable at startup       | Process exits with error; no server starts                                                            | Restart after DB recovers; migrations re-run idempotently                    |
-| Postgres unavailable at runtime       | Pool exhausted; requests fail with 503 after pool timeout                                             | Automatic reconnect when DB recovers                                         |
-| KEK missing or wrong                  | Startup fails: cannot decrypt signing key                                                             | Set correct `SIGNING_KEY_ENCRYPTION_KEY`; use `_OLD` for rotation            |
-| Concurrent signup with same email     | One INSERT succeeds; the other gets a 409 Conflict (unique constraint on `auth.emails`)               | Client retries login                                                         |
-| Concurrent one-time token consume     | One `DELETE…RETURNING` returns a row; the other returns empty and gets 401                            | Legitimate client re-requests a new token                                    |
-| Refresh token replay (theft scenario) | Family is revoked; all tokens in the family become invalid immediately                                | User must re-authenticate                                                    |
-| Token GC crash                        | Expired rows stay in the DB until GC restarts; validation still rejects them via `expires_at > now()` | GC task restarts on next process start                                       |
-| Authz extension unavailable           | All `authz_check` calls fail; authz endpoints return 500                                              | Re-install extension; no data loss (relations are in `auth.authz_relations`) |
-| Authz cache stale                     | Version counter mismatch causes cache miss; query falls through to extension                          | Automatic; no operator action needed                                         |
-| WebAuthn RP origin mismatch           | Credential verification fails; passkey authentication returns 401                                     | Fix `WEBAUTHN_RP_ORIGIN` env var and restart                                 |
+| Failure                                 | What Actually Happens                                                                                  | Recovery                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Postgres unavailable at startup         | Process exits with error; no server starts                                                             | Restart after DB recovers; migrations re-run idempotently                    |
+| Postgres unavailable at runtime         | Pool exhausted; requests fail with 503 after pool timeout                                              | Automatic reconnect when DB recovers                                         |
+| KEK missing or wrong                    | Startup fails: cannot decrypt signing key                                                              | Set correct `SIGNING_KEY_ENCRYPTION_KEY`; use `_OLD` for rotation            |
+| Concurrent signup with same email       | One INSERT succeeds; the other gets a 409 Conflict (unique constraint on `auth.emails`)                | Client retries login                                                         |
+| Concurrent one-time token consume       | One `DELETE…RETURNING` returns a row; the other returns empty and gets 401                             | Legitimate client re-requests a new token                                    |
+| Refresh token replay (theft scenario)   | Family is revoked; all tokens in the family become invalid immediately                                 | User must re-authenticate                                                    |
+| Token GC crash                          | Expired rows stay in the DB until GC restarts; validation still rejects them via `expires_at > now()`  | GC task restarts on next process start                                       |
+| Authz extension unavailable             | All `authz_check` calls fail; authz endpoints return 500                                               | Re-install extension; no data loss (relations are in `auth.authz_relations`) |
+| Authz cache stale                       | Version counter mismatch causes cache miss; query falls through to extension                           | Automatic; no operator action needed                                         |
+| WebAuthn RP origin mismatch             | Credential verification fails; passkey authentication returns 401                                      | Fix `WEBAUTHN_RP_ORIGIN` env var and restart                                 |
+| Handoff supervisor crash mid-drain      | Incumbent sees EOF on the control socket; `resume_after_abort` clears `accept_paused`; serving resumes | Operator restarts the supervisor; next handoff proceeds normally             |
+| Handoff successor crash before Ready    | Supervisor sends `Abort`; incumbent runs `resume_after_abort`; serving resumes on the same listener    | Investigate the successor crash; rolled-back binary continues running        |
+| Stale `.handoff.lock` after `kill -9`   | Next cold start sees the lock holder is dead; `acquire_or_break_stale` reclaims the lock               | Automatic; no operator action needed                                         |
+| Two processes on same `BEYOND_DATA_DIR` | Flock acquire fails on the second process; it exits with error                                         | Operator runs only one supervisor per data dir                               |

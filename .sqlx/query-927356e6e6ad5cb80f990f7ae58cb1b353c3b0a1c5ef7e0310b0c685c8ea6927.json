@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.tokens SET expires_at = now() - interval '1 second'\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "927356e6e6ad5cb80f990f7ae58cb1b353c3b0a1c5ef7e0310b0c685c8ea6927"
+}

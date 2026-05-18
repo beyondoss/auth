@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.orgs (id, user_id, name, slug) VALUES ($1, $2, 'bench', $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "76fc2f4fcf86b2476dd096aa91cd70562fdf380644d0f228b463351d13f28854"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth.tokens SET expires_at = now()\n         FROM auth.refresh_tokens rt\n         WHERE auth.tokens.id = rt.token_id\n           AND rt.family_id   = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4ef856cf4da32cc448e08c7ea4219778b968eb98cf635f861b7f71ad4a2a5aed"
+}

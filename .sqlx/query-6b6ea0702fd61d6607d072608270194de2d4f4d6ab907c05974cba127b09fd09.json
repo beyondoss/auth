@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth.tokens (id, secret, expires_at)\n         VALUES ($1, $2, now() + make_interval(secs => $3::int4))\n         RETURNING expires_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6b6ea0702fd61d6607d072608270194de2d4f4d6ab907c05974cba127b09fd09"
+}
