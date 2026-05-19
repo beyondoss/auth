@@ -1,5 +1,0 @@
-[advisories]
-# sqlx unconditionally resolves sqlx-mysql in its proc-macro crate (sqlx-macros-core)
-# even when only the postgres feature is enabled. We don't use MySQL and rsa is never
-# compiled into the binary. No fix is available upstream.
-ignore = ["RUSTSEC-2023-0071"]

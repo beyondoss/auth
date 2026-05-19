@@ -19,7 +19,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = dirname(fileURLToPath(import.meta.url));
-const specIn = resolve(dir, "../../../openapi/v1.json");
+const root = resolve(dir, "../../..");
+const specIn = resolve(root, "openapi/v1.json");
 const out = resolve(dir, "../src/react/types.ts");
 
 const CAMEL_RE = /_([a-z])/g;
@@ -68,6 +69,7 @@ try {
       stdio: "inherit",
     },
   );
+  execSync(`dprint fmt ${out}`, { stdio: "inherit", cwd: root });
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
