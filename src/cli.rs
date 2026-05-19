@@ -139,6 +139,13 @@ async fn serve(cfg: ServeConfig, role: handoff::Role) -> Result<()> {
         }
     };
 
+    // Keep the supervisor's per-recv liveness timer (10s) alive while the
+    // successor's slow init runs (db migrate + pool, secrets fetch, signing
+    // key load, authz schema compile). Dropped explicitly just before
+    // `announce_and_bind` so the main thread is the sole writer when `Ready`
+    // goes on the wire.
+    let heartbeat_guard = successor.as_ref().map(|s| s.start_heartbeats());
+
     std::fs::create_dir_all(&cfg.data_dir)
         .with_context(|| format!("create data dir {}", cfg.data_dir.display()))?;
     let data_dir_lock = handoff::DataDirLock::acquire_or_break_stale(&cfg.data_dir)
@@ -313,6 +320,9 @@ async fn serve(cfg: ServeConfig, role: handoff::Role) -> Result<()> {
     let shared = handoff_bridge::SharedState::new();
     let drainable = handoff_bridge::AuthDrainable::new(shared.clone());
 
+    // Stop the heartbeat thread first so the main thread is the sole writer
+    // when `Ready` goes on the wire.
+    drop(heartbeat_guard);
     let incumbent = match successor.take() {
         Some(s) => {
             #[cfg(feature = "test-server")]
