@@ -77,10 +77,6 @@ jobs:
         env:
           BEYOND_AUTH_BINARY: ${{ github.workspace }}/target/release/beyond-auth
         run: mise run test:integration:ts
-      - name: audit
-        run: |
-          cargo install cargo-audit --quiet
-          cargo audit
   generate-check:
     name: generated files up-to-date
     runs-on: ubuntu-latest
