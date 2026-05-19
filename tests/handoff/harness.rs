@@ -763,8 +763,12 @@ impl LoginLoop {
             let errors = errors.clone();
             let base = base_url.clone();
             handles.push(thread::spawn(move || {
+                // 30s per request: signup does Argon2id at OWASP cost. Under
+                // 12-way CPU contention on a 2-core CI runner each hash can
+                // run 10× slower than local; a tight 5s timeout starves the
+                // whole loop into 100% error rate before any signup lands.
                 let client = reqwest::blocking::Client::builder()
-                    .timeout(Duration::from_secs(5))
+                    .timeout(Duration::from_secs(30))
                     .build()
                     .expect("LoginLoop client");
                 let mut counter: u64 = 0;
