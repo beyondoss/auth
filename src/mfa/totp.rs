@@ -264,14 +264,22 @@ pub async fn verify_step_up(
         });
     }
 
+    // TOTP::new is configured with skew=1 — a code presented at step N is
+    // accepted if it matches the secret at step N-1, N, or N+1. So a code
+    // legitimately used at step N can be cryptographically replayed at step
+    // N+1 (it still verifies). The replay check therefore has to cover the
+    // skew window on both sides: reject if |now_step - last_step| <= skew.
+    const STEP_SECS: u64 = 30;
+    const SKEW_STEPS: u64 = 1;
     let now_step = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
-        / 30;
+        / STEP_SECS;
     if let Some(last_used) = row.last_used_at {
-        let last_step = last_used.timestamp().max(0) as u64 / 30;
-        if last_step >= now_step {
+        let last_step = last_used.timestamp().max(0) as u64 / STEP_SECS;
+        let delta = now_step.abs_diff(last_step);
+        if delta <= SKEW_STEPS {
             return Err(AuthError::MfaError {
                 message: "code already used".into(),
             });

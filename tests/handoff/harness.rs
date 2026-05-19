@@ -866,14 +866,30 @@ impl HealthzLoop {
                     .timeout(Duration::from_secs(2))
                     .build()
                     .expect("HealthzLoop client");
+                // GET /livez is idempotent. A connection that was keep-alived
+                // through the incumbent gets `Connection: close` (or RST) the
+                // moment the drain signal fires on graceful_shutdown — a real
+                // HTTP client retries idempotent GETs through that. Match
+                // that behavior with a single retry so we measure customer-
+                // visible availability, not raw socket churn.
                 while !stop.load(Ordering::Relaxed) {
-                    match client.get(&url).send() {
-                        Ok(r) if r.status().as_u16() == 200 => {
-                            acked.fetch_add(1, Ordering::Relaxed);
-                        }
-                        _ => {
-                            errors.fetch_add(1, Ordering::Relaxed);
-                        }
+                    let outcome = match client.get(&url).send() {
+                        Ok(r) if r.status().as_u16() == 200 => Ok(()),
+                        Ok(r) => Err(format!("status {}", r.status())),
+                        Err(e) => Err(e.to_string()),
+                    };
+                    let final_outcome = match outcome {
+                        Ok(()) => Ok(()),
+                        Err(_) => match client.get(&url).send() {
+                            Ok(r) if r.status().as_u16() == 200 => Ok(()),
+                            Ok(r) => Err(format!("status {}", r.status())),
+                            Err(e) => Err(e.to_string()),
+                        },
+                    };
+                    if final_outcome.is_ok() {
+                        acked.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        errors.fetch_add(1, Ordering::Relaxed);
                     }
                 }
             }));
