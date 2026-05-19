@@ -379,7 +379,13 @@ impl AuthHarness {
     /// (with the configured CA + client cert) when the harness was set up
     /// with TLS; plain HTTP otherwise.
     pub fn wait_ready(&mut self) {
-        let deadline = Instant::now() + Duration::from_secs(30);
+        // Generous timeout: cold start runs db migrate + pool warm-up +
+        // signing key load + authz schema compile before /livez starts
+        // responding. On CI's shared runner with postgres in a container
+        // the sqlx pool acquire alone has been measured at 5–7s per
+        // connection, so the whole startup can blow past a tight cap.
+        let timeout = Duration::from_secs(90);
+        let deadline = Instant::now() + timeout;
         let scheme = if self.tls.is_some() { "https" } else { "http" };
         let url = format!("{scheme}://{}/livez", self.addr);
         loop {
@@ -396,7 +402,10 @@ impl AuthHarness {
                 return;
             }
             if Instant::now() >= deadline {
-                panic!("wait_ready: /livez never returned 200 within 30s at {url}");
+                panic!(
+                    "wait_ready: /livez never returned 200 within {}s at {url}",
+                    timeout.as_secs()
+                );
             }
             thread::sleep(Duration::from_millis(50));
         }

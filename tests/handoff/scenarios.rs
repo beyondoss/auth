@@ -32,7 +32,8 @@ fn single_handoff_preserves_in_flight_requests() {
     // Hammer /livez from 8 concurrent clients while we swap the binary.
     // Any non-200 means the handoff dropped a request — the load-bearing
     // claim is that this never happens.
-    let traffic = HealthzLoop::start(h.base_url(), 8);
+    let concurrency: usize = 8;
+    let traffic = HealthzLoop::start(h.base_url(), concurrency);
     thread::sleep(Duration::from_millis(200));
 
     let summary = h.handoff();
@@ -45,18 +46,18 @@ fn single_handoff_preserves_in_flight_requests() {
     thread::sleep(Duration::from_millis(200));
     let stats = traffic.stop();
     assert!(stats.acked > 0, "no requests acked: {stats:?}");
-    // graceful_shutdown closes keep-alive connections between requests, so a
-    // small handful of in-flight requests will see a connection-closed
-    // error and need to be retried by the client. Assert the failure rate
-    // stays small (well under 1%), not zero.
-    let total = stats.acked + stats.errors;
-    let rate = stats.errors as f64 / total as f64;
+    // graceful_shutdown closes idle keep-alive connections during the swap.
+    // Each concurrent client may see exactly one such connection-closed
+    // error on its next send; the actual ceiling is roughly `concurrency`,
+    // not a percentage of throughput (a low-rps run on a slow CI runner
+    // would otherwise look worse than a high-rps local run for the same
+    // absolute behaviour). +2 slack for keep-alive races.
+    let allowed_errors = (concurrency + 2) as u64;
     assert!(
-        rate < 0.01,
-        "handoff error rate too high: acked={} errors={} ({:.3}%)",
+        stats.errors <= allowed_errors,
+        "handoff error count too high: acked={} errors={} (allowed={allowed_errors}, concurrency={concurrency})",
         stats.acked,
         stats.errors,
-        rate * 100.0
     );
 }
 
@@ -130,7 +131,8 @@ fn db_backed_load_survives_handoff() {
     let mut h = AuthHarness::new();
     h.cold_start();
 
-    let traffic = LoginLoop::start(h.base_url(), 12);
+    let concurrency: usize = 12;
+    let traffic = LoginLoop::start(h.base_url(), concurrency);
     thread::sleep(Duration::from_secs(1));
 
     let summary = h.handoff();
@@ -148,14 +150,16 @@ fn db_backed_load_survives_handoff() {
         stats.acked > 50,
         "didn't generate enough load to be meaningful: {stats:?}"
     );
-    let total = stats.acked + stats.errors;
-    let rate = stats.errors as f64 / total as f64;
+    // Same rationale as single_handoff_preserves_in_flight_requests:
+    // graceful_shutdown closes idle keep-alive connections at swap time,
+    // so each concurrent client may see one connection-closed error. The
+    // ceiling tracks concurrency, not a percentage of throughput.
+    let allowed_errors = (concurrency + 4) as u64;
     assert!(
-        rate < 0.02,
-        "DB-backed handoff error rate too high: acked={} errors={} ({:.3}%)",
+        stats.errors <= allowed_errors,
+        "DB-backed handoff error count too high: acked={} errors={} (allowed={allowed_errors}, concurrency={concurrency})",
         stats.acked,
         stats.errors,
-        rate * 100.0
     );
 }
 
