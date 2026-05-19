@@ -3,7 +3,9 @@ description: |
   Install PG dev headers, build the pgrx extension .so, copy it into the
   postgres service container's pkglibdir. Caller must:
     1. Define a `services.postgres` block on the job.
-    2. Set env POSTGRES_CONTAINER = ${{ job.services.postgres.id }}.
+    2. Pass `postgres-container-id: ${{ job.services.postgres.id }}` —
+       job context isn't reliably available at job-level env, only at step
+       inputs/env.
     3. Have already run actions/checkout + setup-rust.
 inputs:
   pg-version:
@@ -18,6 +20,9 @@ inputs:
     required: true
   install-so-name:
     description: Filename the postgres extension expects in pkglibdir. May differ from built-so-name when cargo emits a lib- prefix.
+    required: true
+  postgres-container-id:
+    description: The job's postgres service container id, ${{ job.services.postgres.id }}.
     required: true
 runs:
   using: composite
@@ -46,8 +51,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        : "${POSTGRES_CONTAINER:?must be set to job.services.postgres.id}"
-        PGLIB=$(docker exec "$POSTGRES_CONTAINER" pg_config --pkglibdir)
+        PGLIB=$(docker exec "${{ inputs.postgres-container-id }}" pg_config --pkglibdir)
         docker cp \
           target/release/${{ inputs.built-so-name }} \
-          "${POSTGRES_CONTAINER}:${PGLIB}/${{ inputs.install-so-name }}"
+          "${{ inputs.postgres-container-id }}:${PGLIB}/${{ inputs.install-so-name }}"

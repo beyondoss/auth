@@ -50,8 +50,6 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
-    env:
-      POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust
@@ -62,6 +60,7 @@ jobs:
           extension-crate: beyond-auth-extension
           built-so-name: libbeyond_auth_extension.so
           install-so-name: beyond_auth_extension.so
+          postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run check:sqlx
   rust-test:
@@ -77,8 +76,6 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
-    env:
-      POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust
@@ -89,6 +86,7 @@ jobs:
           extension-crate: beyond-auth-extension
           built-so-name: libbeyond_auth_extension.so
           install-so-name: beyond_auth_extension.so
+          postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run test:unit:rs
       - run: mise run test:integration:rs
@@ -105,8 +103,6 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
-    env:
-      POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust
@@ -117,6 +113,7 @@ jobs:
           extension-crate: beyond-auth-extension
           built-so-name: libbeyond_auth_extension.so
           install-so-name: beyond_auth_extension.so
+          postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run test:integration:rs:handoff
   ts-test:
@@ -132,8 +129,6 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
-    env:
-      POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust
@@ -144,6 +139,7 @@ jobs:
           extension-crate: beyond-auth-extension
           built-so-name: libbeyond_auth_extension.so
           install-so-name: beyond_auth_extension.so
+          postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run check:ts
       - run: mise run build:ts
