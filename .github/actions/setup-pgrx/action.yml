@@ -2,10 +2,9 @@ name: setup-pgrx
 description: |
   Install PG dev headers, build the pgrx extension .so, copy it into the
   postgres service container's pkglibdir. Caller must:
-    1. Define a `services.postgres` block on the job.
-    2. Pass `postgres-container-id: ${{ job.services.postgres.id }}` —
-       job context isn't reliably available at job-level env, only at step
-       inputs/env.
+    1. Define a services.postgres block on the job.
+    2. Pass postgres-container-id from job.services.postgres.id (the
+       job context is not available in job-level env, only in step inputs).
     3. Have already run actions/checkout + setup-rust.
 inputs:
   pg-version:
@@ -22,7 +21,7 @@ inputs:
     description: Filename the postgres extension expects in pkglibdir. May differ from built-so-name when cargo emits a lib- prefix.
     required: true
   postgres-container-id:
-    description: The job's postgres service container id, ${{ job.services.postgres.id }}.
+    description: The job's postgres service container id (from job.services.postgres.id).
     required: true
 runs:
   using: composite
