@@ -68,7 +68,11 @@ run = "cargo sqlx prepare --check --workspace -- --tests --features test-server"
 [tasks."test:integration:ts"]
 run = "npm test"
 dir = "sdk/ts"
-depends = ["generate:types", "build:rs", "test:integration:rs"]
+# test:integration:rs is intentionally NOT a dep here: in CI it gets run
+# in its own job already, and re-running it as a dep here cost ~3–6m of
+# duplicate compile+test. Local devs who want defensive ordering can run
+# `mise run test:integration:rs && mise run test:integration:ts`.
+depends = ["generate:types", "build:rs"]
 
 [tasks."generate:openapi"]
 run = "cargo run -- generate-openapi"
