@@ -14,36 +14,36 @@
   ],
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.mts"
     },
     "./next": {
-      "import": "./dist/next/index.js",
-      "types": "./dist/next/index.d.ts"
+      "import": "./dist/next/index.mjs",
+      "types": "./dist/next/index.d.mts"
     },
     "./react": {
-      "import": "./dist/react/index.js",
-      "types": "./dist/react/index.d.ts"
+      "import": "./dist/react/index.mjs",
+      "types": "./dist/react/index.d.mts"
     },
     "./react/ui": {
-      "import": "./dist/react/ui.js",
-      "types": "./dist/react/ui.d.ts"
+      "import": "./dist/react/ui.mjs",
+      "types": "./dist/react/ui.d.mts"
     },
     "./server": {
-      "import": "./dist/server/index.js",
-      "types": "./dist/server/index.d.ts"
+      "import": "./dist/server/index.mjs",
+      "types": "./dist/server/index.d.mts"
     },
     "./hono": {
-      "import": "./dist/hono/index.js",
-      "types": "./dist/hono/index.d.ts"
+      "import": "./dist/hono/index.mjs",
+      "types": "./dist/hono/index.d.mts"
     },
     "./fastify": {
-      "import": "./dist/fastify/index.js",
-      "types": "./dist/fastify/index.d.ts"
+      "import": "./dist/fastify/index.mjs",
+      "types": "./dist/fastify/index.d.mts"
     },
     "./express": {
-      "import": "./dist/express/index.js",
-      "types": "./dist/express/index.d.ts"
+      "import": "./dist/express/index.mjs",
+      "types": "./dist/express/index.d.mts"
     }
   },
   "scripts": {
