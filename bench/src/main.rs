@@ -186,9 +186,9 @@ const CONTAINER_LIBDIR: &str = "/usr/lib/postgresql/18/lib";
 fn find_extension_so() -> Option<PathBuf> {
     let candidates: &[&str] = &[
         // ARM64 Linux GNU (M-series Mac → postgres:18 on ARM)
-        "target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
+        "target/aarch64-unknown-linux-gnu/release/libbeyond_auth.so",
         // x86_64 Linux GNU (Intel Mac → postgres:18 on x86)
-        "target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
+        "target/x86_64-unknown-linux-gnu/release/libbeyond_auth.so",
     ];
     candidates.iter().map(PathBuf::from).find(|p| p.exists())
 }
@@ -223,7 +223,7 @@ async fn run_set(
     ]);
     let pg = match so_path.as_deref() {
         Some(p) => pg.with_copy_to(
-            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth_extension.so"))
+            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth.so"))
                 .with_mode(0o755),
             Path::new(p),
         ),

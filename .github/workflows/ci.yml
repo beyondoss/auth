@@ -58,8 +58,8 @@ jobs:
       - uses: ./.github/actions/setup-pgrx
         with:
           extension-crate: beyond-auth-extension
-          built-so-name: libbeyond_auth_extension.so
-          install-so-name: beyond_auth_extension.so
+          built-so-name: libbeyond_auth.so
+          install-so-name: beyond_auth.so
           postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run check:sqlx
@@ -84,8 +84,8 @@ jobs:
       - uses: ./.github/actions/setup-pgrx
         with:
           extension-crate: beyond-auth-extension
-          built-so-name: libbeyond_auth_extension.so
-          install-so-name: beyond_auth_extension.so
+          built-so-name: libbeyond_auth.so
+          install-so-name: beyond_auth.so
           postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run test:unit:rs
@@ -111,8 +111,8 @@ jobs:
       - uses: ./.github/actions/setup-pgrx
         with:
           extension-crate: beyond-auth-extension
-          built-so-name: libbeyond_auth_extension.so
-          install-so-name: beyond_auth_extension.so
+          built-so-name: libbeyond_auth.so
+          install-so-name: beyond_auth.so
           postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run test:integration:rs:handoff
@@ -137,8 +137,8 @@ jobs:
       - uses: ./.github/actions/setup-pgrx
         with:
           extension-crate: beyond-auth-extension
-          built-so-name: libbeyond_auth_extension.so
-          install-so-name: beyond_auth_extension.so
+          built-so-name: libbeyond_auth.so
+          install-so-name: beyond_auth.so
           postgres-container-id: ${{ job.services.postgres.id }}
       - run: mise run migrate
       - run: mise run check:ts

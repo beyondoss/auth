@@ -105,7 +105,7 @@ run = "PGRX_PG_CONFIG_PATH=/opt/homebrew/opt/postgresql@17/bin/pg_config RUSTFLA
 
 # Build the beyond-auth-extension .so for linux/arm64 (postgres:18 on Apple Silicon).
 # Runs inside the postgres:18 Docker image (has pg_config + dev headers) to produce a native ARM64 ELF.
-# Output: target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so
+# Output: target/aarch64-unknown-linux-gnu/release/libbeyond_auth.so
 # Required before running `mise run bench` or `mise run sqlx:prepare` with extension enabled.
 [tasks."extension:build:linux:arm64"]
 run = """
@@ -119,8 +119,8 @@ docker run --rm --platform linux/arm64 \
     . "$HOME/.cargo/env" &&
     PGRX_PG_CONFIG_PATH=/usr/bin/pg_config cargo build --release --no-default-features --features pg18 -p beyond-auth-extension --manifest-path /src/beyond-auth-extension/Cargo.toml --target-dir /src/target 2>&1 &&
     mkdir -p /src/target/aarch64-unknown-linux-gnu/release &&
-    cp /src/target/release/libbeyond_auth_extension.so /src/target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so &&
-    echo "Built: /src/target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so"
+    cp /src/target/release/libbeyond_auth.so /src/target/aarch64-unknown-linux-gnu/release/libbeyond_auth.so &&
+    echo "Built: /src/target/aarch64-unknown-linux-gnu/release/libbeyond_auth.so"
   '
 """
 
@@ -129,7 +129,7 @@ docker run --rm --platform linux/arm64 \
 # stay fresh. `cross` was used here previously, but its x86_64-gnu base image is
 # Ubuntu Focal, which dropped off the pgdg apt repo, breaking the build on every
 # clean checkout.
-# Output: target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so
+# Output: target/x86_64-unknown-linux-gnu/release/libbeyond_auth.so
 [tasks."extension:build:linux:amd64"]
 run = """
 docker run --rm --platform linux/amd64 \
@@ -142,8 +142,8 @@ docker run --rm --platform linux/amd64 \
     . "$HOME/.cargo/env" &&
     PGRX_PG_CONFIG_PATH=/usr/bin/pg_config cargo build --release --no-default-features --features pg18 -p beyond-auth-extension --manifest-path /src/beyond-auth-extension/Cargo.toml --target-dir /src/target 2>&1 &&
     mkdir -p /src/target/x86_64-unknown-linux-gnu/release &&
-    cp /src/target/release/libbeyond_auth_extension.so /src/target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so &&
-    echo "Built: /src/target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so"
+    cp /src/target/release/libbeyond_auth.so /src/target/x86_64-unknown-linux-gnu/release/libbeyond_auth.so &&
+    echo "Built: /src/target/x86_64-unknown-linux-gnu/release/libbeyond_auth.so"
   '
 """
 

@@ -82,7 +82,7 @@ fn pg_env() -> &'static PgEnv {
                 let container = pg
                     .with_copy_to(
                         CopyTargetOptions::new(
-                            "/usr/lib/postgresql/18/lib/beyond_auth_extension.so",
+                            "/usr/lib/postgresql/18/lib/beyond_auth.so",
                         )
                         .with_mode(0o755),
                         so_path,
@@ -165,9 +165,9 @@ fn parse_port(url: &str) -> u16 {
 fn find_or_build_extension_so(manifest_dir: &Path, cross_so_prefix: &str) -> PathBuf {
     let candidates = [
         manifest_dir.join(format!(
-            "target/{cross_so_prefix}/release/libbeyond_auth_extension.so"
+            "target/{cross_so_prefix}/release/libbeyond_auth.so"
         )),
-        manifest_dir.join("target/release/libbeyond_auth_extension.so"),
+        manifest_dir.join("target/release/libbeyond_auth.so"),
     ];
     if let Some(p) = candidates.iter().find(|p| p.exists()) {
         return p.clone();

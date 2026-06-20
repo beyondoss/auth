@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
 
     let pg = Postgres::default().with_tag("18");
     let pg = pg.with_copy_to(
-        CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth_extension.so"))
+        CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth.so"))
             .with_mode(0o755),
         Path::new(&so_path),
     );
@@ -68,8 +68,8 @@ async fn main() -> anyhow::Result<()> {
 
 fn find_extension_so() -> Option<PathBuf> {
     let candidates: &[&str] = &[
-        "target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
-        "target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
+        "target/aarch64-unknown-linux-gnu/release/libbeyond_auth.so",
+        "target/x86_64-unknown-linux-gnu/release/libbeyond_auth.so",
     ];
     candidates.iter().map(PathBuf::from).find(|p| p.exists())
 }

@@ -55,12 +55,14 @@ CREATE INDEX authz_relations_subject_set_idx ON auth.authz_relations (
     subject_set_relation
 ) WHERE subject_set_type IS NOT NULL;
 
--- The authz_check* C functions are provided by the `beyond_auth` extension, which
--- ships in the postgres image (extensions.toml → 04-beyond-extensions.sh). Create
--- it here so this migration is self-sufficient on a plain Postgres; on the Beyond
--- platform the beyond-pg supervisor has already run CREATE EXTENSION at boot, so
--- this is a no-op. The COMMENTs below document the extension-provided functions.
-CREATE EXTENSION IF NOT EXISTS beyond_auth;
+CREATE FUNCTION auth.authz_check(
+    subject_id  text,
+    relation    text,
+    object_type text,
+    object_id   text
+) RETURNS boolean
+    LANGUAGE c STABLE STRICT
+    AS 'beyond_auth', 'authz_check_single_wrapper';
 
 COMMENT ON FUNCTION auth.authz_check(text, text, text, text) IS
 'Ask: does subject_id hold relation on (object_type, object_id)?
@@ -70,7 +72,15 @@ membership (e.g. user → team → org that holds the relation). Cycles are safe
 
 Use authz_check_parallel_batch when checking many tuples at once.';
 
--- auth.authz_check(text, text[], text, text) — provided by the beyond_auth extension.
+CREATE FUNCTION auth.authz_check(
+    subject_id  text,
+    relations   text[],
+    object_type text,
+    object_id   text
+) RETURNS boolean
+    LANGUAGE c STABLE STRICT
+    AS 'beyond_auth', 'authz_check_array_wrapper';
+
 COMMENT ON FUNCTION auth.authz_check(text, text[], text, text) IS
 'Ask: does subject_id hold any of the given relations on (object_type, object_id)?
 
@@ -172,7 +182,16 @@ document D links to —
   authz_check_path(U, ARRAY[''folder''], ARRAY[''document'',''folder''],
                    ARRAY[''owner'',''editor'',''viewer''], D)';
 
--- auth.authz_check_path_batch(...) — provided by the beyond_auth extension.
+CREATE FUNCTION auth.authz_check_path_batch(
+    subject_ids          text[],
+    relation_prefix      text[],
+    object_type_path     text[],
+    terminal_relations   text[],
+    object_ids           text[]
+) RETURNS boolean[]
+    LANGUAGE c STABLE STRICT
+    AS 'beyond_auth', 'authz_check_path_batch_wrapper';
+
 COMMENT ON FUNCTION auth.authz_check_path_batch(text[], text[], text[], text[], text[]) IS
 'Parallel hierarchy batch check.
 
@@ -185,7 +204,17 @@ total queries = hops + 1 regardless of N.
 
 Used by: POST /v1/authz/checks for MultiHop (hierarchy) permission checks.';
 
--- auth.authz_check_multi(...) — provided by the beyond_auth extension.
+CREATE FUNCTION auth.authz_check_multi(
+    subject_id         text,
+    direct_relations   text[],
+    relation_prefix    text[],
+    object_type_path   text[],
+    terminal_relations text[],
+    object_id          text
+) RETURNS boolean
+    LANGUAGE c STABLE STRICT
+    AS 'beyond_auth', 'authz_check_multi_wrapper';
+
 COMMENT ON FUNCTION auth.authz_check_multi(text, text[], text[], text[], text[], text) IS
 'Ask: does subject_id hold any of direct_relations on (object_type_path[1], object_id),
 or hold any of terminal_relations on an ancestor reached by following relation_prefix?
@@ -204,7 +233,15 @@ owner/editor/viewer directly on the document or inherited from its parent folder
     D
   )';
 
--- auth.authz_check_batch(...) — provided by the beyond_auth extension.
+CREATE FUNCTION auth.authz_check_batch(
+    subject_ids  text[],
+    relations    text[],
+    object_types text[],
+    object_ids   text[]
+) RETURNS boolean[]
+    LANGUAGE c STABLE STRICT
+    AS 'beyond_auth', 'authz_check_batch_wrapper';
+
 COMMENT ON FUNCTION auth.authz_check_batch(text[], text[], text[], text[]) IS
 'Bulk permission check — sequential. Accepts N parallel arrays (subject_ids,
 relations, object_types, object_ids) and returns a boolean[] in the same order.
@@ -212,7 +249,15 @@ relations, object_types, object_ids) and returns a boolean[] in the same order.
 For large batches, prefer authz_check_parallel_batch — it is significantly
 faster because it processes all checks at each graph depth in a single query.';
 
--- auth.authz_check_parallel_batch(...) — provided by the beyond_auth extension.
+CREATE FUNCTION auth.authz_check_parallel_batch(
+    subject_ids  text[],
+    relations    text[],
+    object_types text[],
+    object_ids   text[]
+) RETURNS boolean[]
+    LANGUAGE c STABLE STRICT
+    AS 'beyond_auth', 'authz_check_parallel_batch_wrapper';
+
 COMMENT ON FUNCTION auth.authz_check_parallel_batch(text[], text[], text[], text[]) IS
 'Bulk permission check — parallel. The preferred function for checking many
 tuples at once. Accepts N parallel arrays (subject_ids, relations, object_types,

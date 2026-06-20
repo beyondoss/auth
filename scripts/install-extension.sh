@@ -30,6 +30,6 @@ echo "Installing beyond-auth-extension v${VERSION} (linux/${ARCH}, pg${PG_VERSIO
 curl -fsSL "https://github.com/${REPO}/releases/download/${TAG}/beyond-auth-extension-v${VERSION}-pg${PG_VERSION}-linux-${ARCH}.tar.gz" \
   | tar -xz -C "${PGLIB}/"
 
-echo "Installed: ${PGLIB}/libbeyond_auth_extension.so"
+echo "Installed: ${PGLIB}/libbeyond_auth.so"
 echo ""
-echo "Next step: CREATE EXTENSION beyond_auth_extension;"
+echo "Next step: CREATE EXTENSION beyond_auth;"
