@@ -31,8 +31,16 @@ path = "src/lib.rs"
 
 [features]
 test-server = ["dep:libc"]
+# Build the (transitive, via webauthn-rs) OpenSSL from source instead of linking
+# system libssl. Required for cross/static builds where the multiarch OpenSSL
+# headers aren't on zig's include path (e.g. cargo-zigbuild to glibc 2.39 in the
+# homelab smoke). No-op for normal noble builds, which use system libssl.
+vendored-openssl = ["dep:openssl"]
 
 [dependencies]
+# Direct (optional) handle on the openssl crate webauthn-rs already pulls, so the
+# `vendored-openssl` feature can flip openssl-sys to its vendored build.
+openssl = { version = "0.10", features = ["vendored"], optional = true }
 aes-gcm = "0.10"
 anyhow = "1"
 argon2 = { version = "0.5", features = ["password-hash", "std"] }
