@@ -72,8 +72,11 @@ jobs:
             --pg-config "${PG_CONFIG}" \
             --no-default-features --features pg${{ matrix.pg }} \
             -p beyond-auth-extension
+          # pgrx names the package dir after the lib (`beyond_auth`), not the cargo
+          # package (`beyond-auth-extension`). Asset name keeps the
+          # `beyond-auth-extension` prefix that 04-beyond-extensions.sh expects.
           tar -czf beyond-auth-extension-v${VERSION}-pg${{ matrix.pg }}-linux-${{ matrix.arch }}.tar.gz \
-            -C target/release/beyond-auth-extension-pg${{ matrix.pg }} .
+            -C target/release/beyond_auth-pg${{ matrix.pg }} .
       - uses: actions/upload-artifact@v7
         with:
           name: extension-pg${{ matrix.pg }}-${{ matrix.arch }}

@@ -5,6 +5,17 @@ use pgrx::spi;
 
 pgrx::pg_module_magic!();
 
+// All authz_check functions live in the `auth` schema (see `#[pg_extern(schema =
+// "auth")]` below). Declaring the schema here makes pgrx emit `CREATE SCHEMA auth`
+// in the generated SQL, so the extension is installable standalone: `CREATE
+// EXTENSION beyond_auth` runs at Postgres boot (beyond-pg `post_start`) BEFORE the
+// beyond-auth service runs its migrations, so the schema cannot be assumed to
+// exist. The service's own migration uses `CREATE SCHEMA IF NOT EXISTS auth`, and
+// the extension is always created first (cold boot, before any client connects),
+// so the orderings don't collide.
+#[pg_schema]
+mod auth {}
+
 // A BFS frontier node: (object_type, object_id, relation).
 type Node = (String, String, String);
 

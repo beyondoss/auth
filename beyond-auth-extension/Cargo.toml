@@ -4,7 +4,12 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+# lib.name fixes the installed extension identity to the canonical `beyond_auth`
+# (control file `beyond_auth.control`, `beyond_auth.so`, `beyond_auth--<ver>.sql`)
+# that the beyond-pg supervisor expects (REQUIRED_EXTENSIONS / shared_preload).
+# The cargo package stays `beyond-auth-extension` (CI `-p`, asset prefix).
 [lib]
+name = "beyond_auth"
 crate-type = ["cdylib"]
 
 [features]
