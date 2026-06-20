@@ -81,10 +81,8 @@ fn pg_env() -> &'static PgEnv {
                     .with_platform(linux_platform);
                 let container = pg
                     .with_copy_to(
-                        CopyTargetOptions::new(
-                            "/usr/lib/postgresql/18/lib/beyond_auth.so",
-                        )
-                        .with_mode(0o755),
+                        CopyTargetOptions::new("/usr/lib/postgresql/18/lib/beyond_auth.so")
+                            .with_mode(0o755),
                         so_path,
                     )
                     .start()

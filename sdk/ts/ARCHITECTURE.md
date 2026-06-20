@@ -263,7 +263,7 @@ TypeScript is configured with `strict`, `noUncheckedIndexedAccess`, `exactOption
 
 Tests require a live auth service and Postgres. `vitest.config.ts` points `globalSetup` at `src/__tests__/global-setup.ts`, which:
 
-1. Starts a Postgres 18 testcontainer with the `beyond_auth_extension.so` C extension mounted
+1. Starts a Postgres 18 testcontainer with the `beyond_auth.so` C extension mounted
 2. Finds a free port and spawns the `beyond-auth` binary
 3. Polls `/healthz` until healthy (60s timeout)
 4. Enables JWT issuance via `PATCH /v1/admin/config`

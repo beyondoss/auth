@@ -38,9 +38,6 @@ test-server = ["dep:libc"]
 vendored-openssl = ["dep:openssl"]
 
 [dependencies]
-# Direct (optional) handle on the openssl crate webauthn-rs already pulls, so the
-# `vendored-openssl` feature can flip openssl-sys to its vendored build.
-openssl = { version = "0.10", features = ["vendored"], optional = true }
 aes-gcm = "0.10"
 anyhow = "1"
 argon2 = { version = "0.5", features = ["password-hash", "std"] }
@@ -58,6 +55,9 @@ hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
 # handoff test harness for fd-shuffling under `pre_exec`. Optional so
 # production builds (no `test-server`) don't pull it in.
 libc = { version = "0.2", optional = true }
+# Direct (optional) handle on the openssl crate webauthn-rs already pulls, so the
+# `vendored-openssl` feature can flip openssl-sys to its vendored build.
+openssl = { version = "0.10", features = ["vendored"], optional = true }
 opentelemetry = { version = "0.31", default-features = false, features = ["trace"] }
 opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }

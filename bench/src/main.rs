@@ -223,8 +223,7 @@ async fn run_set(
     ]);
     let pg = match so_path.as_deref() {
         Some(p) => pg.with_copy_to(
-            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth.so"))
-                .with_mode(0o755),
+            CopyTargetOptions::new(format!("{CONTAINER_LIBDIR}/beyond_auth.so")).with_mode(0o755),
             Path::new(p),
         ),
         None => pg,

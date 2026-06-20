@@ -62,9 +62,9 @@ export async function setup(): Promise<void> {
   // Mount the beyond-auth-extension .so — build it automatically if not present.
   const repoRoot = resolve(__dirname, "../../../..");
   const soCandidates = [
-    "target/aarch64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
-    "target/x86_64-unknown-linux-gnu/release/libbeyond_auth_extension.so",
-    "target/release/libbeyond_auth_extension.so",
+    "target/aarch64-unknown-linux-gnu/release/libbeyond_auth.so",
+    "target/x86_64-unknown-linux-gnu/release/libbeyond_auth.so",
+    "target/release/libbeyond_auth.so",
   ].map((p) => resolve(repoRoot, p));
 
   let soPath = soCandidates.find(existsSync);
@@ -89,7 +89,7 @@ export async function setup(): Promise<void> {
     .withCopyFilesToContainer([
       {
         source: soPath,
-        target: "/usr/lib/postgresql/18/lib/beyond_auth_extension.so",
+        target: "/usr/lib/postgresql/18/lib/beyond_auth.so",
         mode: 0o755,
       },
     ]);
