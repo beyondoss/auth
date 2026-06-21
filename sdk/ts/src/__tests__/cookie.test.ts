@@ -32,6 +32,14 @@ describe("sessionCookieAttrs", () => {
     const attrs = sessionCookieAttrs("tok");
     expect(attrs.maxAge).toBeUndefined();
   });
+
+  it("uses a plain, non-Secure cookie when secure: false (local HTTP dev)", () => {
+    const attrs = sessionCookieAttrs("tok_dev", { secure: false });
+    expect(attrs.name).toBe("session");
+    expect(attrs.secure).toBe(false);
+    expect(attrs.httpOnly).toBe(true);
+    expect(attrs.sameSite).toBe("lax");
+  });
 });
 
 describe("clearCookieAttrs", () => {
@@ -46,6 +54,13 @@ describe("clearCookieAttrs", () => {
     const attrs = clearCookieAttrs({ domain: "example.com" });
     expect(attrs.name).toBe("__Secure-session");
     expect(attrs.domain).toBe("example.com");
+    expect(attrs.maxAge).toBe(-1);
+  });
+
+  it("clears the plain cookie when secure: false", () => {
+    const attrs = clearCookieAttrs({ secure: false });
+    expect(attrs.name).toBe("session");
+    expect(attrs.secure).toBe(false);
     expect(attrs.maxAge).toBe(-1);
   });
 });
@@ -63,6 +78,16 @@ describe("getSessionToken", () => {
   it("reads __Secure-session cookie", () => {
     const r = req({ cookie: "__Secure-session=tok_456" });
     expect(getSessionToken(r)).toBe("tok_456");
+  });
+
+  it("reads the plain session cookie (local HTTP dev)", () => {
+    const r = req({ cookie: "session=tok_dev" });
+    expect(getSessionToken(r)).toBe("tok_dev");
+  });
+
+  it("prefers hardened cookies over the plain session cookie", () => {
+    const r = req({ cookie: "session=plain_tok; __Host-session=host_tok" });
+    expect(getSessionToken(r)).toBe("host_tok");
   });
 
   it("prefers cookie over Authorization header", () => {

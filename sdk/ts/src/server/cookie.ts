@@ -1,10 +1,13 @@
 /**
  * Server-only cookie helpers for Beyond Auth session tokens.
  *
- * Encodes cookie security best-practices so callers can't opt out:
- * - `HttpOnly`, `Secure`, `SameSite=lax`, `Path=/` on every cookie
- * - `__Host-` prefix when no `domain` is set (HTTPS + exact domain, no Domain attribute)
- * - `__Secure-` prefix when `domain` is set (HTTPS, allows cross-subdomain)
+ * Secure by default, with an escape hatch for local HTTP development:
+ * - `HttpOnly`, `SameSite=lax`, `Path=/` on every cookie
+ * - `Secure` + `__Host-` prefix when no `domain` is set (HTTPS, exact origin)
+ * - `Secure` + `__Secure-` prefix when `domain` is set (HTTPS, cross-subdomain)
+ * - `secure: false` → a plain `session` cookie (no prefix, not `Secure`) so the
+ *   session works over `http://localhost` in every browser (the `__Host-`/
+ *   `__Secure-` prefixes and `Secure` require HTTPS). Use only in development.
  * - `MaxAge: -1` to clear (correct — not just omitting the attribute)
  */
 
@@ -22,18 +25,25 @@ export interface CookieOptions {
    * make the cookie persistent.
    */
   maxAge?: number;
+  /**
+   * Whether to set a `Secure`, prefix-hardened cookie. Defaults to `true`.
+   * Set to `false` only for local HTTP development — `Secure` and the
+   * `__Host-`/`__Secure-` prefixes require HTTPS, so on `http://localhost`
+   * they are dropped by some browsers. A plain `session` cookie is used instead.
+   */
+  secure?: boolean;
 }
 
 /** Fully-resolved cookie attributes ready to pass to any framework. */
 export interface CookieAttrs {
-  /** Cookie name, including the security prefix. */
+  /** Cookie name, including the security prefix (or plain `session` when insecure). */
   name: string;
   /** Opaque session token value. */
   value: string;
   /** Always `true` — prevents JS access to the session token. */
   httpOnly: true;
-  /** Always `true` — cookie is only sent over HTTPS. */
-  secure: true;
+  /** `true` unless `secure: false` was passed (local HTTP dev). */
+  secure: boolean;
   /** Always `'lax'` — CSRF-safe while allowing top-level navigations. */
   sameSite: "lax";
   /** Always `'/'` — visible to all routes. */
@@ -44,8 +54,10 @@ export interface CookieAttrs {
 
 const HOST_COOKIE = "__Host-session";
 const SECURE_COOKIE = "__Secure-session";
+const PLAIN_COOKIE = "session";
 
-function cookieName(domain?: string): string {
+function cookieName(domain?: string, secure = true): string {
+  if (!secure) return PLAIN_COOKIE; // prefixes require Secure/HTTPS
   return domain !== undefined ? SECURE_COOKIE : HOST_COOKIE;
 }
 
@@ -71,11 +83,12 @@ export function sessionCookieAttrs(
   token: string,
   opts?: CookieOptions,
 ): CookieAttrs {
+  const secure = opts?.secure ?? true;
   const attrs: CookieAttrs = {
-    name: cookieName(opts?.domain),
+    name: cookieName(opts?.domain, secure),
     value: token,
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: "lax",
     path: "/",
   };
@@ -101,13 +114,14 @@ export function sessionCookieAttrs(
  * ```
  */
 export function clearCookieAttrs(
-  opts?: Pick<CookieOptions, "domain">,
+  opts?: Pick<CookieOptions, "domain" | "secure">,
 ): CookieAttrs {
+  const secure = opts?.secure ?? true;
   const attrs: CookieAttrs = {
-    name: cookieName(opts?.domain),
+    name: cookieName(opts?.domain, secure),
     value: "",
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: "lax",
     path: "/",
     maxAge: -1,
@@ -119,9 +133,9 @@ export function clearCookieAttrs(
 /**
  * Extracts the Beyond Auth session token from Node.js-style headers.
  *
- * Checks the `__Host-session` cookie first (preferred), then
- * `__Secure-session`, then falls back to the `Authorization: Bearer <token>`
- * header. Returns `null` when no token is present.
+ * Checks the `__Host-session` cookie first (preferred), then `__Secure-session`,
+ * then the plain `session` cookie (local HTTP dev), then falls back to the
+ * `Authorization: Bearer <token>` header. Returns `null` when no token is present.
  *
  * Use this with Fastify and Express where headers are `IncomingHttpHeaders`.
  * For Web API `Request` objects (Hono, Next.js), use {@link getSessionToken}.
@@ -139,6 +153,7 @@ export function getSessionTokenFromNodeHeaders(
   if (cookieHeader) {
     let hostValue: string | undefined;
     let secureValue: string | undefined;
+    let plainValue: string | undefined;
     for (const part of cookieHeader.split(";")) {
       const eq = part.indexOf("=");
       if (eq === -1) continue;
@@ -146,9 +161,12 @@ export function getSessionTokenFromNodeHeaders(
       const value = part.slice(eq + 1).trim();
       if (name === HOST_COOKIE && value) hostValue = value;
       else if (name === SECURE_COOKIE && value) secureValue = value;
+      else if (name === PLAIN_COOKIE && value) plainValue = value;
     }
+    // Prefer the hardened cookies; fall back to the plain dev cookie.
     if (hostValue) return hostValue;
     if (secureValue) return secureValue;
+    if (plainValue) return plainValue;
   }
 
   const authHeader = Array.isArray(headers.authorization)
@@ -166,9 +184,9 @@ export function getSessionTokenFromNodeHeaders(
 /**
  * Extracts the Beyond Auth session token from an incoming `Request`.
  *
- * Checks the `__Host-session` cookie first (preferred), then
- * `__Secure-session`, then falls back to the `Authorization: Bearer <token>`
- * header. Returns `null` when no token is present.
+ * Checks the `__Host-session` cookie first (preferred), then `__Secure-session`,
+ * then the plain `session` cookie (local HTTP dev), then falls back to the
+ * `Authorization: Bearer <token>` header. Returns `null` when no token is present.
  *
  * @param request - The incoming HTTP request (Web API `Request` or compatible).
  * @returns The raw session token string, or `null` if absent.
