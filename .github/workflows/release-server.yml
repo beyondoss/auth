@@ -61,7 +61,7 @@ jobs:
           # Retry the key fetch — a transient empty response makes gpg fail with
           # "no valid OpenPGP data found".
           curl -fsSL --retry 5 --retry-all-errors \
-            https://www.postgresql.org/media/keys/ACCC4cf8.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \
             | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
