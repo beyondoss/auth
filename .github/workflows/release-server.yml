@@ -18,7 +18,7 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
       - uses: Swatinem/rust-cache@v2
       - name: build
@@ -50,13 +50,18 @@ jobs:
             pg: 18
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
       - uses: Swatinem/rust-cache@v2
       - name: install postgres dev headers
         run: |
-          sudo apt-get install -y gnupg2 lsb-release libclang-dev clang
-          wget -qO- https://www.postgresql.org/media/keys/ACCC4cf8.asc \
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gnupg2 lsb-release libclang-dev clang curl
+          # Retry the key fetch — a transient empty response makes gpg fail with
+          # "no valid OpenPGP data found".
+          curl -fsSL --retry 5 --retry-all-errors \
+            https://www.postgresql.org/media/keys/ACCC4cf8.asc \
             | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
