@@ -99,9 +99,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Single glob: beyond-auth-*.tar.gz already matches both the binary and
+          # beyond-auth-extension-* tarballs. Listing both globs double-uploads the
+          # extension assets and fails with HTTP 422.
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            beyond-auth-*.tar.gz \
-            beyond-auth-extension-*.tar.gz
+            beyond-auth-*.tar.gz
