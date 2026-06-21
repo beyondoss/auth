@@ -73,6 +73,8 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#server/v}
           PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg }}/bin/pg_config
+          # pgrx needs PGRX_HOME initialized against this pg_config before package.
+          cargo pgrx init --pg${{ matrix.pg }} "${PG_CONFIG}"
           cargo pgrx package \
             --pg-config "${PG_CONFIG}" \
             --no-default-features --features pg${{ matrix.pg }} \
