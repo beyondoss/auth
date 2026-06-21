@@ -73,9 +73,9 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#server/v}
           PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg }}/bin/pg_config
-          # pgrx needs PGRX_HOME initialized against this pg_config before package.
-          cargo pgrx init --pg${{ matrix.pg }} "${PG_CONFIG}"
-          cargo pgrx package \
+          # Point pgrx at the system pg_config directly — no PGRX_HOME / init
+          # needed (mirrors the postgres repo's build-beyond-extensions.sh).
+          PGRX_PG_CONFIG_PATH="${PG_CONFIG}" cargo pgrx package \
             --pg-config "${PG_CONFIG}" \
             --no-default-features --features pg${{ matrix.pg }} \
             -p beyond-auth-extension
