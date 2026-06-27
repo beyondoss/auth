@@ -511,25 +511,6 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         .into_response()
 }
 
-/// Background task that refreshes the `auth_active_sessions_total` gauge every 60 s.
-/// Running this as a task keeps the DB query off the scrape hot path.
-pub async fn active_sessions_gauge(pool: sqlx::PgPool, metrics: Arc<Metrics>) {
-    let mut interval = tokio::time::interval(Duration::from_secs(60));
-    loop {
-        interval.tick().await;
-        if let Ok(Some(n)) = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM auth.sessions s
-         INNER JOIN auth.tokens t ON t.id = s.token_id
-         WHERE t.expires_at > now()"
-        )
-        .fetch_one(&pool)
-        .await
-        {
-            metrics.active_sessions_total.set(n as f64);
-        }
-    }
-}
-
 async fn shutdown_signal() {
     use tokio::signal;
 
