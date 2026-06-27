@@ -180,10 +180,6 @@ define_metrics! {
         gauge token_gc_last_run_timestamp_seconds("token_gc_last_run_timestamp_seconds")
             => "Unix timestamp of the last successful GC pass",
 
-        // Session count for capacity planning and anomaly detection.
-        gauge active_sessions_total("auth_active_sessions_total")
-            => "Current number of active (non-expired) sessions",
-
         // Signing key lifecycle events.
         counter signing_key_rotations_total("auth_signing_key_rotations_total")
             => "Signing keys generated (new active key created)",

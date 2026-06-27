@@ -282,10 +282,6 @@ async fn serve(cfg: ServeConfig, role: handoff::Role) -> Result<()> {
     };
 
     let gc_handle = tokio::spawn(token_gc::run(state.pool.clone(), state.metrics.clone()));
-    let sessions_handle = tokio::spawn(http::active_sessions_gauge(
-        state.pool.clone(),
-        state.metrics.clone(),
-    ));
 
     let tls = match (cfg.tls_cert, cfg.tls_key, cfg.tls_ca) {
         (Some(cert), Some(key), Some(ca)) => Some((cert, key, ca)),
@@ -364,9 +360,7 @@ async fn serve(cfg: ServeConfig, role: handoff::Role) -> Result<()> {
 
     let result = http::serve(listener, tls, state, shared, handoff_shutdown).await;
     gc_handle.abort();
-    sessions_handle.abort();
     let _ = gc_handle.await; // JoinError here means cancelled (expected) or panicked (already exiting)
-    let _ = sessions_handle.await;
     // The handoff thread either exited cleanly on commit (we already saw
     // handoff_shutdown=true) or it is still parked in accept() on the
     // control socket. We're going down anyway; don't wait.
